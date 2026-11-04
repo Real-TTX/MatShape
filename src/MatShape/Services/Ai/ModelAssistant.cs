@@ -234,6 +234,8 @@ public static class ModelAssistant
             circle {"id","t":"circle","c":[u,v],"r":r}, arc {"id","t":"arc","c":[u,v],"r":r,"a0":rad,"a1":rad} (counter-clockwise from a0 to a1, radians),
             polygon {"id","t":"polygon","c":[u,v],"r":circumradius,"n":sides,"rot":degrees}, point {"id","t":"point","p":[u,v]}. Add "cons": true for construction geometry (not part of profiles).
             Closed profiles: every circle, rect and polygon, and every closed chain of lines/arcs whose ends meet exactly. Nested profiles become holes. Sketch entities take numbers, not expressions.
+            Optional "dims": dimensions that drive the sketch and take expressions: {"id","kind":"length","ref":"<line id>","value":"#width"}, kinds length (line), diameter (circle),
+            radius (arc, polygon), width / height (rect), or {"id","kind":"distance","p1":{"id":"<entity>","at":"a|b|p|c"},"p2":{...},"value":"20"} between two points (a/b ends of a line, p a point, c a centre).
         - plane:     {"base": <plane ref>, "offset": "20", "flip": false}   a plane parallel to base, moved along its normal.
         - extrude:   {"sketch": "<sketch id>", "profiles": null, "depth": "10", "end": "blind|symmetric|through", "flip": false, "op": "new|add|remove|intersect", "scope": null}
                      Along the normal of the sketch plane (flip = the other way). op: new makes parts; add joins the parts it touches; remove cuts (use "through" for through-holes);

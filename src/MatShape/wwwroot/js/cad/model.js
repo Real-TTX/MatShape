@@ -3,7 +3,7 @@
    A feature that fails gets an error and is left out; the ones after it still run (they may fail too when they needed it). */
 
 import { evalAngle, evalLength, evalNumber, evalVariable, errorKey, ExprError, isVariableName } from './expr.js';
-import { AXES, STANDARD_PLANES, frameMatrix, mirrorMatrix, rotationMatrix, sketchLoops, v3, offsetFrame } from './geom.js';
+import { AXES, STANDARD_PLANES, applyDimensions, frameMatrix, mirrorMatrix, rotationMatrix, sketchLoops, v3, offsetFrame } from './geom.js';
 import { UNITS } from './util.js';
 
 let kernelPromise = null;
@@ -164,7 +164,14 @@ export function regenerate(kernel, content, units = 'mm') {
   const run = {
     sketch(f) {
       const frame = plane(f.params.plane);
-      const entities = f.params.entities || [];
+      // the dimensions drive the geometry: their values are expressions (variables before the sketch count)
+      const applied = applyDimensions(f.params.entities || [], f.params.dims || [], text => len(text));
+      if (applied.errors.length) {
+        const first = applied.errors[0].error;
+        if (first instanceof FeatureError) throw first;
+        throw new FeatureError('Feature.Dimension');
+      }
+      const entities = applied.entities;
       ctx.sketches.set(f.id, { frame, entities, loops: sketchLoops(entities) });
     },
 

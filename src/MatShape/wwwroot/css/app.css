@@ -120,3 +120,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .ms-details .ms-pre { margin-top: var(--mat-space-2); padding: var(--mat-space-3); border-radius: var(--mat-radius-sm); background: var(--mat-surface-2); }
 .ms-code-big { font-size: var(--mat-fs-lg); letter-spacing: .08em; }
 .ms-chatgpt { margin-top: var(--mat-gap); }
+/* ---- the keyboard shortcuts ------------------------------------------------------------------------------------------- */
+.ms-keys h3 { margin: var(--mat-space-3) 0 var(--mat-space-1); font-size: var(--mat-fs-sm); color: var(--mat-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.ms-keys h3:first-child { margin-top: 0; }
+.ms-keys__list { display: grid; grid-template-columns: max-content 1fr; gap: 4px var(--mat-space-4); margin: 0; font-size: var(--mat-fs-sm); }
+.ms-keys__list dt { display: flex; flex-wrap: wrap; gap: 4px; }
+.ms-keys__list dd { margin: 0; }
+.ms-keys kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px solid var(--mat-border-strong); border-bottom-width: 2px; border-radius: var(--mat-radius-xs); background: var(--mat-surface-2); font-family: var(--mat-mono); font-size: var(--mat-fs-xs); text-align: center; }

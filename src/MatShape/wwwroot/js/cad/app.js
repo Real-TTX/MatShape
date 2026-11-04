@@ -9,7 +9,7 @@ import { Assistant } from './assistant.js';
 import { loadKernel, regenerate, dispose, FEATURES, properties } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { Sketcher } from './sketcher.js';
-import { toObj, toStl } from './export.js';
+import { toObj, toStl, toThreeMf } from './export.js';
 import { STANDARD_PLANES, frameFromNormal, v3 } from './geom.js';
 import { clone, debounce, download, el, fileName, fmt, icon, length, request, swatch, t, toast, uid, UNITS } from './util.js';
 
@@ -103,7 +103,7 @@ function start() {
     fit: () => viewport.fit(true),
     busy: on => root.classList.toggle('is-ai-busy', on),
   }) : null;
-  const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
+  const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), summary: $('[data-sketch-summary]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
     status: text => setStatus(text),
     hud: text => showHud(text),
   });
@@ -204,6 +204,8 @@ function start() {
       $('[data-empty-text]').textContent = t(canEdit() ? 'Studio.Empty.Text' : 'Studio.Empty.ViewText');
     }
     setStatus(t('Studio.Regenerated', fmt(performance.now() - started, 0)));
+    // the numbers of a part shown before may be old now
+    if (state.mode !== 'measure') ui.measure.hidden = true;
     // the first part of a Part Studio: show it whole
     if (!hadParts && next.parts.length && state.mode !== 'sketch') setTimeout(() => viewport.fit(true), 320);
   }
@@ -554,7 +556,13 @@ function start() {
     for (const part of parts) {
       const hidden = state.hidden.has(part.id);
       const row = el('li', { class: 'ms-parts__item' + (state.selection.has(part.id) ? ' is-selected' : '') + (hidden ? ' is-hidden' : ''), 'data-part': part.id, tabindex: '0' });
-      row.append(swatch(part.color, 'ms-swatch'));
+      // the colour square: a click colours the part (editors), like "Appearance" in OnShape
+      const dot = swatch(part.color, 'ms-swatch');
+      if (canEdit()) {
+        const paint = el('button', { type: 'button', class: 'ms-swatch-btn', 'aria-label': t('Part.Color') + ': ' + partName(part), 'data-tip': t('Part.Color') }, dot);
+        paint.addEventListener('click', ev => { ev.stopPropagation(); pickColor(part); });
+        row.append(paint);
+      } else row.append(dot);
       row.append(el('span', { class: 'ms-parts__name' }, partName(part)));
       const eye = el('button', { type: 'button', class: 'ms-tree__btn', 'aria-label': t(hidden ? 'Part.Show' : 'Part.Hide'), 'data-tip': t(hidden ? 'Part.Show' : 'Part.Hide') }, icon(hidden ? 'eye-off' : 'eye'));
       eye.addEventListener('click', ev => { ev.stopPropagation(); toggleHidden(part.id); });
@@ -570,6 +578,13 @@ function start() {
     ui.partCount.textContent = String(parts.length);
   }
 
+
+  /** The colour of a part (the colour picker of the browser): saved with the Part Studio, exported with 3MF. */
+  function pickColor(part) {
+    colorInput.value = part.color;
+    colorInput.onchange = () => change(c => { c.parts[part.id] = { ...(c.parts[part.id] || {}), color: colorInput.value }; });
+    colorInput.click();
+  }
   function selectPart(id, add) {
     if (state.mode === 'dialog' && state.dialog.activeParts) { state.dialog.activeParts.toggle(id); return; }
     if (!add) state.selection = new Set(state.selection.has(id) && state.selection.size === 1 ? [] : [id]);
@@ -595,9 +610,7 @@ function start() {
       const name = await window.MatUi.prompt(t('Part.RenameLabel'), { title: t('Part.Rename'), value: partName(part) });
       if (name && name.trim()) change(c => { c.parts[part.id] = { ...(c.parts[part.id] || {}), name: name.trim().slice(0, 120) }; });
     } else if (action === 'color') {
-      colorInput.value = part.color;
-      colorInput.onchange = () => change(c => { c.parts[part.id] = { ...(c.parts[part.id] || {}), color: colorInput.value }; });
-      colorInput.click();
+      pickColor(part);
     } else if (action === 'properties') {
       showPartInfo(part, true);
     } else if (action === 'isolate') {
@@ -803,7 +816,7 @@ function start() {
     ui.empty.hidden = true;
     showHud('');
     regen(withDialogFeature());
-    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, units: state.doc.units, variables: input.variables });
+    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, dims: feature.params.dims, units: state.doc.units, variables: input.variables });
     updateUndo();
   }
 
@@ -811,6 +824,7 @@ function start() {
     if (state.mode !== 'sketch') return;
     const d = state.dialog;
     d.feature.params.entities = sketcher.entities;
+    if (sketcher.dims.length) d.feature.params.dims = sketcher.dims; else delete d.feature.params.dims;
     const before = JSON.stringify(state.content);
     const content = normalize(withDialogFeature());
     closeSketch();
@@ -853,6 +867,8 @@ function start() {
     else if (name === 'delete') sketcher.deleteSelected();
     else if (name === 'construction') sketcher.toggleConstruction();
     else if (name === 'normal') viewport.normalTo(sketcher.frame);
+    else if (name === 'horizontal') sketcher.align(true);
+    else if (name === 'vertical') sketcher.align(false);
   });
 
   // ---- the view: clicks and hover ------------------------------------------------------------------------------------------
@@ -1056,6 +1072,7 @@ function start() {
     if (!parts.length) { toast(t('Export.Empty'), 'warning'); return; }
     if (kind === 'stl') download(fileName(name, 'stl'), toStl(parts, name));
     else if (kind === 'obj') download(fileName(name, 'obj'), toObj(parts, parts.map(partName)));
+    else if (kind === '3mf') download(fileName(name, '3mf'), toThreeMf(parts, parts.map(partName), name));
   }
 
   // ---- menus ---------------------------------------------------------------------------------------------------------------
@@ -1095,9 +1112,10 @@ function start() {
     else if (action === 'add-studio') addStudio();
     else if (action === 'reload') load();
     else if (action === 'display') cycleDisplay(e.target.closest('button'));
-    else if (action === 'planes') { state.planes = !state.planes; e.target.closest('button').setAttribute('aria-pressed', String(state.planes)); viewport.setPlanes(state.result?.planes, state.planes); }
+    else if (action === 'planes') togglePlanes();
     else if (action === 'side') toggleSide();
     else if (action === 'ai') assistant?.open();
+    else if (action === 'keys') openKeys();
   });
   // the export menu lives outside the root
   document.getElementById('ms-export-menu')?.addEventListener('click', e => {
@@ -1121,12 +1139,18 @@ function start() {
   }
   if (window.matchMedia('(max-width: 720px)').matches) toggleSide(false);
 
+  // ---- keyboard: the shortcuts of OnShape (the list: Services/KeyMap.cs, the dialog "?") -----------------------------------
+  const NAMED_VIEWS = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
+  const SKETCH_TOOLS = { l: 'line', g: 'rect', c: 'circle', a: 'arc', d: 'dimension' };
+  const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
   document.addEventListener('keydown', e => {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
     if (document.querySelector('dialog[open]')) return;
     const ctrl = e.ctrlKey || e.metaKey;
-    if (ctrl && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
-    if (ctrl && e.key.toLowerCase() === 'y' && !typing) { e.preventDefault(); redo(); return; }
+    const key = e.key.toLowerCase();
+    if (ctrl && key === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (ctrl && key === 'y' && !typing) { e.preventDefault(); redo(); return; }
     if (typing) return;
     if (e.key === 'Escape') {
       if (state.mode === 'sketch') sketcher.escape();
@@ -1134,25 +1158,84 @@ function start() {
       else closeModes();
       return;
     }
+    if (e.key === '?') { e.preventDefault(); openKeys(); return; }
+
+    // the view: Shift+1 … 7 the named views, arrows turn by 15° (with Shift by 90°), Alt+← → rolls
+    if (e.shiftKey && !ctrl && !e.altKey && NAMED_VIEWS[e.code]) { e.preventDefault(); viewport.setView(NAMED_VIEWS[e.code]); return; }
+    if (ARROWS[e.key] && !ctrl) {
+      e.preventDefault();
+      const [x, y] = ARROWS[e.key];
+      if (e.altKey) { if (x) viewport.roll(-x * 15); return; }
+      const step = e.shiftKey ? 90 : 15;
+      viewport.turn(x * step, y * step);
+      return;
+    }
+
     if (state.mode === 'sketch') {
-      const keys = { l: 'line', g: 'rect', c: 'circle', a: 'arc' };
-      if (keys[e.key.toLowerCase()] && !ctrl) { sketcher.setTool(keys[e.key.toLowerCase()]); return; }
+      if (ctrl && key === 'a') { e.preventDefault(); sketcher.selectAll(); return; }
+      if (ctrl) return;
+      if (SKETCH_TOOLS[key] && !e.shiftKey) { sketcher.setTool(SKETCH_TOOLS[key]); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { sketcher.deleteSelected(); return; }
-      if (e.key.toLowerCase() === 'q') { sketcher.toggleConstruction(); return; }
-      if (e.key.toLowerCase() === 'n') { viewport.normalTo(sketcher.frame); return; }
+      if (key === 'q') { sketcher.toggleConstruction(); return; }
+      if (key === 'h') { sketcher.align(true); return; }
+      if (key === 'v') { sketcher.align(false); return; }
+      if (key === 'n') { viewport.normalTo(sketcher.frame); return; }
       if (e.key === 'Enter') { finishSketch(); return; }
     }
     if (state.mode === 'dialog' && e.key === 'Enter') { acceptDialog(); return; }
-    if (e.key.toLowerCase() === 'f' && !ctrl) viewport.fit();
-    else if (e.key.toLowerCase() === 'i' && !ctrl) viewport.setView('iso');
-    else if (e.key.toLowerCase() === 'm' && !ctrl && state.mode !== 'sketch') toggleMeasure();
-    else if (e.shiftKey && e.key.toLowerCase() === 's') newFeature('sketch');
-    else if (e.shiftKey && e.key.toLowerCase() === 'e') newFeature('extrude');
-    else if (e.shiftKey && e.key.toLowerCase() === 'w') newFeature('revolve');
+    if (ctrl || e.altKey) return;
+    if (key === 'f' && !e.shiftKey) viewport.fit();
+    else if (key === 'p' && !e.shiftKey) togglePlanes();
+    else if (key === 'm' && !e.shiftKey && state.mode !== 'sketch') toggleMeasure();
+    else if (e.shiftKey && key === 's') newFeature('sketch');
+    else if (e.shiftKey && key === 'e') newFeature('extrude');
+    else if (e.shiftKey && key === 'w') newFeature('revolve');
+  });
+
+  function openKeys() { window.MatUi?.dialog?.open('ms-keys'); }
+
+  function togglePlanes() {
+    state.planes = !state.planes;
+    root.querySelector('[data-action="planes"]')?.setAttribute('aria-pressed', String(state.planes));
+    viewport.setPlanes(state.result?.planes, state.planes);
+  }
+
+
+  // ---- the colour scheme of the view (kept on this device) -----------------------------------------------------------------
+  function applyViewTheme(name) {
+    viewport.setTheme(name);
+    document.querySelectorAll('#ms-theme-menu [data-view-theme]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.viewTheme === viewport.themeName)));
+    if (!state.result) return;
+    if (state.mode === 'sketch') { regen(withDialogFeature()); sketcher.draw(); }
+    else if (state.mode === 'dialog') preview();
+    else regen();
+  }
+  applyViewTheme(readLocal('viewTheme') || 'auto');
+  document.getElementById('ms-theme-menu')?.addEventListener('click', e => {
+    const item = e.target.closest('[data-view-theme]');
+    if (!item) return;
+    writeLocal('viewTheme', item.dataset.viewTheme);
+    applyViewTheme(item.dataset.viewTheme);
+  });
+  // ---- folding a dialog away (the sketch panel and the feature dialog), remembered on this device --------------------------
+  function fold(section, folded) {
+    section.classList.toggle('is-folded', folded);
+    const button = section.querySelector('[data-fold]');
+    button?.setAttribute('aria-expanded', String(!folded));
+    button?.querySelector('use')?.setAttribute('href', '#mat-i-' + (folded ? 'chevron-down' : 'chevron-up'));
+  }
+  root.querySelectorAll('[data-collapsible]').forEach(section => {
+    const name = section.hasAttribute('data-sketch-panel') ? 'sketch' : 'dialog';
+    fold(section, readLocal('fold.' + name) === true);
+    section.querySelector('[data-fold]')?.addEventListener('click', () => {
+      const folded = !section.classList.contains('is-folded');
+      fold(section, folded);
+      writeLocal('fold.' + name, folded);
+    });
   });
 
   // the theme changes the colours of the edges
-  new MutationObserver(() => { viewport.applyDisplay(); viewport.updatePlanes(); viewCube.build(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  new MutationObserver(() => { applyViewTheme(viewport.themeName); viewCube.build(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => viewport.applyDisplay());
 
   window.addEventListener('beforeunload', e => {

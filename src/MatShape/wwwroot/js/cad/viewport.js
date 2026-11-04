@@ -1,15 +1,39 @@
 /* MatShape – the 3D view: an orthographic camera that turns about the model (Z up), the parts with their edges, the planes, the sketches, picking and highlighting.
    It draws only when something changed. Mouse: left drag on empty space or right drag turns, middle drag or Shift + drag pans, the wheel zooms to the pointer.
-   Touch: one finger turns, two fingers pan and pinch. */
+   Touch: one finger turns, two fingers pan and pinch. The colours and line widths come from the view theme (setTheme). */
 
 import * as THREE from '/lib/three/three.module.js';
+import { LineSegments2 } from '/lib/three/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from '/lib/three/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from '/lib/three/lines/LineMaterial.js';
 import { STANDARD_PLANES, entityPolyline, toWorld } from './geom.js';
 
-const PLANE_COLOR = 0x3cb764;
-const SKETCH_COLOR = 0x2563eb;
-const CONSTRUCTION_COLOR = 0x8a8f98;
-const SELECT_COLOR = 0xf59e0b;
-const HOVER_COLOR = 0x60a5fa;
+// ---- the colour schemes of the view (themes). Lines have real widths in pixels (WebGL alone draws 1 px). "auto" follows light and dark mode of the app.
+const AUTO_LIGHT = { background: null, edge: 0x1f2937, edgeOpacity: 0.9, edgeWidth: 1.6, sketch: 0x1d4ed8, sketchWidth: 2.2, cons: 0x6b7280, grid: 0x6b7280, gridOpacity: 0.16, axis: 0x4b5563, plane: 0x3cb764, select: 0xf59e0b, hover: 0x3b82f6 };
+const AUTO_DARK = { background: null, edge: 0xe5e7eb, edgeOpacity: 0.95, edgeWidth: 1.6, sketch: 0x60a5fa, sketchWidth: 2.2, cons: 0x9ca3af, grid: 0x9ca3af, gridOpacity: 0.16, axis: 0x9ca3af, plane: 0x3cb764, select: 0xfbbf24, hover: 0x93c5fd };
+const THEMES = {
+  contrast: { background: '#ffffff', edge: 0x000000, edgeOpacity: 1, edgeWidth: 2.4, sketch: 0x0030c8, sketchWidth: 2.8, cons: 0x374151, grid: 0x111827, gridOpacity: 0.22, axis: 0x111827, plane: 0x15803d, select: 0xd97706, hover: 0x2563eb },
+  dark: { background: 'linear-gradient(180deg, #2c313a 0%, #121418 100%)', edge: 0xf9fafb, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0x7dd3fc, sketchWidth: 2.5, cons: 0xa1a1aa, grid: 0xe5e7eb, gridOpacity: 0.14, axis: 0xd1d5db, plane: 0x4ade80, select: 0xfbbf24, hover: 0x93c5fd },
+  blueprint: { background: 'linear-gradient(180deg, #1e4f93 0%, #0b2a57 100%)', edge: 0xffffff, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0xffd166, sketchWidth: 2.6, cons: 0xbfdbfe, grid: 0xffffff, gridOpacity: 0.13, axis: 0xdbeafe, plane: 0x93c5fd, select: 0xfb923c, hover: 0xfde68a },
+};
+export const VIEW_THEMES = ['auto', 'contrast', 'dark', 'blueprint'];
+let themeName = 'auto';
+let palette = AUTO_LIGHT;
+const resolution = new THREE.Vector2(1, 1);
+
+function refreshPalette() { palette = themeName === 'auto' || !THEMES[themeName] ? (isDark() ? AUTO_DARK : AUTO_LIGHT) : THEMES[themeName]; }
+
+/** Line segments with a width in pixels: points is a list of [x, y, z], two per segment. */
+function fatLines(points, color, width, options = {}) {
+  const flat = new Float32Array(points.length * 3);
+  points.forEach((p, i) => flat.set(p, i * 3));
+  const geometry = new LineSegmentsGeometry().setPositions(flat);
+  const material = new LineMaterial({ color, linewidth: width, transparent: options.opacity !== undefined && options.opacity < 1, opacity: options.opacity ?? 1, depthTest: options.depthTest ?? true });
+  material.resolution.copy(resolution);
+  const lines = new LineSegments2(geometry, material);
+  lines.renderOrder = options.renderOrder ?? 0;
+  return lines;
+}
 
 export class Viewport {
   constructor(canvas, triad) {
@@ -65,6 +89,9 @@ export class Viewport {
     this.width = Math.max(1, box.width);
     this.height = Math.max(1, box.height);
     this.renderer.setSize(this.width, this.height, false);
+    // lines with a width in pixels need the size of the view
+    resolution.set(this.width, this.height);
+    this.scene.traverse(o => { if (o.material?.isLineMaterial) o.material.resolution.copy(resolution); });
     this.updateCamera();
   }
 
@@ -344,7 +371,12 @@ export class Viewport {
       const material = new THREE.MeshStandardMaterial({ color: new THREE.Color(part.color), roughness: 0.55, metalness: 0.08, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.part = part;
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 25), new THREE.LineBasicMaterial({ color: 0x1f2937, transparent: true, opacity: 0.75 }));
+      const edgeGeometry = new THREE.EdgesGeometry(geometry, 25);
+      const edgePoints = [];
+      const ep = edgeGeometry.attributes.position.array;
+      for (let i = 0; i < ep.length; i += 3) edgePoints.push([ep[i], ep[i + 1], ep[i + 2]]);
+      edgeGeometry.dispose();
+      const edges = fatLines(edgePoints, palette.edge, palette.edgeWidth, { opacity: palette.edgeOpacity });
       edges.userData.part = part;
       this.partsGroup.add(mesh, edges);
       this.partObjects.set(part.id, { mesh, edges, part });
@@ -370,15 +402,30 @@ export class Viewport {
     this.applyDisplay();
   }
 
+  /** The colour scheme of the view (auto, contrast, dark, blueprint): the background, the colours and widths of the lines. The caller draws the sketches again. */
+  setTheme(name) {
+    themeName = VIEW_THEMES.includes(name) ? name : 'auto';
+    refreshPalette();
+    this.canvas.parentElement.style.background = palette.background || '';
+    this.canvas.parentElement.dataset.viewTheme = themeName;
+    this.applyDisplay();
+    this.updatePlanes();
+  }
+
+  get themeName() { return themeName; }
+
   applyDisplay() {
-    const dark = isDark();
+    refreshPalette();
     for (const o of this.partObjects.values()) {
       const visible = o.mesh.visible || o.edges.visible;
       o.mesh.material.wireframe = false;
       o.mesh.material.transparent = this.display === 'wireframe';
       o.mesh.material.opacity = this.display === 'wireframe' ? 0.08 : 1;
       o.mesh.material.depthWrite = this.display !== 'wireframe';
-      o.edges.material.color.set(dark ? 0xe5e7eb : 0x1f2937);
+      o.edges.material.color.set(palette.edge);
+      o.edges.material.linewidth = palette.edgeWidth;
+      o.edges.material.opacity = palette.edgeOpacity;
+      o.edges.material.transparent = palette.edgeOpacity < 1;
       o.edges.visible = visible && this.display !== 'shaded-plain';
       o.mesh.visible = visible;
     }
@@ -393,7 +440,7 @@ export class Viewport {
   applySelection() {
     for (const [id, o] of this.partObjects) {
       const on = this.selected.has(id);
-      o.mesh.material.emissive.set(on ? SELECT_COLOR : 0x000000);
+      o.mesh.material.emissive.set(on ? palette.select : 0x000000);
       o.mesh.material.emissiveIntensity = on ? 0.35 : 0;
     }
     this.invalidate();
@@ -413,7 +460,7 @@ export class Viewport {
     for (let t = 0; t < ids.length; t++) if (ids[t] === pick.faceId) for (let k = 0; k < 9; k++) out.push(src[t * 9 + k]);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
-    this.hoverFace = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: HOVER_COLOR, transparent: true, opacity: 0.45, depthTest: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide }));
+    this.hoverFace = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: palette.hover, transparent: true, opacity: 0.45, depthTest: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide }));
     this.overlayGroup.add(this.hoverFace);
     this.invalidate();
   }
@@ -471,7 +518,7 @@ export class Viewport {
   setSketches(sketches) {
     this.sketchGroup.children.forEach(disposeObject);
     this.sketchGroup.clear();
-    for (const s of sketches) this.sketchGroup.add(sketchObject(s.frame, s.entities, { color: SKETCH_COLOR }));
+    for (const s of sketches) this.sketchGroup.add(sketchObject(s.frame, s.entities, { color: palette.sketch }));
     this.invalidate();
   }
 
@@ -484,8 +531,8 @@ export class Viewport {
     // the grid of the sketch
     group.add(gridObject(f, state.grid, state.gridExtent));
     for (const loop of state.loops || []) group.add(fillObject(f, loop.points, state.selectedProfiles?.includes(loop.key)));
-    group.add(sketchObject(f, state.entities, { color: SKETCH_COLOR, selected: state.selected, hover: state.hover, points: true }));
-    if (state.preview?.length) group.add(sketchObject(f, state.preview, { color: SELECT_COLOR, points: true }));
+    group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, points: true }));
+    if (state.preview?.length) group.add(sketchObject(f, state.preview, { color: palette.select, points: true }));
     if (state.snap) group.add(markerObject(toWorld(f, state.snap[0], state.snap[1]), 0xef4444));
     group.renderOrder = 5;
     this.sketchOverlay = group;
@@ -514,10 +561,33 @@ export class Viewport {
 
   // ---- drawing -------------------------------------------------------------------------------------------------------------
 
+  /** Where a point of the world is on the screen, in pixels from the top left of the view. */
+  project(p) {
+    const v = new THREE.Vector3(...p).project(this.camera);
+    return { x: (v.x + 1) / 2 * this.width, y: (1 - v.y) / 2 * this.height };
+  }
+
   render() {
     this.renderer.render(this.scene, this.camera);
     this.drawTriad();
     this.onRender?.();
+    this.emit('render');
+  }
+
+  /** The arrow keys (like OnShape): turns the model about the vertical of the world (yaw) or the horizontal of the screen (pitch), in degrees, animated. */
+  turn(yaw, pitch) {
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const target = new THREE.Quaternion().setFromAxisAngle(right, -pitch * Math.PI / 180)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -yaw * Math.PI / 180))
+      .multiply(this.camera.quaternion);
+    const from = this.camera.quaternion.clone(), start = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - start) / 160);
+      this.camera.quaternion.slerpQuaternions(from, target, k);
+      this.updateCamera();
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   /** Turns the view about the direction one looks in (degrees; positive = counter-clockwise on the screen). */
@@ -645,10 +715,10 @@ function planeObject(key, frame, size, highlight) {
   const h = size / 2;
   const corners = [[-h, -h], [h, -h], [h, h], [-h, h]].map(([u, v]) => new THREE.Vector3(...toWorld(frame, u, v)));
   const g = new THREE.BufferGeometry().setFromPoints([corners[0], corners[1], corners[2], corners[0], corners[2], corners[3]]);
-  const fill = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: PLANE_COLOR, transparent: true, opacity: highlight ? 0.28 : 0.07, side: THREE.DoubleSide, depthWrite: false }));
+  const fill = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: palette.plane, transparent: true, opacity: highlight ? 0.28 : 0.07, side: THREE.DoubleSide, depthWrite: false }));
   fill.userData = { key, frame };
   fill.renderOrder = 1;
-  const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(corners), new THREE.LineBasicMaterial({ color: PLANE_COLOR, transparent: true, opacity: highlight ? 1 : 0.55 }));
+  const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(corners), new THREE.LineBasicMaterial({ color: palette.plane, transparent: true, opacity: highlight ? 1 : 0.55 }));
   fill.add(border);
   return fill;
 }
@@ -662,11 +732,11 @@ function gridObject(frame, step, extent) {
     pts.push(new THREE.Vector3(...toWorld(frame, s, -lim)), new THREE.Vector3(...toWorld(frame, s, lim)));
     pts.push(new THREE.Vector3(...toWorld(frame, -lim, s)), new THREE.Vector3(...toWorld(frame, lim, s)));
   }
-  const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: isDark() ? 0x9ca3af : 0x6b7280, transparent: true, opacity: 0.16, depthWrite: false }));
+  const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: palette.grid, transparent: true, opacity: palette.gridOpacity, depthWrite: false }));
   const axes = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(...toWorld(frame, -lim, 0)), new THREE.Vector3(...toWorld(frame, lim, 0)),
     new THREE.Vector3(...toWorld(frame, 0, -lim)), new THREE.Vector3(...toWorld(frame, 0, lim)),
-  ]), new THREE.LineBasicMaterial({ color: isDark() ? 0x9ca3af : 0x4b5563, transparent: true, opacity: 0.45, depthWrite: false }));
+  ]), new THREE.LineBasicMaterial({ color: palette.axis, transparent: true, opacity: 0.55, depthWrite: false }));
   const group = new THREE.Group();
   group.add(grid, axes);
   return group;
@@ -676,7 +746,7 @@ function fillObject(frame, points, selected) {
   const shape = new THREE.Shape(points.map(p => new THREE.Vector2(p[0], p[1])));
   const g = new THREE.ShapeGeometry(shape);
   g.applyMatrix4(new THREE.Matrix4().fromArray([frame.x[0], frame.x[1], frame.x[2], 0, frame.y[0], frame.y[1], frame.y[2], 0, frame.n[0], frame.n[1], frame.n[2], 0, frame.o[0], frame.o[1], frame.o[2], 1]));
-  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: selected ? SELECT_COLOR : SKETCH_COLOR, transparent: true, opacity: selected ? 0.3 : 0.1, side: THREE.DoubleSide, depthWrite: false }));
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: selected ? palette.select : palette.sketch, transparent: true, opacity: selected ? 0.3 : 0.1, side: THREE.DoubleSide, depthWrite: false }));
 }
 
 function sketchObject(frame, entities, style) {
@@ -690,19 +760,20 @@ function sketchObject(frame, entities, style) {
     if (style.points && (e.t === 'line' || e.t === 'arc')) { points.push(poly[0], poly[poly.length - 1]); }
     if (style.points && (e.t === 'circle' || e.t === 'polygon' || e.t === 'arc')) points.push(toWorld(frame, e.c[0], e.c[1]));
   }
-  const add = (list, color, dashed) => {
+  const add = (list, color, dashed, width = palette.sketchWidth) => {
     if (!list.length) return;
     const g = new THREE.BufferGeometry().setFromPoints(list.map(p => new THREE.Vector3(...p)));
-    const m = dashed ? new THREE.LineDashedMaterial({ color, dashSize: 2, gapSize: 1.5, depthTest: false }) : new THREE.LineBasicMaterial({ color, depthTest: false });
+    if (!dashed) { group.add(fatLines(list, color, width, { depthTest: false, renderOrder: 6 })); return; }
+    const m = new THREE.LineDashedMaterial({ color, dashSize: 2, gapSize: 1.5, depthTest: false });
     const lines = new THREE.LineSegments(g, m);
     if (dashed) lines.computeLineDistances();
     lines.renderOrder = 6;
     group.add(lines);
   };
   add(solid, style.color);
-  add(cons, CONSTRUCTION_COLOR, true);
-  add(hov, HOVER_COLOR);
-  add(sel, SELECT_COLOR);
+  add(cons, palette.cons, true);
+  add(hov, palette.hover, false, palette.sketchWidth + 1);
+  add(sel, palette.select, false, palette.sketchWidth + 1);
   if (points.length) {
     const g = new THREE.BufferGeometry().setFromPoints(points.map(p => new THREE.Vector3(...p)));
     const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: style.color, size: 5, sizeAttenuation: false, depthTest: false }));

@@ -291,3 +291,38 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
   .is-ai .ms-work, .is-ai.is-side-closed .ms-work { grid-template-columns: 1fr; }
   .ms-ai { position: absolute; inset: 0; z-index: 9; box-shadow: var(--mat-shadow-3); }
 }
+
+/* ---- compact dialogs: the sketch panel is one line until something is selected; both dialogs fold away ------------- */
+.ms-dialog--sketch { width: min(290px, calc(100% - 2 * var(--mat-space-3) - 48px)); }
+.ms-dialog__titles { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.ms-dialog__titles .ms-dialog__title { font-size: var(--mat-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-dialog__summary { font-size: var(--mat-fs-xs); color: var(--mat-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-dialog--sketch .ms-dialog__head { gap: var(--mat-space-1); padding: var(--mat-space-1) var(--mat-space-1) var(--mat-space-1) var(--mat-space-2); border-bottom: 0; }
+.ms-dialog--sketch .ms-dialog__body { border-top: 1px solid var(--mat-border); padding: var(--mat-space-2) var(--mat-space-3); gap: var(--mat-space-2); }
+.ms-dialog--sketch.is-empty .ms-dialog__body { display: none; }
+.ms-dialog.is-folded .ms-dialog__body, .ms-dialog.is-folded .ms-dialog__foot, .ms-dialog.is-folded .ms-dialog__error { display: none; }
+.ms-dialog.is-folded .ms-dialog__head { border-bottom: 0; }
+.ms-dialog--sketch .ms-dialog__pair { gap: var(--mat-space-1) var(--mat-space-2); }
+.ms-dialog--sketch .ms-field-sm .mat-input { min-height: 30px; }
+@media (max-width: 720px), (max-height: 720px) {
+  .ms-dialog { max-height: 52%; }
+  .ms-dialog__body { padding: var(--mat-space-2); gap: var(--mat-space-2); }
+  .ms-dialog__head { padding-block: var(--mat-space-1); }
+  .ms-dialog--sketch .ms-dialog__icon { display: none; }
+}
+
+
+/* ---- the dimensions of a sketch: labels over the view, a small field to type a value -------------------------------- */
+.ms-dims { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.ms-dim {
+  position: absolute; left: 0; top: 0; pointer-events: auto; padding: 1px 6px; border: 1px solid var(--mat-border-strong); border-radius: var(--mat-radius-xs);
+  background: var(--mat-surface); color: var(--mat-text); font-family: var(--mat-mono); font-size: var(--mat-fs-xs); white-space: nowrap; cursor: pointer; box-shadow: var(--mat-shadow-1);
+}
+.ms-dim:hover, .ms-dim:focus-visible { border-color: var(--mat-accent); outline: none; }
+.ms-dim.is-error { border-color: var(--mat-danger); color: var(--mat-danger-text); }
+.ms-dimedit { position: absolute; z-index: 12; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--mat-accent); border-radius: var(--mat-radius-sm); background: var(--mat-surface); box-shadow: var(--mat-shadow-2); }
+.ms-dimedit .mat-input { width: 140px; }
+.ms-dimedit .mat-input[aria-invalid="true"] { border-color: var(--mat-danger); }
+.ms-swatch-btn { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--mat-radius-xs); background: transparent; cursor: pointer; }
+.ms-swatch-btn:hover .ms-swatch, .ms-swatch-btn:focus-visible .ms-swatch { box-shadow: 0 0 0 2px var(--mat-accent); }
+.ms-swatch-btn:focus-visible { outline: none; }

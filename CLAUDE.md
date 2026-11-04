@@ -65,12 +65,14 @@ src/MatShape
     geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketch loops (closed chains of lines/arcs + circles, rects, polygons)
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges + smooth normals, planes, sketches, picking, face highlight, snapshot
-    sketcher.js              the sketch editor: tools, snapping, handles (connected ends move together), numbers in the panel, its own undo
+    sketcher.js              the sketch editor: tools, snapping, handles (connected ends move together), dimensions (tool D: params.dims, applied by geom.applyDimensions also in model.js), numbers in the panel, its own undo
     assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair
     viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
-    export.js, util.js       STL/OBJ; texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM
+    export.js, util.js       STL/OBJ/3MF (with a small stored ZIP writer, colours as basematerials); texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM
   wwwroot/css/app.css        accent + few app styles (prefix ms-);  studio.css = the editor page
+  Services/KeyMap.cs          the keyboard shortcuts (OnShape-like) for the "?" dialog and About; the keys themselves are in app.js (keep in step)
+  wwwroot/lib/three/lines/   LineSegments2 / LineMaterial of three.js (lines with a width; the view themes in viewport.js use them)
   wwwroot/sw.js              service worker: static cache (incl. lib), network-first for editor pages and /live/documents/{id} (copies for offline), offline.html; cleared on sign-out (pwa.js)
 tests/MatShape.Tests         unit + database tests (DocumentTests, AccountTests, StudioContentTests, TextCatalogTests)
 ```

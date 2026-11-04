@@ -284,3 +284,94 @@ export function arcThrough(a, b, c) {
   if (norm(am - a0) > norm(a1 - a0)) [a0, a1] = [a1, a0];
   return { c: circle.c, r: circle.r, a0, a1 };
 }
+
+// ---- dimensions of a sketch ---------------------------------------------------------------------------------------------------
+// A dimension drives the geometry: { id, kind, ref, value } with kind length (a line), diameter (a circle), radius (an arc or a polygon), width / height (a rectangle),
+// or { id, kind: 'distance', p1: { id, at }, p2: { id, at }, value } between two points (at = a | b of a line, p of a point, c of a centre). value is an expression (#variables).
+// They are applied in order; a point that moves takes the ends of lines at the same place with it, so chains stay closed.
+
+const near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6;
+
+/** Moves a point of the sketch and every line end and point at the same place. */
+function movePoint(list, from, to) {
+  for (const e of list) {
+    if (e.t === 'line') { if (near(e.a, from)) e.a = [...to]; if (near(e.b, from)) e.b = [...to]; }
+    else if (e.t === 'point' && near(e.p, from)) e.p = [...to];
+  }
+}
+
+export function pointOf(entities, ref) {
+  const e = entities.find(x => x.id === ref?.id);
+  if (!e) return null;
+  if (ref.at === 'a' || ref.at === 'b') return e.t === 'line' || e.t === 'rect' ? e[ref.at] : null;
+  if (ref.at === 'p') return e.t === 'point' ? e.p : null;
+  if (ref.at === 'c') return e.c || null;
+  return null;
+}
+
+/** The value a dimension has in the geometry now (mm), or null when its entity is gone. */
+export function measureDimension(entities, d) {
+  const e = entities.find(x => x.id === d.ref);
+  switch (d.kind) {
+    case 'length': return e?.t === 'line' ? Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) : null;
+    case 'diameter': return e?.t === 'circle' ? e.r * 2 : null;
+    case 'radius': return e && (e.t === 'arc' || e.t === 'polygon' || e.t === 'circle') ? e.r : null;
+    case 'width': return e?.t === 'rect' ? Math.abs(e.b[0] - e.a[0]) : null;
+    case 'height': return e?.t === 'rect' ? Math.abs(e.b[1] - e.a[1]) : null;
+    case 'distance': {
+      const p = pointOf(entities, d.p1), q = pointOf(entities, d.p2);
+      return p && q ? Math.hypot(q[0] - p[0], q[1] - p[1]) : null;
+    }
+    default: return null;
+  }
+}
+
+/**
+ * Applies the dimensions to a copy of the entities. evaluate(text) gives millimetres (it may throw). Returns { entities, errors: [{ id, error }] }:
+ * a dimension whose entity is gone, or whose value is not a positive length, is left out and named in the errors.
+ */
+export function applyDimensions(entities, dims, evaluate) {
+  const list = JSON.parse(JSON.stringify(entities || []));
+  const errors = [];
+  for (const d of dims || []) {
+    let v;
+    try { v = evaluate(d.value); } catch (error) { errors.push({ id: d.id, error }); continue; }
+    if (!(v > 0)) { errors.push({ id: d.id, error: 'positive' }); continue; }
+    const e = list.find(x => x.id === d.ref);
+    if (d.kind === 'length' && e?.t === 'line') {
+      let dx = e.b[0] - e.a[0], dy = e.b[1] - e.a[1];
+      const l = Math.hypot(dx, dy) || 1;
+      if (Math.hypot(dx, dy) < 1e-9) { dx = 1; dy = 0; }
+      movePoint(list, e.b, [e.a[0] + dx / l * v, e.a[1] + dy / l * v]);
+    } else if (d.kind === 'diameter' && e?.t === 'circle') e.r = v / 2;
+    else if (d.kind === 'radius' && e && (e.t === 'arc' || e.t === 'polygon' || e.t === 'circle')) e.r = v;
+    else if (d.kind === 'width' && e?.t === 'rect') e.b = [e.a[0] + (e.b[0] >= e.a[0] ? v : -v), e.b[1]];
+    else if (d.kind === 'height' && e?.t === 'rect') e.b = [e.b[0], e.a[1] + (e.b[1] >= e.a[1] ? v : -v)];
+    else if (d.kind === 'distance') {
+      const p = pointOf(list, d.p1), q = pointOf(list, d.p2);
+      if (!p || !q) { errors.push({ id: d.id, error: 'gone' }); continue; }
+      let dx = q[0] - p[0], dy = q[1] - p[1];
+      const l = Math.hypot(dx, dy);
+      if (l < 1e-9) { dx = 1; dy = 0; } else { dx /= l; dy /= l; }
+      const to = [p[0] + dx * v, p[1] + dy * v];
+      const owner = list.find(x => x.id === d.p2.id);
+      if (owner?.t === 'circle' || owner?.t === 'arc' || owner?.t === 'polygon') owner.c = to;
+      else if (owner?.t === 'rect') { const w = owner.b[0] - owner.a[0], h = owner.b[1] - owner.a[1]; if (d.p2.at === 'a') { owner.a = to; owner.b = [to[0] + w, to[1] + h]; } else { owner.b = to; } }
+      else movePoint(list, q, to);
+    } else errors.push({ id: d.id, error: 'gone' });
+  }
+  return { entities: list, errors };
+}
+
+/** Where the label of a dimension sits (sketch coordinates). */
+export function dimensionAnchor(entities, d) {
+  const e = entities.find(x => x.id === d.ref);
+  switch (d.kind) {
+    case 'length': return e?.t === 'line' ? [(e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2] : null;
+    case 'diameter': case 'radius': return e?.c ? [e.c[0] + e.r * 0.7071, e.c[1] + e.r * 0.7071] : null;
+    case 'width': return e?.t === 'rect' ? [(e.a[0] + e.b[0]) / 2, Math.min(e.a[1], e.b[1])] : null;
+    case 'height': return e?.t === 'rect' ? [Math.max(e.a[0], e.b[0]), (e.a[1] + e.b[1]) / 2] : null;
+    case 'distance': { const p = pointOf(entities, d.p1), q = pointOf(entities, d.p2); return p && q ? [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] : null; }
+    default: return null;
+  }
+}

@@ -51,3 +51,20 @@ public sealed class StudioContentTests
         Assert.Equal(25.4, DocumentUnits.Millimetres("in"));
     }
 }
+
+/// <summary>The list of the keyboard shortcuts has its texts in both languages.</summary>
+public sealed class KeyMapTests
+{
+    [Fact]
+    public void Every_shortcut_has_its_text()
+    {
+        foreach (var group in MatShape.Services.KeyMap.Groups)
+        {
+            Assert.True(MatShape.Localization.TextCatalog.Entries.ContainsKey("Keys." + group.Name), group.Name);
+            foreach (var key in group.Keys)
+            {
+                Assert.True(MatShape.Localization.TextCatalog.Entries.ContainsKey("Keys." + key.Text), key.Text);
+            }
+        }
+    }
+}

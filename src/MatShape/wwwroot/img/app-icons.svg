@@ -51,5 +51,8 @@
   <symbol id="mat-i-flip" viewBox="0 0 24 24"><path d='M7 3v18M7 3 4 6M7 3l3 3M17 21V3M17 21l-3-3M17 21l3-3'/></symbol>
   <symbol id="mat-i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></symbol>
   <symbol id="mat-i-rotate-cw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="mat-i-horizontal" viewBox="0 0 24 24"><path d='M4 12h16'/><circle cx='4' cy='12' r='1.8'/><circle cx='20' cy='12' r='1.8'/><path d='M9 7h6' opacity='.5'/></symbol>
+  <symbol id="mat-i-vertical" viewBox="0 0 24 24"><path d='M12 4v16'/><circle cx='12' cy='4' r='1.8'/><circle cx='12' cy='20' r='1.8'/><path d='M7 9v6' opacity='.5'/></symbol>
+  <symbol id="mat-i-dimension" viewBox="0 0 24 24"><path d='M4 8v8M20 8v8M4 12h16'/><path d='m7 9-3 3 3 3M17 9l3 3-3 3'/></symbol>
   <symbol id="mat-i-target" viewBox="0 0 24 24"><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5'/><circle cx='12' cy='12' r='1'/></symbol>
 </svg>

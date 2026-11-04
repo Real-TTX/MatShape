@@ -56,6 +56,7 @@
             {
                 <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Documents/Members?id=@Model.DocumentId" aria-label="@L["Studio.Share"]" data-tip="@L["Studio.Share"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("share")</a>
             }
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" data-action="keys" aria-label="@L["Keys.Title"]" data-tip="@L["Keys.Title"] (?)" data-tip-place="below" data-tip-align="end">@Ui.Icon("help-circle")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-menu-toggle="ms-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["Studio.Export"]" data-tip="@L["Studio.Export"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("download")</button>
             <button type="button" class="mat-theme ms-bar__theme" data-theme-toggle data-theme-state="@(user?.Theme ?? "system")" @(user is null ? "" : "data-theme-save-url=/Account?handler=Theme") aria-label="@L["Shell.Theme"]" title="@L["Shell.Theme"]">
                 <svg class="mat-icon" data-theme-icon="system" aria-hidden="true" focusable="false"><use href="#mat-i-monitor"></use></svg>
@@ -67,6 +68,7 @@
 
     <div class="mat-menu" id="ms-export-menu" role="menu" aria-label="@L["Studio.Export"]" hidden>
         <button type="button" class="mat-menu__item" role="menuitem" data-export="stl">@Ui.Icon("download")<span>@L["Studio.Export.Stl"]</span></button>
+        <button type="button" class="mat-menu__item" role="menuitem" data-export="3mf">@Ui.Icon("download")<span>@L["Studio.Export.ThreeMf"]</span></button>
         <button type="button" class="mat-menu__item" role="menuitem" data-export="obj">@Ui.Icon("download")<span>@L["Studio.Export.Obj"]</span></button>
         <button type="button" class="mat-menu__item" role="menuitem" data-export="png">@Ui.Icon("image")<span>@L["Studio.Export.Png"]</span></button>
         <div class="mat-menu__sep" role="separator"></div>
@@ -109,7 +111,11 @@
         <button type="button" class="ms-tool" data-sketch-tool="polygon" aria-pressed="false" data-tip="@L["Sketch.Polygon"]">@Ui.Icon("polygon")<span>@L["Sketch.Polygon"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="point" aria-pressed="false" data-tip="@L["Sketch.Point"]">@Ui.Icon("point")<span>@L["Sketch.Point"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-sketch-tool="dimension" aria-pressed="false" data-tip="@L["Sketch.Dimension"] (D)">@Ui.Icon("dimension")<span>@L["Sketch.Dimension"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
         <button type="button" class="ms-tool" data-sketch-action="construction" aria-pressed="false" data-tip="@L["Sketch.Construction"] (Q)">@Ui.Icon("construction")<span>@L["Sketch.Construction"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="horizontal" data-tip="@L["Sketch.Horizontal"] (H)">@Ui.Icon("horizontal")<span>@L["Sketch.Horizontal"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="vertical" data-tip="@L["Sketch.Vertical"] (V)">@Ui.Icon("vertical")<span>@L["Sketch.Vertical"]</span></button>
         <button type="button" class="ms-tool" data-sketch-action="delete" data-tip="@L["Sketch.DeleteSelected"] (Del)">@Ui.Icon("trash")<span>@L["Sketch.DeleteSelected"]</span></button>
         <button type="button" class="ms-tool" data-sketch-action="normal" data-tip="@L["Sketch.NormalTo"] (N)">@Ui.Icon("normal-to")<span>@L["Sketch.NormalTo"]</span></button>
         <span class="ms-tools__grow" aria-hidden="true"></span>
@@ -140,22 +146,24 @@
             </div>
 
             <div class="ms-viewtools" role="toolbar" aria-label="@L["Studio.Views"]">
-                <button type="button" class="ms-vbtn" data-view-set="iso" aria-label="@L["View.Iso"]" data-tip="@L["View.Iso"] (I)" data-tip-align="end">@Ui.Icon("view-iso")</button>
+                <button type="button" class="ms-vbtn" data-view-set="iso" aria-label="@L["View.Iso"]" data-tip="@L["View.Iso"] (Shift+7)" data-tip-align="end">@Ui.Icon("view-iso")</button>
                 <button type="button" class="ms-vbtn" data-action="fit" aria-label="@L["View.Fit"]" data-tip="@L["View.Fit"] (F)" data-tip-align="end">@Ui.Icon("zoom-fit")</button>
                 <span class="ms-viewtools__sep" aria-hidden="true"></span>
                 <button type="button" class="ms-vbtn" data-action="display" aria-label="@L["View.Display"]" data-tip="@L["View.Display"]" data-tip-align="end">@Ui.Icon("shaded")</button>
-                <button type="button" class="ms-vbtn" data-action="planes" aria-pressed="true" aria-label="@L["View.Planes"]" data-tip="@L["View.Planes"]" data-tip-align="end">@Ui.Icon("plane")</button>
+                <button type="button" class="ms-vbtn" data-menu-toggle="ms-theme-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["View.Theme"]" data-tip="@L["View.Theme"]" data-tip-align="end">@Ui.Icon("palette")</button>
+                <button type="button" class="ms-vbtn" data-action="planes" aria-pressed="true" aria-label="@L["View.Planes"]" data-tip="@L["View.Planes"] (P)" data-tip-align="end">@Ui.Icon("plane")</button>
             </div>
 
             @* the axes in the corner (drawn by the scripts) *@
             <canvas class="ms-triad" data-triad width="96" height="96" aria-hidden="true"></canvas>
 
             @* the dialog of the feature being created or edited (filled by the scripts) *@
-            <section class="ms-dialog" data-dialog hidden aria-labelledby="ms-dialog-title">
+            <section class="ms-dialog" data-dialog data-collapsible hidden aria-labelledby="ms-dialog-title">
                 <header class="ms-dialog__head">
                     <span class="ms-dialog__icon" data-dialog-icon></span>
                     <h2 class="ms-dialog__title" id="ms-dialog-title" data-dialog-title></h2>
                     <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-dialog-help aria-label="@L["Studio.Help"]" data-tip="@L["Studio.Help"]">@Ui.Icon("help-circle")</button>
+                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm ms-dialog__fold" data-fold aria-expanded="true" aria-label="@L["Studio.Fold"]" data-tip="@L["Studio.Fold"]">@Ui.Icon("chevron-up")</button>
                 </header>
                 <form class="ms-dialog__body mat-form" data-dialog-form novalidate></form>
                 <p class="ms-dialog__error" data-dialog-error role="alert" hidden></p>
@@ -165,17 +173,19 @@
                 </footer>
             </section>
 
-            @* the sketch: the properties of the selection and the hints *@
-            <section class="ms-dialog ms-dialog--sketch" data-sketch-panel hidden aria-label="@L["Sketch.Properties"]">
+            @* the sketch: one compact line (name, what is in it, finish, cancel); the numbers of the selection open below it; it can be folded away *@
+            <section class="ms-dialog ms-dialog--sketch" data-sketch-panel data-collapsible hidden aria-label="@L["Sketch.Properties"]">
                 <header class="ms-dialog__head">
                     <span class="ms-dialog__icon">@Ui.Icon("sketch")</span>
-                    <h2 class="ms-dialog__title" data-sketch-title></h2>
+                    <div class="ms-dialog__titles">
+                        <h2 class="ms-dialog__title" data-sketch-title></h2>
+                        <span class="ms-dialog__summary" data-sketch-summary></span>
+                    </div>
+                    <button type="button" class="mat-btn mat-btn--primary mat-btn--icon mat-btn--sm" data-sketch-action="finish" aria-label="@L["Sketch.Finish"]" data-tip="@L["Sketch.Finish"] (Enter)" data-tip-place="below">@Ui.Icon("check")</button>
+                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-sketch-action="cancel" aria-label="@L["Common.Cancel"]" data-tip="@L["Common.Cancel"]" data-tip-place="below">@Ui.Icon("x")</button>
+                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm ms-dialog__fold" data-fold aria-expanded="true" aria-label="@L["Studio.Fold"]" data-tip="@L["Studio.Fold"]" data-tip-place="below">@Ui.Icon("chevron-up")</button>
                 </header>
                 <div class="ms-dialog__body mat-form" data-sketch-body></div>
-                <footer class="ms-dialog__foot">
-                    <button type="button" class="mat-btn mat-btn--primary mat-btn--sm" data-sketch-action="finish">@Ui.Icon("check")<span>@L["Sketch.Finish"]</span></button>
-                    <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" data-sketch-action="cancel">@Ui.Icon("x")<span>@L["Common.Cancel"]</span></button>
-                </footer>
             </section>
 
             <div class="ms-hud" data-hud aria-live="polite" hidden></div>
@@ -237,4 +247,32 @@
         <span class="ms-tabsbar__grow"></span>
         <span class="ms-tabsbar__status mat-mono" data-status></span>
     </nav>
+</div>
+
+@* the keyboard shortcuts (like OnShape), opened with "?" or the help button of the bar *@
+<dialog class="mat-dialog" id="ms-keys" aria-labelledby="ms-keys-title">
+    <div class="mat-dialog__form">
+        <div class="mat-dialog__head">@Ui.Icon("help-circle")<h2 class="mat-dialog__title" id="ms-keys-title">@L["Keys.Title"]</h2>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-dialog__close" data-dialog-close aria-label="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button></div>
+        <div class="mat-dialog__body ms-keys">
+            @foreach (var group in KeyMap.Groups)
+            {
+                <h3>@L["Keys." + group.Name]</h3>
+                <dl class="ms-keys__list">
+                    @foreach (var k in group.Keys)
+                    {
+                        <dt>@foreach (var part in k.Keys.Split(" / ")) { <kbd>@part</kbd> }</dt><dd>@L["Keys." + k.Text]</dd>
+                    }
+                </dl>
+            }
+        </div>
+    </div>
+</dialog>
+
+@* the colour schemes of the 3D view (stronger lines, other backgrounds), kept on this device *@
+<div class="mat-menu" id="ms-theme-menu" role="menu" aria-label="@L["View.Theme"]" hidden>
+    @foreach (var theme in new[] { "auto", "contrast", "dark", "blueprint" })
+    {
+        <button type="button" class="mat-menu__item" role="menuitemradio" aria-checked="false" data-view-theme="@theme">@Ui.Icon(theme switch { "contrast" => "eye", "dark" => "moon", "blueprint" => "grid", _ => "monitor" })<span>@L["View.Theme." + theme]</span>@Ui.Icon("check", "mat-menu__check")</button>
+    }
 </div>

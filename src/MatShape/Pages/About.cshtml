@@ -24,7 +24,19 @@
 
 <div class="mat-card">
     <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("terminal")@L["About.Shortcuts"]</h2></div>
-    <div class="mat-card__body"><p>@L["About.Shortcuts.Text"]</p></div>
+    <div class="mat-card__body ms-keys">
+        <p>@L["About.Shortcuts.Text"]</p>
+        @foreach (var group in KeyMap.Groups)
+        {
+            <h3>@L["Keys." + group.Name]</h3>
+            <dl class="ms-keys__list">
+                @foreach (var k in group.Keys)
+                {
+                    <dt>@foreach (var part in k.Keys.Split(" / ")) { <kbd>@part</kbd> }</dt><dd>@L["Keys." + k.Text]</dd>
+                }
+            </dl>
+        }
+    </div>
 </div>
 
 <div class="mat-card">

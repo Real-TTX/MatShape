@@ -23,15 +23,18 @@ Ein App-Container und PostgreSQL. Port **3939**.
 - **Features**: Extrudieren (Blind, Symmetrisch, Durch alles; Neu / Hinzufügen / Entfernen / Schnittmenge), Rotieren (um Skizzenachse oder Linie), Boolesch (Vereinigen, Abziehen, Schnittmenge), Verschieben/Drehen/Kopieren, Spiegeln, Lineares Muster, Kreismuster, Teilen an einer Ebene, Teil löschen, Ebene (versetzt), **Variable**
 - Jedes Feld nimmt **Ausdrücke mit Einheiten**: `25`, `2.5 cm`, `1 in`, `#d / 8`, `sqrt(#a^2 + #b^2)`, `30 deg` – eine Variable ändern, das Modell folgt
 - **Feature-Historie**: bearbeiten (Doppelklick), umbenennen, unterdrücken, verschieben, löschen, **Rollback-Leiste**; Live-Vorschau während des Bearbeitens; Fehler stehen am Feature
-- **Rückgängig / Wiederholen** (Strg+Z / Strg+Y), Tastenkürzel wie Umschalt+S/E/W, F, I, M
+- **Bemaßungen** (D) bleiben in der Skizze und steuern sie – auch mit Variablen (`#breite`); Klick auf ein Maß ändert es. H/V machen Linien horizontal/vertikal
+- **Tastenkürzel wie bei OnShape**: Umschalt+S/E/W, Umschalt+1…7 Ansichten, Pfeiltasten drehen (Umschalt: 90°), P Ebenen, N Draufsicht, L/G/C/A/D/Q/H/V in der Skizze, **?** zeigt alle
+- **Rückgängig / Wiederholen** (Strg+Z / Strg+Y); kompakter Skizzen-Dialog (eine Zeile, Felder erst bei Auswahl, einklappbar)
 - Geometriekern: **[Manifold](https://github.com/elalish/manifold)** (WebAssembly, robuste Boolesche Operationen), Darstellung: **[three.js](https://threejs.org)** – beides als Kopie im Projekt, kein CDN
 
 **Ansehen, messen, ausgeben**
 - **Ansichtswürfel** oben rechts wie bei OnShape: dreht sich mit der Ansicht, ein Klick auf Fläche, Kante oder Ecke dreht die Ansicht dorthin, Ziehen dreht das Modell, zwei Pfeile drehen um 90° um die Blickachse
+- **Farbschemata der Ansicht**: Automatisch, Hoher Kontrast (dicke schwarze Linien), Dunkel, Blaupause – Kanten und Skizzenlinien mit echter Strichstärke
 - Orthografische 3D-Ansicht mit Achsenkreuz, Isometrisch, Einpassen, schattiert / ohne Kanten / durchsichtig, Ebenen ein/aus
 - Maus: Ziehen oder rechts Ziehen dreht, Mitte oder Umschalt+Ziehen verschiebt, Mausrad zoomt zum Zeiger; **Touch**: ein Finger dreht, zwei verschieben und zoomen
 - **Teile** benennen, einfärben, ausblenden, isolieren; **Masseeigenschaften** (Volumen, Oberfläche, Größe); **Messen** von Abständen
-- **Export**: STL (3D-Druck), OBJ, PNG der Ansicht, Part Studio als JSON
+- **Export**: **3MF mit Teilfarben** (für Slicer), STL (3D-Druck), OBJ, PNG der Ansicht, Part Studio als JSON; Teile per Klick auf das Farbfeld einfärben
 
 **Zusammen arbeiten**
 - **Teilen** mit Personen, die ein Konto haben – als *Bearbeiter* oder *Betrachter*, auf Wunsch mit E-Mail (MatSMTP) – oder per **Link** zum Ansehen (drehen, messen, exportieren; nie ändern)

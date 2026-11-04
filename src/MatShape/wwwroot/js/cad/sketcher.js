@@ -2,7 +2,7 @@
    Drawing snaps to the ends, centres and midpoints of what is there, to the grid, and keeps lines horizontal or vertical when they are nearly so.
    Ends that meet stay together when one of them is moved (the chains of a profile do not break). Every entity has its numbers in the panel (expressions allowed). */
 
-import { arcThrough, distToEntity, ends, sketchLoops, snapPoints, toLocal } from './geom.js';
+import { applyDimensions, arcThrough, dimensionAnchor, distToEntity, ends, measureDimension, pointOf, sketchLoops, snapPoints, toLocal, toWorld } from './geom.js';
 import { evalAngle, evalLength, evalNumber } from './expr.js';
 import { clone, el, fmt, icon, t, uid, UNITS } from './util.js';
 
@@ -16,13 +16,16 @@ export class Sketcher {
     this.cb = callbacks;           // { finish(entities), cancel(), status(text) }
     this.active = false;
     this.bind();
+    viewport.on('render', () => this.placeLabels());
   }
 
-  start({ name, frame, entities, units, variables, polygonSides }) {
+  start({ name, frame, entities, dims, units, variables, polygonSides }) {
     this.active = true;
     this.name = name;
     this.frame = frame;
     this.entities = clone(entities || []);
+    this.dims = clone(dims || []);
+    this.dimFirst = null;
     this.units = units;
     this.unit = UNITS[units] || 1;
     this.variables = variables || {};
@@ -47,6 +50,8 @@ export class Sketcher {
     this.active = false;
     this.vp.navigationOnly = false;
     this.vp.setSketchOverlay(null);
+    this.closeDimEditor();
+    this.labels?.replaceChildren();
   }
 
   // ---- tools ---------------------------------------------------------------------------------------------------------------
@@ -54,22 +59,24 @@ export class Sketcher {
   setTool(tool) {
     this.tool = tool;
     this.points = [];
-    this.vp.navigationOnly = tool !== 'select';
+    this.vp.navigationOnly = tool !== 'select' && tool !== 'dimension';
+    this.dimFirst = null;
+    this.closeDimEditor?.();
     this.toolbar.querySelectorAll('[data-sketch-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sketchTool === tool ? 'true' : 'false'));
     this.cb.status(t('Sketch.Hint.' + tool));
     this.draw();
   }
 
   remember() {
-    this.history.push(clone(this.entities));
+    this.history.push(this.snapshot());
     if (this.history.length > 100) this.history.shift();
     this.future = [];
   }
 
   undo() {
     if (!this.history.length) return;
-    this.future.push(clone(this.entities));
-    this.entities = this.history.pop();
+    this.future.push(this.snapshot());
+    this.restore(this.history.pop());
     this.selected.clear();
     this.renderPanel();
     this.draw();
@@ -77,8 +84,8 @@ export class Sketcher {
 
   redo() {
     if (!this.future.length) return;
-    this.history.push(clone(this.entities));
-    this.entities = this.future.pop();
+    this.history.push(this.snapshot());
+    this.restore(this.future.pop());
     this.renderPanel();
     this.draw();
   }
@@ -87,6 +94,7 @@ export class Sketcher {
     if (!this.selected.size) return;
     this.remember();
     this.entities = this.entities.filter(e => !this.selected.has(e.id));
+    this.dropDimensionsOf(this.selected);
     this.selected.clear();
     this.renderPanel();
     this.draw();
@@ -100,6 +108,146 @@ export class Sketcher {
     all.forEach(e => { if (on) e.cons = true; else delete e.cons; });
     this.renderPanel();
     this.draw();
+  }
+
+  // ---- dimensions (tool D, like OnShape): they stay in the sketch and drive its geometry ---------------------------------------
+
+  snapshot() { return { entities: clone(this.entities), dims: clone(this.dims) }; }
+
+  restore(s) {
+    this.entities = s.entities;
+    this.dims = s.dims;
+    this.selected.clear();
+  }
+
+  /** The dimensions of entities that are deleted go with them. */
+  dropDimensionsOf(ids) {
+    this.dims = this.dims.filter(d => !ids.has(d.ref) && !ids.has(d.p1?.id) && !ids.has(d.p2?.id));
+  }
+
+  /** Makes the geometry follow the dimensions (after every change, also while dragging: a line with a length turns about its start). */
+  enforce() {
+    const applied = applyDimensions(this.entities, this.dims, v => evalLength(v, this.variables, this.unit));
+    this.entities = applied.entities;
+    this.dimErrors = new Set(applied.errors.map(x => x.id));
+  }
+
+  /** The end, point or centre under the pointer as a reference { id, at } with its position, or null. */
+  pointAt(p, tolerance) {
+    let best = null, bestD = tolerance;
+    const consider = (e, at, q) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < bestD) { bestD = d; best = { ref: { id: e.id, at }, point: q }; } };
+    for (const e of this.entities) {
+      if (e.t === 'line') { consider(e, 'a', e.a); consider(e, 'b', e.b); }
+      else if (e.t === 'point') consider(e, 'p', e.p);
+      else if (e.c) consider(e, 'c', e.c);
+    }
+    return best;
+  }
+
+  dimensionClick(e) {
+    const world = this.vp.rayOnPlane(e.ndc, this.frame);
+    if (!world) return;
+    const p = toLocal(this.frame, world);
+    const point = this.pointAt(p, SNAP_PX * this.vp.mmPerPixel);
+    if (point) {
+      if (!this.dimFirst) { this.dimFirst = point; this.cb.status(t('Sketch.Hint.dimension2')); this.draw(); return; }
+      if (point.ref.id === this.dimFirst.ref.id && point.ref.at === this.dimFirst.ref.at) return;
+      const value = Math.hypot(point.point[0] - this.dimFirst.point[0], point.point[1] - this.dimFirst.point[1]);
+      const d = this.addDimension({ kind: 'distance', p1: this.dimFirst.ref, p2: point.ref }, value);
+      this.dimFirst = null;
+      this.cb.status(t('Sketch.Hint.dimension'));
+      this.editDimension(d, e.clientX, e.clientY);
+      return;
+    }
+    this.dimFirst = null;
+    const hit = this.entityAt(e);
+    if (!hit) return;
+    let kind = { line: 'length', circle: 'diameter', arc: 'radius', polygon: 'radius' }[hit.t];
+    if (hit.t === 'rect') {
+      const dTop = Math.min(Math.abs(p[1] - hit.a[1]), Math.abs(p[1] - hit.b[1])), dSide = Math.min(Math.abs(p[0] - hit.a[0]), Math.abs(p[0] - hit.b[0]));
+      kind = dTop <= dSide ? 'width' : 'height';
+    }
+    if (!kind) return;
+    const existing = this.dims.find(d => d.kind === kind && d.ref === hit.id);
+    const d = existing || this.addDimension({ kind, ref: hit.id }, measureDimension(this.entities, { kind, ref: hit.id }));
+    this.editDimension(d, e.clientX, e.clientY);
+  }
+
+  addDimension(dim, value) {
+    this.remember();
+    const d = { id: uid('d'), ...dim, value: fmt(value / this.unit, 4).replace(',', '.') };
+    this.dims.push(d);
+    this.draw();
+    return d;
+  }
+
+  /** The small field over the view where the value of a dimension is typed (an expression: 25, 1 in, #width / 2). Enter applies, Esc closes. */
+  editDimension(d, clientX, clientY) {
+    this.closeDimEditor();
+    const host = this.vp.canvas.parentElement;
+    const box = host.getBoundingClientRect();
+    const input = el('input', { class: 'mat-input mat-input--sm mat-mono', value: d.value, autocomplete: 'off', spellcheck: 'false', 'aria-label': t('Sketch.DimensionValue') });
+    const remove = el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm', 'aria-label': t('Sketch.DimensionDelete'), 'data-tip': t('Sketch.DimensionDelete') }, icon('trash'));
+    const editor = el('div', { class: 'ms-dimedit' }, input, remove);
+    editor.style.left = Math.max(4, Math.min(box.width - 190, clientX - box.left - 60)) + 'px';
+    editor.style.top = Math.max(4, Math.min(box.height - 44, clientY - box.top + 14)) + 'px';
+    host.append(editor);
+    this.dimEditor = editor;
+    const apply = () => {
+      const text = input.value.trim();
+      try {
+        if (!(evalLength(text, this.variables, this.unit) > 0)) throw new Error('positive');
+      } catch {
+        input.setAttribute('aria-invalid', 'true');
+        return false;
+      }
+      if (text !== d.value) { this.remember(); d.value = text; }
+      this.closeDimEditor();
+      this.renderPanel();
+      this.draw();
+      return true;
+    };
+    input.addEventListener('keydown', ev => {
+      ev.stopPropagation();
+      if (ev.key === 'Enter') { ev.preventDefault(); apply(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); this.closeDimEditor(); }
+    });
+    remove.addEventListener('click', () => { this.remember(); this.dims = this.dims.filter(x => x !== d); this.closeDimEditor(); this.draw(); });
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  }
+
+  closeDimEditor() {
+    this.dimEditor?.remove();
+    this.dimEditor = null;
+  }
+
+  /** The labels of the dimensions, over the view at their places (moved along with the camera). */
+  placeLabels() {
+    if (!this.active) return;
+    if (!this.labels) {
+      this.labels = el('div', { class: 'ms-dims', 'aria-label': t('Sketch.Dimensions') });
+      this.vp.canvas.parentElement.append(this.labels);
+    }
+    const current = new Map([...this.labels.children].map(n => [n.dataset.dim, n]));
+    for (const d of this.dims) {
+      const at = dimensionAnchor(this.entities, d);
+      let label = current.get(d.id);
+      current.delete(d.id);
+      if (!at) { label?.remove(); continue; }
+      if (!label) {
+        label = el('button', { type: 'button', class: 'ms-dim', dataset: { dim: d.id } });
+        label.addEventListener('click', ev => { const dim = this.dims.find(x => x.id === label.dataset.dim); if (dim) this.editDimension(dim, ev.clientX, ev.clientY); });
+        this.labels.append(label);
+      }
+      const value = measureDimension(this.entities, d);
+      const plain = /^[-+]?\d*[.,]?\d+$/.test(d.value.trim());
+      const prefix = { diameter: 'Ø ', radius: 'R ' }[d.kind] || '';
+      label.textContent = prefix + (plain || value === null ? d.value : `${d.value} = ${fmt(value / this.unit, 3)}`);
+      label.classList.toggle('is-error', this.dimErrors?.has(d.id) === true);
+      const s = this.vp.project(toWorld(this.frame, at[0], at[1]));
+      label.style.transform = `translate(${Math.round(s.x)}px, ${Math.round(s.y)}px) translate(-50%, -50%)`;
+    }
+    current.forEach(n => n.remove());
   }
 
   // ---- pointer -------------------------------------------------------------------------------------------------------------
@@ -165,7 +313,7 @@ export class Sketcher {
   }
 
   move(e) {
-    if (this.tool === 'select') {
+    if (this.tool === 'select' || this.tool === 'dimension') {
       const hit = this.entityAt(e);
       const id = hit ? hit.id : null;
       if (id !== this.hover) { this.hover = id; this.draw(); }
@@ -186,12 +334,12 @@ export class Sketcher {
     const handle = this.handleAt(p, tolerance);
     if (handle) {
       this.vp.navigationOnly = true;
-      this.dragging = { handles: this.handlesAt(handle.point), start: p, before: clone(this.entities) };
+      this.dragging = { handles: this.handlesAt(handle.point), start: p, before: this.snapshot() };
     } else {
       const hit = this.entityAt(e);
       if (hit) {
         this.vp.navigationOnly = true;
-        this.dragging = { entity: hit, start: p, last: p, before: clone(this.entities) };
+        this.dragging = { entity: hit, start: p, last: p, before: this.snapshot() };
       }
     }
   }
@@ -226,7 +374,7 @@ export class Sketcher {
     this.history.push(this.dragging.before);
     this.future = [];
     this.dragging = null;
-    this.vp.navigationOnly = this.tool !== 'select';
+    this.vp.navigationOnly = this.tool !== 'select' && this.tool !== 'dimension';
     this.snap = null;
     this.renderPanel();
     this.draw();
@@ -277,6 +425,7 @@ export class Sketcher {
   }
 
   click(e) {
+    if (this.tool === 'dimension') { this.dimensionClick(e); return; }
     if (this.tool === 'select') {
       const hit = this.entityAt(e);
       if (!hit) { if (!e.shift) this.selected.clear(); }
@@ -383,20 +532,25 @@ export class Sketcher {
 
   draw() {
     if (!this.active) return;
+    this.enforce();
     const preview = this.preview();
     const hud = this.measureText(preview[0]);
     this.cb.hud(hud);
+    // the distance dimensions as thin lines between their points, and the first point of one being made
+    const dimLines = this.dims.filter(d => d.kind === 'distance').map(d => [pointOf(this.entities, d.p1), pointOf(this.entities, d.p2)])
+      .filter(([a, b]) => a && b).map(([a, b], i) => ({ id: 'dim' + i, t: 'line', a, b, cons: true }));
     this.vp.setSketchOverlay({
       frame: this.frame,
-      entities: this.entities,
+      entities: [...this.entities, ...dimLines],
       selected: this.selected,
       hover: this.hover,
       preview,
-      snap: this.tool !== 'select' ? this.snap : null,
+      snap: this.tool === 'dimension' ? this.dimFirst?.point ?? null : this.tool !== 'select' ? this.snap : null,
       loops: sketchLoops(this.entities),
       grid: this.gridStep(),
       gridExtent: Math.max(200, this.vp.viewHeight * 2),
     });
+    this.placeLabels();
   }
 
   measureText(p) {
@@ -412,23 +566,24 @@ export class Sketcher {
 
   // ---- the panel -----------------------------------------------------------------------------------------------------------
 
+  /**
+   * The panel stays small: its head says what the sketch holds (or what is selected); the fields open below it only for a selection (or the sides of a polygon),
+   * so on a small screen the panel is one line. The head can also fold the fields away (app.js).
+   */
   renderPanel() {
     const body = this.panel.body;
     body.replaceChildren();
     this.panel.title.textContent = this.name;
     const chosen = this.entities.filter(e => this.selected.has(e.id));
+    const loops = sketchLoops(this.entities);
+    this.panel.summary.textContent = chosen.length === 1
+      ? t('Sketch.Entity.' + chosen[0].t) + (chosen[0].cons ? ' · ' + t('Sketch.Construction') : '')
+      : chosen.length > 1 ? t('Sketch.SelectedMany', chosen.length)
+      : t('Sketch.Summary', this.entities.length, loops.length);
     if (chosen.length === 1) {
-      this.entityFields(chosen[0]).forEach(f => body.append(f));
-    } else if (chosen.length > 1) {
-      body.append(el('p', { class: 'ms-dialog__text' }, t('Sketch.SelectedMany', chosen.length)));
-    } else {
-      const loops = sketchLoops(this.entities);
-      body.append(el('dl', { class: 'ms-kv' },
-        el('dt', null, t('Sketch.Entities')), el('dd', null, String(this.entities.length)),
-        el('dt', null, t('Sketch.Profiles')), el('dd', null, String(loops.length)),
-      ));
-      body.append(el('p', { class: 'ms-dialog__text ms-muted' }, t('Sketch.PanelHint')));
-      if (this.tool === 'polygon') body.append(this.field(t('Sketch.Sides'), String(this.polygonSides), v => { this.polygonSides = Math.max(3, Math.min(64, Math.round(evalNumber(v)))); }));
+      this.entityFields(chosen[0]).slice(1).forEach(f => body.append(f));
+    } else if (!chosen.length && this.tool === 'polygon') {
+      body.append(this.field(t('Sketch.Sides'), String(this.polygonSides), v => { this.polygonSides = Math.max(3, Math.min(64, Math.round(evalNumber(v)))); }));
     }
     if (chosen.length) {
       const row = el('div', { class: 'ms-dialog__row' },
@@ -436,6 +591,23 @@ export class Sketcher {
         el('button', { type: 'button', class: 'mat-btn mat-btn--danger mat-btn--sm', onclick: () => this.deleteSelected() }, icon('trash'), el('span', null, t('Sketch.Delete'))));
       body.append(row);
     }
+    this.panel.root.classList.toggle('is-empty', !body.childElementCount);
+  }
+
+  selectAll() {
+    this.selected = new Set(this.entities.map(e => e.id));
+    this.renderPanel();
+    this.draw();
+  }
+
+  /** H / V: the selected lines become horizontal or vertical (their second end moves; ends that meet it move with it). */
+  align(horizontal) {
+    const lines = this.entities.filter(e => this.selected.has(e.id) && e.t === 'line');
+    if (!lines.length) { this.cb.status(t('Sketch.AlignNeedsLine')); return; }
+    this.remember();
+    for (const line of lines) this.moveEnd(line.b, horizontal ? [line.b[0], line.a[1]] : [line.a[0], line.b[1]]);
+    this.renderPanel();
+    this.draw();
   }
 
   /** A field with an expression; the change is applied on Enter or when the field is left. */

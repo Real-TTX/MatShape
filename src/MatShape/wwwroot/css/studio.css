@@ -1,0 +1,237 @@
+/* ==========================================================================
+   MatShape: the editor of a document (a special page, MatDesign allows its own look for what is essential to the app – here the 3D view).
+   Built on the tokens of the toolkit: no literal colours. The page does not scroll; the 3D view fills what the bar, the tools, the list and the tabs leave.
+   ========================================================================== */
+
+html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-behavior: none; }
+.ms-studiobody { margin: 0; background: var(--mat-bg); color: var(--mat-text); }
+
+.ms-studio {
+  position: fixed; inset: 0;
+  display: grid; grid-template-rows: auto auto 1fr auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  background: var(--mat-bg);
+}
+
+/* ---- the bar ------------------------------------------------------------------------------------------------------- */
+.ms-bar { display: flex; align-items: center; gap: var(--mat-space-3); min-height: 52px; padding: var(--mat-space-1) var(--mat-space-3); background: var(--mat-glass); border-bottom: 1px solid var(--mat-border); }
+.ms-bar__home { display: inline-flex; border-radius: var(--mat-radius); }
+.ms-bar__title { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.ms-bar__name { margin: 0; font-size: var(--mat-fs-md); font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-bar__meta { display: flex; align-items: center; gap: var(--mat-space-2); min-height: 18px; }
+.ms-bar__meta .mat-pill .mat-icon { width: 12px; height: 12px; }
+.ms-save { font-size: var(--mat-fs-xs); color: var(--mat-text-muted); }
+.ms-save[data-state="offline"], .ms-save[data-state="conflict"] { color: var(--mat-warning-text); }
+.ms-save[data-state="error"] { color: var(--mat-danger-text); }
+.ms-bar__actions { display: flex; align-items: center; gap: var(--mat-space-1); }
+.ms-bar__sep { width: 1px; height: 22px; background: var(--mat-border); margin: 0 var(--mat-space-1); }
+.ms-offline-btn { color: var(--mat-warning-text); }
+
+/* ---- the tools ----------------------------------------------------------------------------------------------------- */
+.ms-tools {
+  display: flex; align-items: stretch; gap: 2px; padding: var(--mat-space-1) var(--mat-space-2);
+  background: var(--mat-surface); border-bottom: 1px solid var(--mat-border);
+  overflow-x: auto; scrollbar-width: thin;
+}
+.ms-tools[hidden] { display: none; }
+.ms-tools--sketch { background: var(--mat-accent-soft); }
+.ms-tools__sep { flex: none; width: 1px; margin: var(--mat-space-1) var(--mat-space-1); background: var(--mat-border); }
+.ms-tools__grow { flex: 1 1 auto; }
+.ms-tool {
+  flex: none; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-width: 60px; min-height: 52px; padding: var(--mat-space-1) var(--mat-space-2);
+  border: 1px solid transparent; border-radius: var(--mat-radius); background: transparent; color: var(--mat-text);
+  font: inherit; font-size: 11px; line-height: 1.15; cursor: pointer;
+  transition: background var(--mat-dur-fast) var(--mat-ease), border-color var(--mat-dur-fast) var(--mat-ease);
+}
+.ms-tool .mat-icon { width: 22px; height: 22px; }
+.ms-tool span { white-space: nowrap; }
+.ms-tool:hover { background: var(--mat-surface-2); }
+.ms-tool:focus-visible { outline: none; box-shadow: var(--mat-focus-ring); }
+.ms-tool[aria-pressed="true"] { background: var(--mat-accent-soft-strong); border-color: var(--mat-accent); color: var(--mat-accent-text); }
+.ms-tool--accept { background: var(--mat-accent); color: var(--mat-on-accent); }
+.ms-tool--accept:hover { background: var(--mat-accent); filter: brightness(1.05); }
+.is-readonly .ms-tools[data-toolbar="features"] { justify-content: flex-start; }
+
+/* ---- the work area: the list on the left, the view ----------------------------------------------------------------- */
+.ms-work { position: relative; display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
+.is-side-closed .ms-work { grid-template-columns: 0 1fr; }
+.ms-side {
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden auto;
+  background: var(--mat-surface); border-right: 1px solid var(--mat-border);
+}
+.is-side-closed .ms-side { visibility: hidden; }
+.ms-side__part { padding: var(--mat-space-2) 0; border-bottom: 1px solid var(--mat-border); }
+.ms-side__part:last-child { border-bottom: 0; }
+.ms-side__head {
+  display: flex; align-items: center; gap: var(--mat-space-2); margin: 0; padding: var(--mat-space-1) var(--mat-space-3);
+  font-size: var(--mat-fs-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--mat-text-muted);
+}
+.ms-side__head .mat-icon { width: 14px; height: 14px; }
+.ms-side__count { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ms-side-toggle { position: absolute; left: var(--mat-space-2); bottom: var(--mat-space-2); z-index: 6; }
+.ms-side-toggle { left: calc(280px + var(--mat-space-2)); transition: left var(--mat-dur) var(--mat-ease); }
+.is-side-closed .ms-side-toggle { left: var(--mat-space-2); }
+
+/* the feature list */
+.ms-tree, .ms-parts { list-style: none; margin: 0; padding: 0 var(--mat-space-1); }
+.ms-tree ul { list-style: none; margin: 0; padding: 0 0 0 var(--mat-space-4); }
+.ms-tree__defaults summary { display: flex; align-items: center; gap: var(--mat-space-2); padding: 6px var(--mat-space-2); border-radius: var(--mat-radius-sm); cursor: pointer; color: var(--mat-text-muted); font-size: var(--mat-fs-sm); }
+.ms-tree__defaults summary .mat-icon { width: 16px; height: 16px; }
+.ms-tree__defaults summary:hover { background: var(--mat-surface-2); }
+.ms-tree__item, .ms-parts__item {
+  display: flex; align-items: center; gap: var(--mat-space-2); min-height: 32px; padding: 2px var(--mat-space-1) 2px var(--mat-space-2);
+  border-radius: var(--mat-radius-sm); font-size: var(--mat-fs-sm); cursor: default; user-select: none;
+}
+.ms-tree__item:hover, .ms-parts__item:hover { background: var(--mat-surface-2); }
+.ms-tree__item:focus-visible, .ms-parts__item:focus-visible { outline: none; box-shadow: var(--mat-focus-ring); }
+.ms-tree__item.is-current, .ms-parts__item.is-selected { background: var(--mat-accent-soft); }
+.ms-tree__item.is-editing { background: var(--mat-accent-soft-strong); font-weight: 600; }
+.ms-tree__item.is-suppressed .ms-tree__name { text-decoration: line-through; color: var(--mat-text-faint); }
+.ms-tree__item.is-rolled { opacity: .45; }
+.ms-tree__item.is-error .ms-tree__name { color: var(--mat-danger-text); }
+.ms-tree__item--plain { color: var(--mat-text-muted); }
+.ms-tree__item .mat-icon, .ms-parts__item .mat-icon { width: 16px; height: 16px; flex: none; }
+.ms-tree__icon { color: var(--mat-accent-text); }
+.ms-tree__warn { color: var(--mat-danger-text); }
+.ms-tree__name, .ms-parts__name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-tree__value { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--mat-fs-xs); color: var(--mat-text-muted); }
+.ms-tree__btn {
+  flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--mat-radius-sm);
+  background: transparent; color: var(--mat-text-muted); cursor: pointer; opacity: .55;
+}
+.ms-tree__item:hover .ms-tree__btn, .ms-parts__item:hover .ms-tree__btn, .ms-tree__btn:focus-visible, .ms-tree__btn[aria-expanded="true"] { opacity: 1; }
+.ms-tree__btn:hover { background: var(--mat-surface-3); color: var(--mat-text); }
+.ms-parts__item.is-hidden .ms-parts__name { color: var(--mat-text-faint); }
+.ms-parts__none { padding: var(--mat-space-2) var(--mat-space-3); color: var(--mat-text-faint); font-size: var(--mat-fs-sm); }
+@media (pointer: coarse) { .ms-tree__btn { opacity: 1; width: 34px; height: 34px; } .ms-tree__item, .ms-parts__item { min-height: 40px; } }
+
+/* the rollback bar: the features below it are not run */
+.ms-tree__rollback { display: flex; align-items: center; gap: var(--mat-space-2); min-height: 14px; padding: 2px var(--mat-space-2); }
+.ms-tree__rollback-line { flex: 1 1 auto; height: 3px; border-radius: 2px; background: var(--mat-border-strong); }
+.ms-tree__rollback.is-moved .ms-tree__rollback-line { background: var(--mat-accent); }
+.ms-tree__rollback .mat-btn { flex: none; }
+
+/* the view */
+.ms-view { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: linear-gradient(180deg, var(--mat-surface) 0%, var(--mat-surface-3) 100%); touch-action: none; }
+.ms-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+.ms-canvas:focus-visible { box-shadow: inset var(--mat-focus-ring); }
+.is-picking .ms-canvas { cursor: crosshair; }
+.ms-triad { position: absolute; left: var(--mat-space-2); bottom: calc(var(--mat-space-2) + 44px); width: 72px; height: 72px; pointer-events: none; }
+
+.ms-viewtools {
+  position: absolute; top: var(--mat-space-3); right: var(--mat-space-3); z-index: 5;
+  display: flex; flex-direction: column; gap: 2px; padding: 3px; border-radius: var(--mat-radius);
+  background: var(--mat-surface); border: 1px solid var(--mat-border); box-shadow: var(--mat-shadow-1);
+}
+.ms-viewtools__sep { height: 1px; margin: 2px 4px; background: var(--mat-border); }
+.ms-vbtn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: var(--mat-radius-sm); background: transparent; color: var(--mat-text); cursor: pointer; }
+.ms-vbtn:hover { background: var(--mat-surface-2); }
+.ms-vbtn:focus-visible { outline: none; box-shadow: var(--mat-focus-ring); }
+.ms-vbtn[aria-pressed="true"] { color: var(--mat-accent-text); }
+.ms-vbtn .mat-icon { width: 20px; height: 20px; }
+
+/* the dialog of a feature, over the view at the top left (like the feature dialogs of the CAD tools) */
+.ms-dialog {
+  position: absolute; top: var(--mat-space-3); left: var(--mat-space-3); z-index: 8;
+  display: flex; flex-direction: column; width: min(320px, calc(100% - 2 * var(--mat-space-3) - 48px)); max-height: calc(100% - 2 * var(--mat-space-3));
+  background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); box-shadow: var(--mat-shadow-3);
+}
+.ms-dialog[hidden] { display: none; }
+.ms-dialog__head { display: flex; align-items: center; gap: var(--mat-space-2); padding: var(--mat-space-2) var(--mat-space-2) var(--mat-space-2) var(--mat-space-3); border-bottom: 1px solid var(--mat-border); }
+.ms-dialog__icon { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--mat-radius-sm); background: var(--mat-accent-soft); color: var(--mat-accent-text); }
+.ms-dialog__icon .mat-icon { width: 18px; height: 18px; }
+.ms-dialog__title { flex: 1 1 auto; margin: 0; font-size: var(--mat-fs-md); font-weight: 650; }
+.ms-dialog__body { display: flex; flex-direction: column; gap: var(--mat-space-3); padding: var(--mat-space-3); overflow: auto; }
+.ms-dialog__body.mat-form { gap: var(--mat-space-3); }
+.ms-dialog__foot { display: flex; gap: var(--mat-space-2); padding: var(--mat-space-2) var(--mat-space-3); border-top: 1px solid var(--mat-border); }
+.ms-dialog__error { margin: 0 var(--mat-space-3) var(--mat-space-2); padding: var(--mat-space-2) var(--mat-space-3); border-radius: var(--mat-radius-sm); background: var(--mat-danger-bg, var(--mat-surface-2)); color: var(--mat-danger-text); font-size: var(--mat-fs-sm); }
+.ms-dialog__error[hidden] { display: none; }
+.ms-dialog__text { margin: 0; font-size: var(--mat-fs-sm); display: flex; align-items: center; gap: var(--mat-space-1); flex-wrap: wrap; }
+.ms-dialog__text .mat-icon { width: 16px; height: 16px; }
+.ms-dialog__pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--mat-space-2); align-items: end; }
+.ms-dialog__row { display: flex; flex-wrap: wrap; gap: var(--mat-space-2); }
+.ms-dialog__pickrow { display: flex; gap: var(--mat-space-2); }
+.ms-dialog__pickrow .mat-select { flex: 1 1 auto; min-width: 0; }
+.ms-dialog__pickrow .mat-btn[aria-pressed="true"] { border-color: var(--mat-accent); background: var(--mat-accent-soft); }
+.ms-dialog--sketch { width: min(300px, calc(100% - 2 * var(--mat-space-3) - 48px)); }
+.ms-field-sm { gap: 4px; }
+.ms-field-sm .mat-label { font-size: var(--mat-fs-xs); }
+.ms-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.ms-fieldset legend { padding: 0; margin-bottom: 4px; }
+.ms-checklist { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow: auto; padding: var(--mat-space-1); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-sm); }
+.ms-partsfield.is-active .ms-checklist { border-color: var(--mat-accent); box-shadow: 0 0 0 1px var(--mat-accent); }
+.ms-check { display: flex; align-items: center; gap: var(--mat-space-2); font-size: var(--mat-fs-sm); }
+.ms-check .mat-check__text { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
+.ms-check .mat-icon { width: 14px; height: 14px; }
+.ms-seg { display: flex; }
+.ms-seg .mat-seg__btn { flex: 1 1 0; justify-content: center; padding: 0 var(--mat-space-2); }
+.ms-expr-out { margin: 0; min-height: 1em; font-size: var(--mat-fs-xs); color: var(--mat-text-muted); }
+.ms-expr-out.is-error { color: var(--mat-danger-text); }
+.ms-prefixed { display: flex; align-items: center; gap: var(--mat-space-1); }
+.ms-prefixed__mark { color: var(--mat-text-muted); }
+.ms-kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--mat-space-3); margin: 0; font-size: var(--mat-fs-sm); }
+.ms-kv dt { color: var(--mat-text-muted); }
+.ms-kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.ms-colorinput { position: fixed; left: -100px; top: 0; width: 1px; height: 1px; opacity: 0; }
+
+/* the hint over the view and the result of a measurement */
+.ms-hud {
+  position: absolute; left: 50%; top: var(--mat-space-3); transform: translateX(-50%); z-index: 4;
+  max-width: calc(100% - 2 * var(--mat-space-12)); padding: var(--mat-space-1) var(--mat-space-3); border-radius: var(--mat-radius-pill);
+  background: var(--mat-surface); border: 1px solid var(--mat-border); box-shadow: var(--mat-shadow-1); font-size: var(--mat-fs-sm); pointer-events: none;
+}
+.is-dialog .ms-hud, .is-sketching .ms-hud { left: auto; right: calc(var(--mat-space-3) + 52px); transform: none; }
+.ms-hud[hidden], .ms-measure[hidden] { display: none; }
+.ms-measure {
+  position: absolute; right: calc(var(--mat-space-3) + 52px); bottom: var(--mat-space-3); z-index: 4;
+  display: flex; flex-direction: column; gap: 2px; padding: var(--mat-space-2) var(--mat-space-3); max-width: min(420px, calc(100% - 120px));
+  background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); box-shadow: var(--mat-shadow-2); font-size: var(--mat-fs-sm);
+}
+
+/* empty, loading, failed */
+.ms-empty, .ms-loading, .ms-failure { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--mat-space-2); padding: var(--mat-space-6); text-align: center; pointer-events: none; }
+.ms-empty[hidden], .ms-loading[hidden], .ms-failure[hidden] { display: none; }
+.ms-loading, .ms-failure { background: var(--mat-bg); pointer-events: auto; z-index: 20; }
+.ms-empty__icon.mat-icon { width: 56px; height: 56px; color: var(--mat-text-faint); }
+.ms-empty__title, .ms-failure__title { margin: 0; font-weight: 650; font-size: var(--mat-fs-lg); }
+.ms-empty__text, .ms-failure__text { margin: 0; max-width: 46ch; color: var(--mat-text-muted); }
+.ms-failure > .mat-icon { width: 40px; height: 40px; color: var(--mat-danger-text); }
+
+/* ---- the tabs of the Part Studios ---------------------------------------------------------------------------------- */
+.ms-tabsbar {
+  display: flex; align-items: center; gap: var(--mat-space-1); min-height: 40px; padding: 0 var(--mat-space-2) env(safe-area-inset-bottom);
+  background: var(--mat-glass); border-top: 1px solid var(--mat-border);
+}
+.ms-tabsbar__list { display: flex; align-items: stretch; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ms-tabsbar__grow { flex: 1 1 auto; }
+.ms-tabsbar__status { color: var(--mat-text-faint); font-size: var(--mat-fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.ms-tab { display: flex; align-items: center; border-radius: var(--mat-radius-sm) var(--mat-radius-sm) 0 0; border-bottom: 2px solid transparent; }
+.ms-tab.is-active { background: var(--mat-surface); border-bottom-color: var(--mat-accent); }
+.ms-tab__btn { display: inline-flex; align-items: center; gap: var(--mat-space-1); min-height: 36px; padding: 0 var(--mat-space-3); border: 0; background: transparent; color: var(--mat-text-muted); font: inherit; font-size: var(--mat-fs-sm); cursor: pointer; white-space: nowrap; }
+.ms-tab.is-active .ms-tab__btn { color: var(--mat-text); font-weight: 600; }
+.ms-tab__btn .mat-icon { width: 15px; height: 15px; }
+.ms-tab__more { display: inline-grid; place-items: center; width: 26px; height: 26px; margin-right: 4px; padding: 0; border: 0; border-radius: var(--mat-radius-sm); background: transparent; color: var(--mat-text-muted); cursor: pointer; }
+.ms-tab__more:hover { background: var(--mat-surface-3); }
+.ms-tab__more .mat-icon { width: 14px; height: 14px; }
+
+/* ---- small screens: the list is a drawer over the view, the labels of the tools go ---------------------------------- */
+@media (max-width: 720px) {
+  .ms-work { grid-template-columns: 1fr; }
+  .ms-side { position: absolute; left: 0; top: 0; bottom: 0; z-index: 9; width: min(300px, 86vw); box-shadow: var(--mat-shadow-3); transition: transform var(--mat-dur) var(--mat-ease); }
+  .is-side-closed .ms-work { grid-template-columns: 1fr; }
+  .is-side-closed .ms-side { transform: translateX(-102%); visibility: hidden; }
+  .ms-side-toggle, .is-side-closed .ms-side-toggle { left: var(--mat-space-2); bottom: var(--mat-space-2); }
+  .ms-side-toggle { left: calc(min(300px, 86vw) + var(--mat-space-2)); }
+  .ms-tool { min-width: 46px; min-height: 46px; }
+  .ms-tool span { display: none; }
+  .ms-hide-xs { display: none; }
+  .ms-dialog { left: var(--mat-space-2); top: var(--mat-space-2); width: calc(100% - var(--mat-space-2) * 2 - 48px); max-height: 58%; }
+  .ms-viewtools { top: var(--mat-space-2); right: var(--mat-space-2); }
+  .ms-bar__theme { display: none; }
+  .ms-hud { top: auto; bottom: var(--mat-space-3); }
+  .ms-measure { right: var(--mat-space-2); left: var(--mat-space-2); bottom: 56px; max-width: none; }
+}
+@media (pointer: coarse) {
+  .ms-vbtn { width: 42px; height: 42px; }
+}

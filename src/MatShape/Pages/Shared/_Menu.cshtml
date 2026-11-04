@@ -1,0 +1,67 @@
+@model (MenuModel Menu, string Area)
+@inject CurrentUser Me
+@*
+    The menus (SHELL-01 .. SHELL-19): one panel per menu of the switcher at the foot (SHELL-15), the one of the page shown.
+    - documents: the main action first, the lists (all, mine, shared with me) and the documents worked on last
+    - settings: profile, password, my data
+    - admin:    users, system (administrators only)
+    A page names what it belongs to: ViewData["ActiveDocument"] (the id of a document).
+*@
+@{
+    var m = Model.Menu;
+    var path = Context.Request.Path.Value ?? "/";
+    var scope = Context.Request.Query["scope"].ToString();
+    var active = ViewData["ActiveDocument"] as long?;
+
+    bool Under(string prefix) => path.Equals(prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+    string Cls(bool active) => "mat-nav__item" + (active ? " is-active" : string.Empty);
+    string Cur(bool active) => active ? "page" : null!;
+    string Badge(int n) => n > 99 ? "99+" : n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var onList = path.Equals("/Documents", StringComparison.OrdinalIgnoreCase);
+}
+<nav class="mat-nav__scroll" aria-label="@L["Shell.Area.Documents"]" data-nav-panel="documents" hidden="@(Model.Area != "documents")">
+    <ul class="mat-nav__list">
+        <li>
+            <a class="mat-nav__item mat-nav__item--primary" href="/Documents/Edit">@Ui.Icon("plus")<span>@L["Documents.New"]</span></a>
+        </li>
+        <li>
+            @{ var all = onList && scope.Length == 0; }
+            <a class="@Cls(all)" href="/Documents" aria-current="@Cur(all)">@Ui.Icon("box")<span>@L["Documents.All"]</span></a>
+        </li>
+        <li>
+            @{ var mine = onList && scope == "mine"; }
+            <a class="@Cls(mine)" href="/Documents?scope=mine" aria-current="@Cur(mine)">@Ui.Icon("user")<span>@L["Documents.Mine"]</span>@if (m.Mine > 0) { <span class="mat-nav__badge mat-nav__badge--plain">@Badge(m.Mine)</span> }</a>
+        </li>
+        <li>
+            @{ var shared = onList && scope == "shared"; }
+            <a class="@Cls(shared)" href="/Documents?scope=shared" aria-current="@Cur(shared)">@Ui.Icon("users")<span>@L["Documents.Shared"]</span>@if (m.Shared > 0) { <span class="mat-nav__badge mat-nav__badge--plain">@Badge(m.Shared)</span> }</a>
+        </li>
+
+        @if (m.Recent.Count > 0)
+        {
+            <li class="mat-nav__group" role="presentation">@L["Menu.Recent"]</li>
+            @foreach (var d in m.Recent)
+            {
+                <li><a class="@Cls(active == d.Id)" href="/Documents/Studio/@d.Id" aria-current="@Cur(active == d.Id)">@Ui.Icon("cube")<span>@d.Name</span></a></li>
+            }
+        }
+    </ul>
+</nav>
+
+<nav class="mat-nav__scroll" aria-label="@L["Settings.Title"]" data-nav-panel="settings" hidden="@(Model.Area != "settings")">
+    <ul class="mat-nav__list">
+        <li><a class="@Cls(path.Equals("/Account", StringComparison.OrdinalIgnoreCase))" href="/Account" aria-current="@Cur(path.Equals("/Account", StringComparison.OrdinalIgnoreCase))">@Ui.Icon("user")<span>@L["Settings.Profile"]</span></a></li>
+        <li><a class="@Cls(Under("/Account/Password"))" href="/Account/Password" aria-current="@Cur(Under("/Account/Password"))">@Ui.Icon("lock")<span>@L["Password.Title"]</span></a></li>
+        <li><a class="@Cls(Under("/Account/Data"))" href="/Account/Data" aria-current="@Cur(Under("/Account/Data"))">@Ui.Icon("database")<span>@L["Data.Title"]</span></a></li>
+    </ul>
+</nav>
+
+@if (Me.IsAdmin)
+{
+    <nav class="mat-nav__scroll" aria-label="@L["Admin.Title"]" data-nav-panel="admin" hidden="@(Model.Area != "admin")">
+        <ul class="mat-nav__list">
+            <li><a class="@Cls(Under("/Admin/Users"))" href="/Admin/Users" aria-current="@Cur(Under("/Admin/Users"))">@Ui.Icon("user-circle")<span>@L["Users.Title"]</span></a></li>
+            <li><a class="@Cls(Under("/Admin/System"))" href="/Admin/System" aria-current="@Cur(Under("/Admin/System"))">@Ui.Icon("server")<span>@L["System.Title"]</span></a></li>
+        </ul>
+    </nav>
+}

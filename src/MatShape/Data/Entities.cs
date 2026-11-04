@@ -1,0 +1,209 @@
+namespace MatShape.Data;
+
+/// <summary>What every record has: an Id (BIGINT) and who created and changed it, and when (the columns are filled by <see cref="AppDbContext"/>).</summary>
+public abstract class Entity
+{
+    public long Id { get; set; }
+
+    public DateTime CreateDate { get; set; }
+
+    public long? CreateUserId { get; set; }
+
+    public DateTime UpdateDate { get; set; }
+
+    public long? UpdateUserId { get; set; }
+}
+
+/// <summary>A record that supports soft delete: 0 = deleted, 1 = created, 2 = updated. A deleted record is hidden by a query filter.</summary>
+public abstract class SoftEntity : Entity
+{
+    public const short Deleted = 0;
+    public const short Created = 1;
+    public const short Updated = 2;
+
+    public short UpdateState { get; set; } = Created;
+}
+
+public enum UserRole
+{
+    Admin = 1,
+    User = 2,
+}
+
+/// <summary>What a person may do with a document they do not own. The owner may do everything.</summary>
+public enum DocumentRole
+{
+    /// <summary>No access.</summary>
+    None = 0,
+
+    /// <summary>May look at the document, measure and export.</summary>
+    Viewer = 1,
+
+    /// <summary>May change the Part Studios and create versions.</summary>
+    Editor = 2,
+
+    /// <summary>May also change the name, the members and the link, and delete the document.</summary>
+    Owner = 3,
+}
+
+/// <summary>What a link to a document allows for anybody who has it. A link never edits: designs are changed by people with an account.</summary>
+public enum LinkMode
+{
+    Off = 0,
+    View = 1,
+}
+
+public sealed class User : SoftEntity
+{
+    /// <summary>The address to sign in with; unique, stored in lower case.</summary>
+    public string Email { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string PasswordHash { get; set; } = string.Empty;
+
+    public UserRole Role { get; set; } = UserRole.User;
+
+    public bool IsActive { get; set; } = true;
+
+    /// <summary>The IANA time zone dates are shown in.</summary>
+    public string TimeZone { get; set; } = "Europe/Berlin";
+
+    /// <summary>The language of the interface: en or de; empty = the language of the browser.</summary>
+    public string Language { get; set; } = string.Empty;
+
+    public int FailedLogins { get; set; }
+
+    public DateTime? LockoutUntil { get; set; }
+
+    public DateTime? LastLoginDate { get; set; }
+
+    /// <summary>system, light or dark.</summary>
+    public string Theme { get; set; } = "system";
+
+    /// <summary>standard, paper, contrast or oled.</summary>
+    public string Scheme { get; set; } = "standard";
+
+    /// <summary>The unit new documents start with: mm, cm, m or in.</summary>
+    public string DefaultUnits { get; set; } = "mm";
+
+    /// <summary>Mail about documents that are shared with the person (only when the installation can send mail).</summary>
+    public bool MailOnShare { get; set; } = true;
+
+    /// <summary>The person of MatIdentity (the claim <c>sub</c>) this account is linked with; null = a local account only.</summary>
+    public string? ExternalSubject { get; set; }
+}
+
+/// <summary>A signed-in browser. The cookie carries the <see cref="Token"/>; the session lives in the database.</summary>
+public sealed class UserSession : Entity
+{
+    public Guid Token { get; set; } = Guid.NewGuid();
+
+    public long UserId { get; set; }
+
+    public User? User { get; set; }
+
+    public DateTime LastSeenDate { get; set; }
+
+    public DateTime ExpiresDate { get; set; }
+
+    public bool IsRevoked { get; set; }
+
+    public string? UserAgent { get; set; }
+
+    public string? IpAddress { get; set; }
+
+    /// <summary>The ID token of a sign-in through MatIdentity (for the sign-out there); null for a local sign-in. A secret: never exported.</summary>
+    public string? IdentityToken { get; set; }
+
+    /// <summary>The session of MatIdentity (the claim <c>sid</c>) this session started with: the back-channel logout ends it by this.</summary>
+    public string? IdentitySessionId { get; set; }
+}
+
+/// <summary>A CAD document: a container of Part Studios (the tabs at the foot of the editor), shared as a whole.</summary>
+public sealed class Document : SoftEntity
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public long OwnerId { get; set; }
+
+    public User? Owner { get; set; }
+
+    /// <summary>The unit a plain number means in the fields of the editor, and the unit of measurements: mm, cm, m or in.</summary>
+    public string Units { get; set; } = "mm";
+
+    /// <summary>A small picture of the model (PNG), made by the editor after a change; shown in the list.</summary>
+    public byte[]? Thumbnail { get; set; }
+
+    /// <summary>The secret of the link (<c>/s/&lt;token&gt;</c>); changing it ends every link that was given out.</summary>
+    public Guid ShareToken { get; set; } = Guid.NewGuid();
+
+    public LinkMode LinkMode { get; set; } = LinkMode.Off;
+
+    public ICollection<DocumentMember> Members { get; set; } = [];
+
+    public ICollection<PartStudio> Studios { get; set; } = [];
+}
+
+/// <summary>A person a document is shared with (the owner is not a member, they are <see cref="Document.OwnerId"/>).</summary>
+public sealed class DocumentMember : Entity
+{
+    public long DocumentId { get; set; }
+
+    public Document? Document { get; set; }
+
+    public long UserId { get; set; }
+
+    public User? User { get; set; }
+
+    public DocumentRole Role { get; set; } = DocumentRole.Editor;
+}
+
+/// <summary>
+/// A Part Studio: the parametric history of a set of parts. <see cref="Content"/> is JSON: the ordered list of features (sketches, extrudes, revolves, booleans,
+/// transforms, patterns, variables) and the names and colours of the parts. The geometry is made from it in the browser.
+/// </summary>
+public sealed class PartStudio : SoftEntity
+{
+    public long DocumentId { get; set; }
+
+    public Document? Document { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The order of the tabs.</summary>
+    public int Position { get; set; }
+
+    public string Content { get; set; } = "{}";
+
+    /// <summary>Counts every change: a browser that holds an older number knows its copy is old (it reloads instead of overwriting the work of another person).</summary>
+    public long Revision { get; set; }
+}
+
+/// <summary>A named, unchangeable state of a whole document (every Part Studio), like a release. It can be opened read-only and restored.</summary>
+public sealed class DocumentVersion : Entity
+{
+    public long DocumentId { get; set; }
+
+    public Document? Document { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    /// <summary>JSON: an array of the Part Studios at the time, each <c>{ "name": ..., "content": {...} }</c>.</summary>
+    public string Content { get; set; } = "[]";
+}
+
+/// <summary>The few settings of the whole installation (one row, Id 1).</summary>
+public sealed class SystemSetting : Entity
+{
+    /// <summary>Whether anyone may create an account. Closed until an administrator opens it (Administration → System): the first account of an installation can always
+    /// sign up (it becomes the administrator), after it the administrators create the accounts.</summary>
+    public bool RegistrationOpen { get; set; }
+
+    /// <summary>The address the app is reached at from outside (for the links in mails); empty = the address of the request.</summary>
+    public string? PublicUrl { get; set; }
+}

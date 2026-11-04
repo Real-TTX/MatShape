@@ -1,0 +1,36 @@
+@page "/About"
+@model MatShape.Pages.AboutModel
+@{
+    ViewData["Title"] = L["About.Title"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["About.Title"].Value, null) };
+    ViewData["Width"] = "narrow";
+}
+
+<div class="mat-card">
+    <div class="mat-card__body ms-about">
+        <div class="ms-about__head">
+            @Ui.Logo("lg")
+            <div>
+                <h2>@Ui.AppName</h2>
+                <p>@L["About.Tagline"]</p>
+            </div>
+        </div>
+        <dl class="ms-dl">
+            <dt>@L["About.Version"]</dt><dd class="mat-mono">@AppInfo.Version</dd>
+            <dt>@L["About.Channel"]</dt><dd>@L["About.Channel." + Model.Channel]</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="mat-card">
+    <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("terminal")@L["About.Shortcuts"]</h2></div>
+    <div class="mat-card__body"><p>@L["About.Shortcuts.Text"]</p></div>
+</div>
+
+<div class="mat-card">
+    <div class="mat-card__body">
+        <p>@L["About.Family"]</p>
+        <p class="ms-muted">@L["About.Libraries"]</p>
+        <p class="ms-muted">@L["About.Author"]</p>
+    </div>
+</div>

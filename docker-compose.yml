@@ -1,0 +1,35 @@
+# MatShape - Release (branch main, image :latest)
+#   docker compose up -d        ->  http://localhost:3939
+# The first account that registers is the administrator. MatIdentity and MatSMTP are switched on by Mattiverse (see README).
+name: matshape
+
+services:
+  web:
+    image: ghcr.io/real-ttx/matshape:latest
+    restart: unless-stopped
+    ports:
+      - "3939:3939"
+    volumes:
+      - web-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: matshape
+      POSTGRES_USER: matshape
+      POSTGRES_PASSWORD: matshape
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matshape -d matshape"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  web-data:
+  db-data:

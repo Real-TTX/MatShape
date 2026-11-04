@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 166 40" width="166" height="40" role="img" aria-label="MatShape">
+  <rect x="2" y="2" width="36" height="36" rx="8" fill="#3CB764"/>
+  <path d="M20 7.5 31.5 14.2 20 20.8 8.5 14.2Z" fill="#FFFFFF"/>
+  <path d="M8.5 14.2 20 20.8V34L8.5 27.4Z" fill="#D9F2E1"/>
+  <path d="M31.5 14.2 20 20.8V34L31.5 27.4Z" fill="#0B1020"/>
+  <ellipse cx="20" cy="14.2" rx="4.4" ry="2.5" fill="#0B1020"/>
+  <text x="46" y="28.5" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="22" font-weight="700" letter-spacing="-0.4" fill="#F5F4F1">Mat<tspan fill="#5FD384">Shape</tspan></text>
+</svg>

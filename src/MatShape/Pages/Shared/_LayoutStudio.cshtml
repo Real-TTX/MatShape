@@ -1,0 +1,55 @@
+@inject Assets Toolkit
+@inject CurrentUser Me
+@{
+    // The page of the editor: no menu, the 3D view fills the window (like the editors of the CAD tools). The same layout serves the signed-in person and the guest of a link.
+    var user = Me.Snapshot;
+    var title = ViewData["Title"] as string ?? Ui.AppName;
+    var themeAttr = user is not null && user.Theme is "light" or "dark" ? $" data-theme=\"{user.Theme}\"" : string.Empty;
+}
+<!DOCTYPE html>
+<html @ClientTexts.RootAttributes() data-app="@Ui.AppId" data-scheme="@(user?.Scheme ?? "standard")" data-user="@(user?.Id.ToString() ?? string.Empty)"@Html.Raw(themeAttr) class="ms-studiopage">
+<head>
+    <meta charset="utf-8" />
+    @* the 3D view turns, pans and zooms itself (pinch included): the page must not zoom or scroll by itself *@
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f5f4f1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#151514" media="(prefers-color-scheme: dark)" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="same-origin" />
+    <title>@title · @Ui.AppName</title>
+    <link rel="icon" type="image/svg+xml" href="~/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="~/img/favicon-32.png" />
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="~/img/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="@Ui.AppName" />
+    <link rel="modulepreload" href="~/lib/three/three.module.js" />
+    <link rel="modulepreload" href="~/lib/manifold/manifold.js" />
+    <script src="~/matui/matui.boot.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/matui/matui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/studio.css" asp-append-version="true" />
+</head>
+<body class="ms-studiobody">
+    @Html.Raw(Toolkit.Sprite)
+    @RenderBody()
+    @if (user is not null)
+    {
+        <form hidden data-page-token>@Html.AntiForgeryToken()</form>
+    }
+
+    @if (TempData["Flash"] is string flash)
+    {
+        <div data-toast="@flash" data-tone="success" hidden></div>
+    }
+
+    @ClientTexts.Script()
+    <script src="~/matui/matui.js" asp-append-version="true"></script>
+    <script src="~/js/offline.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/cad/app.js" asp-append-version="true"></script>
+    <script src="~/js/pwa.js" asp-append-version="true"></script>
+</body>
+</html>

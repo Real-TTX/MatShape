@@ -1,0 +1,73 @@
+# MatShape - Local (builds the image from this folder) with pgAdmin
+#   ./scripts/redeploy.ps1              (rebuilds and starts the stack: the way to test every change)
+#   docker compose -f docker-compose.local.yml up -d --build
+#   App:      http://localhost:3939
+#   pgAdmin:  http://localhost:3940   (no sign-in; database password: matshape)
+#   Postgres: localhost:3941          (for "dotnet run" outside Docker, see appsettings.Development.json)
+name: matshape-local
+
+services:
+  web:
+    build: .
+    image: matshape:local
+    restart: unless-stopped
+    ports:
+      - "3939:3939"
+    volumes:
+      - web-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    ports:
+      - "3941:5432"
+    environment:
+      POSTGRES_DB: matshape
+      POSTGRES_USER: matshape
+      POSTGRES_PASSWORD: matshape
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matshape -d matshape"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "3940:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@matshape.example.com
+      PGADMIN_DEFAULT_PASSWORD: matshape
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    configs:
+      - source: servers
+        target: /pgadmin4/servers.json
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - db
+
+configs:
+  servers:
+    content: |
+      {"Servers": {"1": {"Name": "MatShape (local)", "Group": "Servers", "Host": "db", "Port": 5432, "MaintenanceDB": "matshape", "Username": "matshape", "SSLMode": "prefer"}}}
+
+volumes:
+  web-data:
+  db-data:
+  pgadmin-data:
+
+# A fixed subnet: on a machine with many stacks Docker runs out of address pools otherwise
+# ("all predefined address pools have been fully subnetted").
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.253.39.0/24

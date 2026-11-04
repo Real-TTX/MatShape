@@ -1,0 +1,100 @@
+@page "/Documents"
+@model MatShape.Pages.Documents.IndexModel
+@{
+    ViewData["Title"] = L["Documents.Title"].Value;
+    ViewData["PageSub"] = L["Documents.Sub"].Value;
+}
+
+<div class="mat-list" data-view-scope>
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Listing.Rows.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("cube", L[Model.Toolbar.Total == 0 ? "Documents.Empty.Title" : "Documents.NoMatch"].Value, L[Model.Toolbar.Total == 0 ? "Documents.Empty.Text" : "Lists.ChangeTools"].Value, Model.Toolbar.Total == 0, "/Documents/Edit", L["Documents.New"].Value, Model.Toolbar.UrlReset()))" />
+    }
+    else
+    {
+        @* the pictures (the default view): one tile per document with the picture the editor made of the model *@
+        <div class="mat-gallery" data-view="gallery">
+            @foreach (var d in Model.Listing.Rows)
+            {
+                <a class="mat-tile ms-doc-tile" href="/Documents/Studio/@d.Id">
+                    <span class="mat-tile__media ms-doc-tile__media">
+                        @if (d.HasThumbnail)
+                        {
+                            <img src="/live/documents/@d.Id/thumbnail" alt="" loading="lazy" width="320" height="240" />
+                        }
+                        else
+                        {
+                            @Ui.Icon("cube", "ms-doc-tile__icon")
+                        }
+                    </span>
+                    <span class="mat-tile__body">
+                        <span class="mat-tile__title">@d.Name</span>
+                        <span class="mat-tile__meta">@(d.Mine ? L["Documents.You"].Value : d.OwnerName) · @Dates.Stamp(d.UpdateDate, Model.Zone)</span>
+                        <span class="ms-doc-tile__pills">
+                            <span class="mat-pill @(d.Mine ? "mat-pill--accent" : "mat-pill--plain")">@L["Documents.Role." + d.Role]</span>
+                            <span class="mat-pill mat-pill--plain">@d.Units</span>
+                        </span>
+                    </span>
+                </a>
+            }
+        </div>
+
+        <div data-view="list" hidden>
+            <ms-table caption="@L["Documents.Title"]">
+                <thead>
+                    <tr>
+                        <th scope="col">@L["Documents.Col.Document"]</th>
+                        <th scope="col" class="mat-hide-sm">@L["Documents.Col.Owner"]</th>
+                        <th scope="col">@L["Documents.Col.Access"]</th>
+                        <th scope="col" class="mat-num mat-hide-sm">@L["Documents.Col.Studios"]</th>
+                        <th scope="col" class="mat-hide-md">@L["Documents.Col.Changed"]</th>
+                        <th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Model.Listing.Rows)
+                    {
+                        <tr>
+                            <td data-label="@L["Documents.Col.Document"]">
+                                <a class="ms-name" href="/Documents/Studio/@d.Id">@Ui.Icon("cube")<span>@d.Name</span></a>
+                                @if (!string.IsNullOrEmpty(d.Description)) { <small class="ms-muted ms-block-line">@d.Description</small> }
+                            </td>
+                            <td data-label="@L["Documents.Col.Owner"]" class="mat-hide-sm">@(d.Mine ? L["Documents.You"].Value : d.OwnerName)</td>
+                            <td data-label="@L["Documents.Col.Access"]"><span class="mat-pill @(d.Mine ? "mat-pill--accent" : "mat-pill--plain")">@L["Documents.Role." + d.Role]</span></td>
+                            <td data-label="@L["Documents.Col.Studios"]" class="mat-num mat-mono mat-hide-sm">@d.Studios</td>
+                            <td data-label="@L["Documents.Col.Changed"]" class="mat-mono mat-hide-md">@Dates.Stamp(d.UpdateDate, Model.Zone)</td>
+                            <td class="mat-table__cell-actions">
+                                <div class="mat-table__actions">
+                                    <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Studio/@d.Id" aria-label="@L["Documents.OpenNamed", d.Name]" data-tip="@L["Documents.Open"]">@Ui.Icon("external")</a>
+                                    <form method="post" asp-page-handler="Duplicate" asp-route-id="@d.Id">
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@L["Documents.DuplicateNamed", d.Name]" data-tip="@L["Documents.Duplicate"]">@Ui.Icon("copy")</button>
+                                    </form>
+                                    @if (d.Mine)
+                                    {
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Edit?id=@d.Id" aria-label="@L["Common.EditNamed", d.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a>
+                                    }
+                                    else
+                                    {
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Versions?id=@d.Id" aria-label="@L["Versions.Title"]: @d.Name" data-tip="@L["Versions.Title"]">@Ui.Icon("version")</a>
+                                        <form method="post" asp-page-handler="Leave" asp-route-id="@d.Id" class="ms-sep">
+                                            <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm ms-danger" aria-label="@L["Documents.LeaveNamed", d.Name]" data-tip="@L["Documents.Leave"]"
+                                                    data-confirm="@L["Documents.LeaveConfirm", d.Name]" data-confirm-ok="@L["Documents.Leave"]">@Ui.Icon("logout")</button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </ms-table>
+        </div>
+    }
+
+    <partial name="_Pager" model="Model.Pager" />
+
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--primary" href="/Documents/Edit">@Ui.Icon("plus")<span>@L["Documents.New"]</span></a>
+    </div>
+</div>

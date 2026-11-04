@@ -1,0 +1,26 @@
+{
+  "Landing.Description": { "en": "MatShape – 3D CAD in the browser: sketch, extrude, revolve and combine parametric parts, share them and export them for 3D printing.", "de": "MatShape – 3D-CAD im Browser: parametrische Teile skizzieren, extrudieren, rotieren und kombinieren, teilen und für den 3D-Druck exportieren." },
+  "Landing.Lead": { "en": "Design parametric parts from sketches and features – right in the browser, on <em>every</em> device.", "de": "Konstruiere parametrische Teile aus Skizzen und Features – direkt im Browser, auf <em>jedem</em> Gerät." },
+  "Landing.Register": { "en": "Register for free", "de": "Kostenlos registrieren" },
+  "Landing.Features": { "en": "Features", "de": "Funktionen" },
+  "Landing.Model.Title": { "en": "Parametric modelling", "de": "Parametrisch modellieren" },
+  "Landing.Model.Text": { "en": "Sketches on planes and faces, extrude, revolve, booleans, patterns, mirror and split – with a feature history you can change at any point.", "de": "Skizzen auf Ebenen und Flächen, Extrudieren, Rotieren, Boolesche Operationen, Muster, Spiegeln und Teilen – mit einer Feature-Historie, die sich an jeder Stelle ändern lässt." },
+  "Landing.Variables.Title": { "en": "Variables and expressions", "de": "Variablen und Ausdrücke" },
+  "Landing.Variables.Text": { "en": "Every field takes expressions with units: #width / 2 + 3 mm. Change a variable, the whole model follows.", "de": "Jedes Feld nimmt Ausdrücke mit Einheiten: #breite / 2 + 3 mm. Eine Variable ändern – das ganze Modell folgt." },
+  "Landing.Share.Title": { "en": "Versions and sharing", "de": "Versionen und Teilen" },
+  "Landing.Share.Text": { "en": "Invite people as viewers or editors, keep versions, and give out a link to look at the model.", "de": "Lade Leute als Betrachter oder Bearbeiter ein, halte Versionen fest und gib einen Link zum Ansehen des Modells heraus." },
+  "Landing.App.Title": { "en": "An app on every device", "de": "Eine App auf jedem Gerät" },
+  "Landing.App.Text": { "en": "Install MatShape like an app. Turn and measure with your fingers; export STL for the 3D printer.", "de": "Installiere MatShape wie eine App. Drehen und Messen mit den Fingern; STL für den 3D-Drucker exportieren." },
+
+  "Errors.Home": { "en": "To the start page", "de": "Zur Startseite" },
+  "Errors.General.Title": { "en": "Something went wrong", "de": "Etwas ist schiefgegangen" },
+  "Errors.General.Text": { "en": "Please try again in a moment.", "de": "Bitte versuche es gleich noch einmal." },
+  "Errors.NotFound.Title": { "en": "Not found", "de": "Nicht gefunden" },
+  "Errors.NotFound.Text": { "en": "This page does not exist, or it belongs to somebody else.", "de": "Diese Seite gibt es nicht, oder sie gehört jemand anderem." },
+  "Errors.Forbidden.Title": { "en": "No access", "de": "Kein Zugriff" },
+  "Errors.Forbidden.Text": { "en": "You lack the permission for this.", "de": "Dafür fehlt die Berechtigung." },
+  "Errors.BadRequest.Title": { "en": "Invalid request", "de": "Ungültige Anfrage" },
+  "Errors.BadRequest.Text": { "en": "Please reload the page and try again.", "de": "Bitte lade die Seite neu und versuche es noch einmal." },
+  "Errors.TooMany.Title": { "en": "Too many requests", "de": "Zu viele Anfragen" },
+  "Errors.TooMany.Text": { "en": "Please wait a moment.", "de": "Bitte einen Moment warten." }
+}

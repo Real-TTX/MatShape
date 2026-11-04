@@ -1,0 +1,42 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <Company>Matthias Schmoldt</Company>
+    <Product>MatShape</Product>
+    <Authors>Matthias Schmoldt</Authors>
+  </PropertyGroup>
+
+  <!-- Versioning (single source of truth: Major/Minor below). CI overrides Channel / BuildNumber / BuildDate:
+         release : <major>.<minor>.<build>-<date>   e.g. 0.1.42-20261031   (branch main)
+         nightly : nightly-<build>-<date>                                  (branch dev)
+         local   : local-<date>                                            (everything else, the local stack) -->
+  <PropertyGroup>
+    <MatShapeMajor>0</MatShapeMajor>
+    <MatShapeMinor>1</MatShapeMinor>
+
+    <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+    <Channel Condition="'$(Channel)' == ''">local</Channel>
+    <BuildDate Condition="'$(BuildDate)' == ''">$([System.DateTime]::UtcNow.ToString('yyyyMMdd'))</BuildDate>
+
+    <Version>$(MatShapeMajor).$(MatShapeMinor).$(BuildNumber)</Version>
+    <AssemblyVersion>$(MatShapeMajor).$(MatShapeMinor).0.0</AssemblyVersion>
+    <FileVersion>$(MatShapeMajor).$(MatShapeMinor).0.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Channel)' == 'release'">
+    <InformationalVersion>$(MatShapeMajor).$(MatShapeMinor).$(BuildNumber)-$(BuildDate)</InformationalVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Channel)' == 'nightly'">
+    <InformationalVersion>nightly-$(BuildNumber)-$(BuildDate)</InformationalVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Channel)' == 'local'">
+    <InformationalVersion>local-$(BuildDate)</InformationalVersion>
+  </PropertyGroup>
+
+</Project>

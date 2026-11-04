@@ -1,0 +1,202 @@
+@model StudioViewModel
+@inject CurrentUser Me
+@*
+    The editor of a document: the bar (back, name, state, undo/redo, versions, export, theme), the feature tools (or the sketch tools while a sketch is edited),
+    the feature list with the parts on the left, the 3D view in the middle with its view buttons and the dialog of the feature being edited, the tabs of the Part Studios
+    at the foot. Everything that depends on the model is drawn by the scripts (js/cad/*.js) from /live/documents/{id}; this markup is the frame and the texts.
+*@
+@{
+    var user = Me.Snapshot;
+    var canEdit = Model.CanEdit;
+    var back = Model.LinkToken is null ? "/Documents" : (user is null ? "/" : "/Documents");
+}
+<div class="ms-studio" id="ms-studio"
+     data-document="@Model.DocumentId"
+     data-token="@(Model.LinkToken ?? string.Empty)"
+     data-version="@(Model.VersionId?.ToString() ?? string.Empty)"
+     data-can-edit="@(canEdit ? "true" : "false")"
+     data-owner="@(Model.IsOwner ? "true" : "false")"
+     data-person="@Model.PersonName"
+     data-signed-in="@(user is null ? "false" : "true")">
+
+    <header class="ms-bar">
+        <a class="ms-bar__home" href="@back" aria-label="@L["Studio.Back"]" data-tip="@L["Studio.Back"]" data-tip-place="below" data-tip-align="start">@Ui.Logo("sm")</a>
+        <div class="ms-bar__title">
+            <h1 class="ms-bar__name" data-doc-name>@Model.Name</h1>
+            <span class="ms-bar__meta">
+                @if (Model.VersionId is not null)
+                {
+                    <span class="mat-pill mat-pill--warn" data-version-pill>@Ui.Icon("version")<span data-version-name>@L["Studio.Version"]</span></span>
+                }
+                else if (!canEdit)
+                {
+                    <span class="mat-pill mat-pill--plain">@Ui.Icon("eye")<span>@L["Studio.ReadOnly"]</span></span>
+                }
+                <span class="ms-save" data-save-state aria-live="polite"></span>
+            </span>
+        </div>
+        <div class="ms-bar__actions">
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon ms-offline-btn" data-offline hidden aria-label="@L["Studio.Offline"]" data-tip="@L["Studio.Offline"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("cloud-off")</button>
+            @if (canEdit)
+            {
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-action="undo" disabled aria-label="@L["Studio.Undo"]" data-tip="@L["Studio.Undo"] (Ctrl+Z)" data-tip-place="below" data-tip-align="end">@Ui.Icon("undo")</button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-action="redo" disabled aria-label="@L["Studio.Redo"]" data-tip="@L["Studio.Redo"] (Ctrl+Y)" data-tip-place="below" data-tip-align="end">@Ui.Icon("redo")</button>
+                <span class="ms-bar__sep" aria-hidden="true"></span>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-action="version" aria-label="@L["Studio.CreateVersion"]" data-tip="@L["Studio.CreateVersion"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("version")</button>
+            }
+            @if (Model.LinkToken is null)
+            {
+                <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Documents/Versions?id=@Model.DocumentId" aria-label="@L["Versions.Title"]" data-tip="@L["Versions.Title"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("history")</a>
+            }
+            @if (Model.IsOwner)
+            {
+                <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Documents/Members?id=@Model.DocumentId" aria-label="@L["Studio.Share"]" data-tip="@L["Studio.Share"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("share")</a>
+            }
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-menu-toggle="ms-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["Studio.Export"]" data-tip="@L["Studio.Export"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("download")</button>
+            <button type="button" class="mat-theme ms-bar__theme" data-theme-toggle data-theme-state="@(user?.Theme ?? "system")" @(user is null ? "" : "data-theme-save-url=/Account?handler=Theme") aria-label="@L["Shell.Theme"]" title="@L["Shell.Theme"]">
+                <svg class="mat-icon" data-theme-icon="system" aria-hidden="true" focusable="false"><use href="#mat-i-monitor"></use></svg>
+                <svg class="mat-icon" data-theme-icon="light" aria-hidden="true" focusable="false"><use href="#mat-i-sun"></use></svg>
+                <svg class="mat-icon" data-theme-icon="dark" aria-hidden="true" focusable="false"><use href="#mat-i-moon"></use></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="mat-menu" id="ms-export-menu" role="menu" aria-label="@L["Studio.Export"]" hidden>
+        <button type="button" class="mat-menu__item" role="menuitem" data-export="stl">@Ui.Icon("download")<span>@L["Studio.Export.Stl"]</span></button>
+        <button type="button" class="mat-menu__item" role="menuitem" data-export="obj">@Ui.Icon("download")<span>@L["Studio.Export.Obj"]</span></button>
+        <button type="button" class="mat-menu__item" role="menuitem" data-export="png">@Ui.Icon("image")<span>@L["Studio.Export.Png"]</span></button>
+        <div class="mat-menu__sep" role="separator"></div>
+        <button type="button" class="mat-menu__item" role="menuitem" data-export="json">@Ui.Icon("code")<span>@L["Studio.Export.Json"]</span></button>
+    </div>
+
+    @* the feature tools (OnShape-like: a row of tools over the work area); hidden while a sketch is edited *@
+    <div class="ms-tools" role="toolbar" aria-label="@L["Studio.Tools"]" data-toolbar="features">
+        @if (canEdit)
+        {
+            <button type="button" class="ms-tool" data-feature="sketch" data-tip="@L["Feature.sketch"] (Shift+S)">@Ui.Icon("sketch")<span>@L["Feature.sketch"]</span></button>
+            <span class="ms-tools__sep" aria-hidden="true"></span>
+            <button type="button" class="ms-tool" data-feature="extrude" data-tip="@L["Feature.extrude"] (Shift+E)">@Ui.Icon("extrude")<span>@L["Feature.extrude"]</span></button>
+            <button type="button" class="ms-tool" data-feature="revolve" data-tip="@L["Feature.revolve"] (Shift+W)">@Ui.Icon("revolve")<span>@L["Feature.revolve"]</span></button>
+            <span class="ms-tools__sep" aria-hidden="true"></span>
+            <button type="button" class="ms-tool" data-feature="boolean" data-tip="@L["Feature.boolean"]">@Ui.Icon("boolean")<span>@L["Feature.boolean"]</span></button>
+            <button type="button" class="ms-tool" data-feature="split" data-tip="@L["Feature.split"]">@Ui.Icon("split")<span>@L["Feature.split"]</span></button>
+            <button type="button" class="ms-tool" data-feature="transform" data-tip="@L["Feature.transform"]">@Ui.Icon("move")<span>@L["Feature.transform"]</span></button>
+            <button type="button" class="ms-tool" data-feature="mirror" data-tip="@L["Feature.mirror"]">@Ui.Icon("mirror")<span>@L["Feature.mirror"]</span></button>
+            <button type="button" class="ms-tool" data-feature="lpattern" data-tip="@L["Feature.lpattern"]">@Ui.Icon("pattern-linear")<span>@L["Feature.lpattern"]</span></button>
+            <button type="button" class="ms-tool" data-feature="cpattern" data-tip="@L["Feature.cpattern"]">@Ui.Icon("pattern-circular")<span>@L["Feature.cpattern"]</span></button>
+            <button type="button" class="ms-tool" data-feature="deletepart" data-tip="@L["Feature.deletepart"]">@Ui.Icon("delete-part")<span>@L["Feature.deletepart"]</span></button>
+            <span class="ms-tools__sep" aria-hidden="true"></span>
+            <button type="button" class="ms-tool" data-feature="plane" data-tip="@L["Feature.plane"]">@Ui.Icon("plane")<span>@L["Feature.plane"]</span></button>
+            <button type="button" class="ms-tool" data-feature="variable" data-tip="@L["Feature.variable"]">@Ui.Icon("variable")<span>@L["Feature.variable"]</span></button>
+            <span class="ms-tools__sep" aria-hidden="true"></span>
+        }
+        <button type="button" class="ms-tool" data-action="measure" aria-pressed="false" data-tip="@L["Studio.Measure"] (M)">@Ui.Icon("ruler")<span>@L["Studio.Measure"]</span></button>
+    </div>
+
+    @* the sketch tools, shown while a sketch is edited *@
+    <div class="ms-tools ms-tools--sketch" role="toolbar" aria-label="@L["Sketch.Tools"]" data-toolbar="sketch" hidden>
+        <button type="button" class="ms-tool" data-sketch-tool="select" aria-pressed="true" data-tip="@L["Sketch.Select"] (Esc)">@Ui.Icon("cursor")<span>@L["Sketch.Select"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-sketch-tool="line" aria-pressed="false" data-tip="@L["Sketch.Line"] (L)">@Ui.Icon("line")<span>@L["Sketch.Line"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="rect" aria-pressed="false" data-tip="@L["Sketch.Rect"] (G)">@Ui.Icon("rectangle")<span>@L["Sketch.Rect"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="crect" aria-pressed="false" data-tip="@L["Sketch.CenterRect"]">@Ui.Icon("rectangle-center")<span>@L["Sketch.CenterRect"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="circle" aria-pressed="false" data-tip="@L["Sketch.Circle"] (C)">@Ui.Icon("circle-tool")<span>@L["Sketch.Circle"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="arc" aria-pressed="false" data-tip="@L["Sketch.Arc"] (A)">@Ui.Icon("arc")<span>@L["Sketch.Arc"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="polygon" aria-pressed="false" data-tip="@L["Sketch.Polygon"]">@Ui.Icon("polygon")<span>@L["Sketch.Polygon"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="point" aria-pressed="false" data-tip="@L["Sketch.Point"]">@Ui.Icon("point")<span>@L["Sketch.Point"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-sketch-action="construction" aria-pressed="false" data-tip="@L["Sketch.Construction"] (Q)">@Ui.Icon("construction")<span>@L["Sketch.Construction"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="delete" data-tip="@L["Sketch.DeleteSelected"] (Del)">@Ui.Icon("trash")<span>@L["Sketch.DeleteSelected"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="normal" data-tip="@L["Sketch.NormalTo"] (N)">@Ui.Icon("normal-to")<span>@L["Sketch.NormalTo"]</span></button>
+        <span class="ms-tools__grow" aria-hidden="true"></span>
+        <button type="button" class="ms-tool ms-tool--accept" data-sketch-action="finish" data-tip="@L["Sketch.Finish"] (Enter)">@Ui.Icon("check")<span>@L["Sketch.Finish"]</span></button>
+    </div>
+
+    <div class="ms-work">
+        <aside class="ms-side" id="ms-side" aria-label="@L["Studio.FeatureList"]">
+            <section class="ms-side__part">
+                <h2 class="ms-side__head">@Ui.Icon("list")<span>@L["Studio.Features"]</span><span class="ms-side__count" data-feature-count></span></h2>
+                <ol class="ms-tree" data-feature-list aria-label="@L["Studio.FeatureList"]"></ol>
+            </section>
+            <section class="ms-side__part">
+                <h2 class="ms-side__head">@Ui.Icon("part")<span>@L["Studio.Parts"]</span><span class="ms-side__count" data-part-count></span></h2>
+                <ul class="ms-parts" data-part-list aria-label="@L["Studio.Parts"]"></ul>
+            </section>
+        </aside>
+        <button type="button" class="ms-side-toggle mat-btn mat-btn--secondary mat-btn--icon" data-action="side" aria-controls="ms-side" aria-expanded="true" aria-label="@L["Studio.FeatureList"]">@Ui.Icon("sidebar")</button>
+
+        <div class="ms-view" data-view>
+            <canvas class="ms-canvas" data-canvas tabindex="0" aria-label="@L["Studio.Viewport"]"></canvas>
+
+            <div class="ms-viewtools" role="toolbar" aria-label="@L["Studio.Views"]">
+                <button type="button" class="ms-vbtn" data-view-set="iso" aria-label="@L["View.Iso"]" data-tip="@L["View.Iso"] (I)" data-tip-align="end">@Ui.Icon("view-iso")</button>
+                <button type="button" class="ms-vbtn" data-view-set="top" aria-label="@L["View.Top"]" data-tip="@L["View.Top"]" data-tip-align="end">@Ui.Icon("view-top")</button>
+                <button type="button" class="ms-vbtn" data-view-set="front" aria-label="@L["View.Front"]" data-tip="@L["View.Front"]" data-tip-align="end">@Ui.Icon("view-front")</button>
+                <button type="button" class="ms-vbtn" data-view-set="right" aria-label="@L["View.Right"]" data-tip="@L["View.Right"]" data-tip-align="end">@Ui.Icon("view-right")</button>
+                <button type="button" class="ms-vbtn" data-action="fit" aria-label="@L["View.Fit"]" data-tip="@L["View.Fit"] (F)" data-tip-align="end">@Ui.Icon("zoom-fit")</button>
+                <span class="ms-viewtools__sep" aria-hidden="true"></span>
+                <button type="button" class="ms-vbtn" data-action="display" aria-label="@L["View.Display"]" data-tip="@L["View.Display"]" data-tip-align="end">@Ui.Icon("shaded")</button>
+                <button type="button" class="ms-vbtn" data-action="planes" aria-pressed="true" aria-label="@L["View.Planes"]" data-tip="@L["View.Planes"]" data-tip-align="end">@Ui.Icon("plane")</button>
+            </div>
+
+            @* the axes in the corner (drawn by the scripts) *@
+            <canvas class="ms-triad" data-triad width="96" height="96" aria-hidden="true"></canvas>
+
+            @* the dialog of the feature being created or edited (filled by the scripts) *@
+            <section class="ms-dialog" data-dialog hidden aria-labelledby="ms-dialog-title">
+                <header class="ms-dialog__head">
+                    <span class="ms-dialog__icon" data-dialog-icon></span>
+                    <h2 class="ms-dialog__title" id="ms-dialog-title" data-dialog-title></h2>
+                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-dialog-help aria-label="@L["Studio.Help"]" data-tip="@L["Studio.Help"]">@Ui.Icon("help-circle")</button>
+                </header>
+                <form class="ms-dialog__body mat-form" data-dialog-form novalidate></form>
+                <p class="ms-dialog__error" data-dialog-error role="alert" hidden></p>
+                <footer class="ms-dialog__foot">
+                    <button type="button" class="mat-btn mat-btn--primary mat-btn--sm" data-dialog-ok>@Ui.Icon("check")<span>@L["Studio.Ok"]</span></button>
+                    <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" data-dialog-cancel>@Ui.Icon("x")<span>@L["Common.Cancel"]</span></button>
+                </footer>
+            </section>
+
+            @* the sketch: the properties of the selection and the hints *@
+            <section class="ms-dialog ms-dialog--sketch" data-sketch-panel hidden aria-label="@L["Sketch.Properties"]">
+                <header class="ms-dialog__head">
+                    <span class="ms-dialog__icon">@Ui.Icon("sketch")</span>
+                    <h2 class="ms-dialog__title" data-sketch-title></h2>
+                </header>
+                <div class="ms-dialog__body mat-form" data-sketch-body></div>
+                <footer class="ms-dialog__foot">
+                    <button type="button" class="mat-btn mat-btn--primary mat-btn--sm" data-sketch-action="finish">@Ui.Icon("check")<span>@L["Sketch.Finish"]</span></button>
+                    <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" data-sketch-action="cancel">@Ui.Icon("x")<span>@L["Common.Cancel"]</span></button>
+                </footer>
+            </section>
+
+            <div class="ms-hud" data-hud aria-live="polite" hidden></div>
+            <div class="ms-measure" data-measure-out aria-live="polite" hidden></div>
+            <div class="ms-empty" data-empty hidden>
+                @Ui.Icon("cube", "ms-empty__icon")
+                <p class="ms-empty__title" data-empty-title></p>
+                <p class="ms-empty__text" data-empty-text></p>
+            </div>
+            <div class="ms-loading" data-loading>
+                <span class="mat-spinner" aria-hidden="true"></span>
+                <span data-loading-text>@L["Studio.Loading"]</span>
+            </div>
+            <div class="ms-failure" data-failure hidden role="alert">
+                @Ui.Icon("alert")
+                <p class="ms-failure__title" data-failure-title></p>
+                <p class="ms-failure__text" data-failure-text></p>
+                <button type="button" class="mat-btn mat-btn--primary" data-action="reload">@Ui.Icon("refresh")<span>@L["Studio.TryAgain"]</span></button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="ms-tabsbar" aria-label="@L["Studio.PartStudios"]">
+        <div class="ms-tabsbar__list" role="tablist" data-studio-tabs></div>
+        @if (canEdit)
+        {
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-action="add-studio" aria-label="@L["Studio.AddStudio"]" data-tip="@L["Studio.AddStudio"]">@Ui.Icon("plus")</button>
+        }
+        <span class="ms-tabsbar__grow"></span>
+        <span class="ms-tabsbar__status mat-mono" data-status></span>
+    </nav>
+</div>

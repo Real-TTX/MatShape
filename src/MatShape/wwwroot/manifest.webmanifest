@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "MatShape",
+  "short_name": "MatShape",
+  "description": "3D CAD in the browser: sketch, extrude, revolve and combine parametric parts. 3D-CAD im Browser: parametrische Teile konstruieren.",
+  "start_url": "/Documents",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f5f4f1",
+  "theme_color": "#f5f4f1",
+  "categories": ["productivity", "utilities", "design"],
+  "icons": [
+    { "src": "/img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "New document / Neues Dokument", "short_name": "New", "url": "/Documents/Edit", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
+    { "name": "My documents / Meine Dokumente", "short_name": "Mine", "url": "/Documents?scope=mine", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Shared with me / Mit mir geteilt", "short_name": "Shared", "url": "/Documents?scope=shared", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

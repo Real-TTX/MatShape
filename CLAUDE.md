@@ -21,6 +21,7 @@ the npm packages (see the README.txt next to them), not loaded from a CDN. Docke
   `Host=localhost;Port=3941;Username=matshape;Password=matshape;Database=postgres` while the local stack runs); each test creates, migrates and drops a database of its own (this tests the migrations too).
   Without the variable those tests are skipped. `TextCatalogTests` checks every text key of the server code and of the editor (`t('Area.Key')` → `Js.Area.Key`) in English and German.
 - **Run / test the app: always rebuild the container** (`./scripts/redeploy.ps1`, `-Clean` for empty volumes). CSS, JS and cshtml are baked into the image.
+- **Test account (always):** `admin@example.com` / `Start12345` – the first account of a fresh stack (it becomes the administrator); browser tests and screenshots sign in with it.
 - **Real tests are end to end in a browser** (Playwright with the installed Edge, see the `screenshots` skill): register, create a document, sketch with the mouse, extrude/revolve through the dialogs,
   undo, offline (`context.setOffline`), the link as a guest, a phone (390 px), dark mode. Look at the screenshots. The geometry can also be tested in Node: import `wwwroot/js/cad/model.js` and pass
   a kernel from `manifold-3d` (`regenerate(kernel, content, 'mm')`).

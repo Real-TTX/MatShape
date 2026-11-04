@@ -105,3 +105,18 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .ms-doc-tile__media img { object-fit: contain; }
 .ms-doc-tile__icon.mat-icon { width: 48px; height: 48px; color: var(--mat-text-faint); }
 .ms-doc-tile__pills { display: flex; flex-wrap: wrap; gap: var(--mat-space-1); margin-top: var(--mat-space-1); }
+
+/* ---- AI administration ------------------------------------------------------------------------------------------------ */
+.ms-models-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-3); margin-top: var(--mat-space-2); }
+.ms-models-tools .mat-input { max-width: 260px; }
+.ms-models { list-style: none; margin: var(--mat-space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow: auto; }
+.ms-model { display: flex; align-items: center; justify-content: space-between; gap: var(--mat-space-2); width: 100%; padding: 6px var(--mat-space-2); border: 1px solid transparent; border-radius: var(--mat-radius-sm); background: transparent; color: var(--mat-text); font: inherit; font-size: var(--mat-fs-sm); text-align: left; cursor: pointer; }
+.ms-model:hover { background: var(--mat-surface-2); }
+.ms-model.is-current { border-color: var(--mat-accent); background: var(--mat-accent-soft); }
+.ms-model .mat-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-pre { margin: 0; max-height: 480px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mat-mono); font-size: var(--mat-fs-xs); }
+.ms-details { margin-top: var(--mat-space-3); }
+.ms-details summary { cursor: pointer; color: var(--mat-accent-text); }
+.ms-details .ms-pre { margin-top: var(--mat-space-2); padding: var(--mat-space-3); border-radius: var(--mat-radius-sm); background: var(--mat-surface-2); }
+.ms-code-big { font-size: var(--mat-fs-lg); letter-spacing: .08em; }
+.ms-chatgpt { margin-top: var(--mat-gap); }

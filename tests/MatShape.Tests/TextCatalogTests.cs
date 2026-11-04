@@ -42,7 +42,8 @@ public sealed partial class TextCatalogTests
                         && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                         && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                         && !f.Contains("matui", StringComparison.Ordinal)
-                        && !f.Contains($"js{Path.DirectorySeparatorChar}cad", StringComparison.Ordinal));
+                        && !f.Contains($"js{Path.DirectorySeparatorChar}cad", StringComparison.Ordinal)
+                        && !f.EndsWith("ai-admin.js", StringComparison.Ordinal));
         var used = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var file in files)
         {
@@ -63,7 +64,7 @@ public sealed partial class TextCatalogTests
     {
         var folder = Path.Combine(FindRoot(), "src", "MatShape", "wwwroot", "js", "cad");
         var used = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var file in Directory.EnumerateFiles(folder, "*.js"))
+        foreach (var file in Directory.EnumerateFiles(folder, "*.js").Append(Path.Combine(folder, "..", "ai-admin.js")))
         {
             foreach (Match m in EditorKeyRegex().Matches(File.ReadAllText(file)))
             {
@@ -118,11 +119,11 @@ public sealed partial class TextCatalogTests
         => string.Join(',', PlaceholderRegex().Matches(text).Select(m => m.Value).Distinct().Order(StringComparer.Ordinal));
 
     // L["Key"], L["Key", ...], Text.T("Key"), t('Js.Key'), and the keys written as plain strings in a ternary (L[x ? "A.B" : "C.D"]): every quoted Area.Thing of the catalog's areas
-    [GeneratedRegex("""["'](?<key>(Common|Shell|Menu|Settings|Password|Admin|Account|Documents|Studios|Versions|Units|Studio|Members|Share|About|Mail|Users|System|Lists|Landing|Errors|Js)\.[A-Za-z0-9.]+)["']""")]
+    [GeneratedRegex("""["'](?<key>(Common|Shell|Menu|Settings|Password|Admin|Account|Documents|Studios|Versions|Units|Studio|Members|Share|About|Mail|Users|System|Lists|Landing|Errors|Ai|Js)\.[A-Za-z0-9.]+)["']""")]
     private static partial Regex KeyRegex();
 
     // the quoted keys of the editor's areas: t('Tree.Edit'), new FeatureError('Feature.NoParts'), t(gone ? 'Studio.Gone.Title' : 'Studio.Fail.Title')
-    [GeneratedRegex("""'(?<key>(Studio|Save|Feature|Expr|Help|Dialog|Plane|Tree|Part|Sketch|Measure|View|Tabs|Version|Export|Offline)\.[A-Za-z0-9.-]+)'""")]
+    [GeneratedRegex("""'(?<key>(Studio|Save|Feature|Expr|Help|Dialog|Plane|Tree|Part|Sketch|Measure|View|Tabs|Version|Export|Offline|Ai)\.[A-Za-z0-9.-]+)'""")]
     private static partial Regex EditorKeyRegex();
 
     [GeneratedRegex(@"\{\d+\}")]

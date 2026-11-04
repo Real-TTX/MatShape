@@ -206,4 +206,128 @@ public sealed class SystemSetting : Entity
 
     /// <summary>The address the app is reached at from outside (for the links in mails); empty = the address of the request.</summary>
     public string? PublicUrl { get; set; }
+
+    /// <summary>The settings of the AI (JSON: switched on, the instruction of the site, the limits); see <c>Services.Ai.AiSettings</c>.</summary>
+    public string AiSettings { get; set; } = "{}";
+}
+
+// ---- AI ------------------------------------------------------------------------------------------------------------------------
+
+public enum AiProvider
+{
+    /// <summary>Any server with the OpenAI-compatible /chat/completions (OpenAI, OpenRouter, Mistral, DeepSeek, an own server) and an API key.</summary>
+    OpenAiCompatible = 0,
+
+    /// <summary>A ChatGPT account, signed in with a device code (like Codex); the tokens are renewed by the app.</summary>
+    ChatGpt = 1,
+}
+
+/// <summary>
+/// A named connection to an AI ("OpenRouter free", "ChatGPT", "OpenAI"). Exactly one is active. The key or the sign-in is not in this row: it lies encrypted in the data volume
+/// under <see cref="SecretToken"/>, outside the database, so it is never part of a backup and never sent to a browser.
+/// </summary>
+public sealed class AiProfile : SoftEntity
+{
+    public string Name { get; set; } = string.Empty;
+
+    public AiProvider Provider { get; set; } = AiProvider.OpenAiCompatible;
+
+    /// <summary>The template the address came from ("openai", "openrouter" ...), for the page only.</summary>
+    public string? Preset { get; set; }
+
+    public string BaseUrl { get; set; } = string.Empty;
+
+    public string Model { get; set; } = string.Empty;
+
+    public bool IsActive { get; set; }
+
+    /// <summary>The name of the secret file of this profile (the key, or the ChatGPT sign-in). A copy of a profile gets a new one.</summary>
+    public Guid SecretToken { get; set; } = Guid.NewGuid();
+
+    public string? Note { get; set; }
+}
+
+public enum AiAction
+{
+    /// <summary>A test of a profile from the administration.</summary>
+    Test = 0,
+
+    /// <summary>The modelling assistant of the editor: a request becomes features of the Part Studio.</summary>
+    Model = 1,
+}
+
+public enum AiRunStatus
+{
+    Running = 0,
+    Done = 1,
+    LimitReached = 2,
+    Stuck = 3,
+    Error = 4,
+    Cancelled = 5,
+}
+
+/// <summary>One call of the AI: what was asked, by whom, through which profile, what it cost and how it ended. The steps are in <see cref="AiRunStep"/>.</summary>
+public sealed class AiRun : Entity
+{
+    public AiAction Action { get; set; }
+
+    public AiRunStatus Status { get; set; } = AiRunStatus.Running;
+
+    public long? DocumentId { get; set; }
+
+    public long? StudioId { get; set; }
+
+    public long? UserId { get; set; }
+
+    /// <summary>The brake per address: a hash of the address that changes every day, never the address.</summary>
+    public string? AddressHash { get; set; }
+
+    public string ProfileName { get; set; } = string.Empty;
+
+    public string Model { get; set; } = string.Empty;
+
+    public int PromptTokens { get; set; }
+
+    public int CompletionTokens { get; set; }
+
+    /// <summary>The provider gave no numbers: the tokens are estimated (characters / 4).</summary>
+    public bool TokensEstimated { get; set; }
+
+    public DateTime StartDate { get; set; }
+
+    public DateTime? EndDate { get; set; }
+
+    public string? Error { get; set; }
+
+    /// <summary>What the person asked.</summary>
+    public string? Prompt { get; set; }
+
+    /// <summary>The checked answer (jsonb): the message and the features the editor applies.</summary>
+    public string ResultJson { get; set; } = "{}";
+
+    public List<AiRunStep> Steps { get; set; } = [];
+
+    public int TotalTokens => PromptTokens + CompletionTokens;
+}
+
+public enum AiStepKind
+{
+    Message = 0,
+    Result = 1,
+    Warning = 2,
+}
+
+public sealed class AiRunStep : Entity
+{
+    public long AiRunId { get; set; }
+
+    public AiRun? AiRun { get; set; }
+
+    public int Number { get; set; }
+
+    public AiStepKind Kind { get; set; }
+
+    public string Text { get; set; } = string.Empty;
+
+    public DateTime OccurredDate { get; set; }
 }

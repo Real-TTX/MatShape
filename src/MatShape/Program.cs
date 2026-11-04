@@ -49,6 +49,12 @@ builder.Services.AddHostedService<MaintenanceService>();
 
 // The mail through MatSMTP (only when the environment names it).
 builder.Services.AddSingleton<MailService>();
+
+// The AI (profiles, the assistant of the editor): the keys and sign-ins encrypted in the volume, the brake per address, the ChatGPT sign-ins in progress, one HTTP client for the providers.
+builder.Services.AddSingleton<MatShape.Services.Ai.AiSecretStore>();
+builder.Services.AddSingleton<MatShape.Services.Ai.AiRateLimiter>();
+builder.Services.AddSingleton<MatShape.Services.Ai.ChatGptLoginStates>();
+builder.Services.AddHttpClient("ai");
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MailService>());
 
 // The Mat platform contract (MatDesign docs/PLATFORM.md): /api, /api/health, /api/state, /api/configure, /api/actions with MAT_API_KEY or a token of MatIdentity.
@@ -197,6 +203,7 @@ app.MapPost("/language", async (HttpContext http, CurrentUser me, AppDbContext d
 
 app.MapGet("/health", async (AppDbContext db) => await db.Database.CanConnectAsync() ? Results.Ok("ok") : Results.StatusCode(503)).AllowAnonymous();
 app.MapDocumentEndpoints();
+MatShape.Services.Ai.AiEndpoints.MapAiEndpoints(app);
 app.MapMatPlatform();
 app.MapRazorPages();
 

@@ -24,6 +24,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
 
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
+    public DbSet<AiProfile> AiProfiles => Set<AiProfile>();
+
+    public DbSet<AiRun> AiRuns => Set<AiRun>();
+
+    public DbSet<AiRunStep> AiRunSteps => Set<AiRunStep>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<User>(e =>
@@ -99,6 +105,40 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
         {
             e.ToTable("SystemSetting");
             e.Property(x => x.PublicUrl).HasMaxLength(300);
+            e.Property(x => x.AiSettings).HasColumnType("jsonb");
+        });
+
+        b.Entity<AiProfile>(e =>
+        {
+            e.ToTable("AiProfile");
+            e.Property(x => x.Name).HasMaxLength(80);
+            e.Property(x => x.Preset).HasMaxLength(20);
+            e.Property(x => x.BaseUrl).HasMaxLength(300);
+            e.Property(x => x.Model).HasMaxLength(200);
+            e.Property(x => x.Note).HasMaxLength(1000);
+            e.HasIndex(x => x.SecretToken).IsUnique();
+            e.HasQueryFilter(x => x.UpdateState != SoftEntity.Deleted);
+        });
+
+        b.Entity<AiRun>(e =>
+        {
+            e.ToTable("AiRun");
+            e.HasIndex(x => x.StartDate);
+            e.HasIndex(x => new { x.UserId, x.StartDate });
+            e.HasIndex(x => new { x.AddressHash, x.StartDate });
+            e.Property(x => x.AddressHash).HasMaxLength(32);
+            e.Property(x => x.ProfileName).HasMaxLength(80);
+            e.Property(x => x.Model).HasMaxLength(200);
+            e.Property(x => x.Error).HasMaxLength(2000);
+            e.Property(x => x.Prompt).HasMaxLength(4000);
+            e.Property(x => x.ResultJson).HasColumnType("jsonb");
+        });
+
+        b.Entity<AiRunStep>(e =>
+        {
+            e.ToTable("AiRunStep");
+            e.HasIndex(x => new { x.AiRunId, x.Number });
+            e.HasOne(x => x.AiRun).WithMany(x => x.Steps).HasForeignKey(x => x.AiRunId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 

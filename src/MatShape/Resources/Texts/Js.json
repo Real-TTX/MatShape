@@ -241,5 +241,23 @@
   "Js.Version.Created": { "en": "Version “{0}” created.", "de": "Version „{0}“ angelegt." },
   "Js.Version.Failed": { "en": "The version could not be created.", "de": "Die Version konnte nicht angelegt werden." },
 
+  "Js.Ai.Thinking": { "en": "The AI is modelling …", "de": "Die KI modelliert …" },
+  "Js.Ai.Repairing": { "en": "Some features did not build – the AI repairs them …", "de": "Einige Features bauen nicht – die KI repariert sie …" },
+  "Js.Ai.Failed": { "en": "The AI could not be reached.", "de": "Die KI war nicht erreichbar." },
+  "Js.Ai.Offline": { "en": "No connection – the assistant needs the network.", "de": "Keine Verbindung – der Assistent braucht das Netz." },
+  "Js.Ai.Settings": { "en": "Open the AI settings", "de": "KI-Einstellungen öffnen" },
+  "Js.Ai.Done": { "en": "Done.", "de": "Fertig." },
+  "Js.Ai.Changed": { "en": "{0} features", "de": "{0} Features" },
+  "Js.Ai.Tokens": { "en": "{0} tokens", "de": "{0} Tokens" },
+  "Js.Ai.Undo": { "en": "Undo", "de": "Rückgängig" },
+  "Js.Ai.Undone": { "en": "Undone", "de": "Rückgängig gemacht" },
+  "Js.Ai.CannotUndo": { "en": "Nothing to undo: the Part Studio is as before.", "de": "Nichts rückgängig zu machen: Das Part Studio ist wie vorher." },
+  "Js.Ai.StillBroken": { "en": "Still not building: {0}. Edit them or ask again.", "de": "Bauen noch nicht: {0}. Bearbeite sie oder frag noch einmal." },
+  "Js.Ai.Free": { "en": "free", "de": "kostenlos" },
+  "Js.Ai.ModelsAsking": { "en": "Asking the provider …", "de": "Frage den Anbieter …" },
+  "Js.Ai.ModelsFound": { "en": "{0} models, {1} of them free according to the provider. A click takes one.", "de": "{0} Modelle, davon {1} laut Anbieter kostenlos. Ein Klick wählt eines." },
+  "Js.Ai.ModelsMore": { "en": "({0} more: narrow the list with the filter)", "de": "({0} weitere: mit dem Filter eingrenzen)" },
+  "Js.Ai.ModelsFailed": { "en": "The models could not be loaded.", "de": "Die Modelle konnten nicht geladen werden." },
+
   "Js.Export.Empty": { "en": "There is no visible part to export.", "de": "Es gibt kein sichtbares Teil zum Exportieren." }
 }

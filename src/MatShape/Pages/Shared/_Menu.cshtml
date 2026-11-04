@@ -61,6 +61,7 @@
     <nav class="mat-nav__scroll" aria-label="@L["Admin.Title"]" data-nav-panel="admin" hidden="@(Model.Area != "admin")">
         <ul class="mat-nav__list">
             <li><a class="@Cls(Under("/Admin/Users"))" href="/Admin/Users" aria-current="@Cur(Under("/Admin/Users"))">@Ui.Icon("user-circle")<span>@L["Users.Title"]</span></a></li>
+            <li><a class="@Cls(Under("/Admin/Ai"))" href="/Admin/Ai" aria-current="@Cur(Under("/Admin/Ai"))">@Ui.Icon("sparkles")<span>@L["Ai.Title"]</span></a></li>
             <li><a class="@Cls(Under("/Admin/System"))" href="/Admin/System" aria-current="@Cur(Under("/Admin/System"))">@Ui.Icon("server")<span>@L["System.Title"]</span></a></li>
         </ul>
     </nav>

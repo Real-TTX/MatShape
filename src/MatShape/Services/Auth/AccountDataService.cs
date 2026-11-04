@@ -72,6 +72,8 @@ public sealed class AccountDataService(AppDbContext db)
                 Versions = versions.Where(v => v.DocumentId == d.Id).Select(v => new { v.Name, v.Description, v.CreateDate, Content = JsonNode.Parse(v.Content) }).ToList(),
             }).ToList(),
             SharedWithYou = shared.Select(s => new { s.Name, s.Role, Since = s.CreateDate }).ToList(),
+            AiRequests = await db.AiRuns.AsNoTracking().Where(r => r.UserId == userId).OrderBy(r => r.Id)
+                .Select(r => new { r.StartDate, r.Action, r.Status, r.Prompt, r.ProfileName, r.Model, Tokens = r.PromptTokens + r.CompletionTokens }).ToListAsync(ct),
             Sessions = await db.Sessions.AsNoTracking().Where(s => s.UserId == userId)
                 .Select(s => new { s.CreateDate, s.LastSeenDate, s.ExpiresDate, s.IsRevoked, s.UserAgent, s.IpAddress }).ToListAsync(ct),
         };
@@ -89,6 +91,9 @@ public sealed class AccountDataService(AppDbContext db)
         await db.PartStudios.IgnoreQueryFilters().Where(s => s.UpdateUserId == userId).ExecuteUpdateAsync(s => s.SetProperty(x => x.UpdateUserId, (long?)null), ct);
         await db.DocumentVersions.Where(v => v.CreateUserId == userId).ExecuteUpdateAsync(s => s.SetProperty(x => x.CreateUserId, (long?)null), ct);
         await db.Documents.IgnoreQueryFilters().Where(d => d.UpdateUserId == userId && d.OwnerId != userId).ExecuteUpdateAsync(s => s.SetProperty(x => x.UpdateUserId, (long?)null), ct);
+
+        // the requests to the AI (with what was sent) go with the account
+        await db.AiRuns.Where(r => r.UserId == userId).ExecuteDeleteAsync(ct);
 
         // the account: the database deletes its sessions, its documents (with their Part Studios, versions and members) and its memberships with it
         await db.Users.IgnoreQueryFilters().Where(u => u.Id == userId).ExecuteDeleteAsync(ct);

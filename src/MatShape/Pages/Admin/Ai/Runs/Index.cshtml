@@ -1,0 +1,57 @@
+@page "/Admin/Ai/Runs"
+@model MatShape.Pages.Admin.Ai.Runs.IndexModel
+@{
+    ViewData["Title"] = L["Ai.Title"].Value;
+    ViewData["PageSub"] = L["Ai.Runs.Sub", Model.TokensThisMonth.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture)].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Ai.Title"].Value, "/Admin/Ai"), (L["Ai.Tab.Runs"].Value, null) };
+}
+
+<partial name="_AiTabs" model='"runs"' />
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Listing.Rows.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("activity", L[Model.Listing.Total == 0 ? "Ai.Runs.Empty.Title" : "Ai.Runs.NoMatch"].Value, L[Model.Listing.Total == 0 ? "Ai.Runs.Empty.Text" : "Lists.ChangeTools"].Value, false, null, null, Model.Toolbar.UrlReset()))" />
+    }
+    else
+    {
+        <ms-table caption="@L["Ai.Tab.Runs"]">
+            <thead>
+                <tr>
+                    <th scope="col">@L["Ai.Runs.Col.Request"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Ai.Runs.Col.Person"]</th>
+                    <th scope="col" class="mat-hide-md">@L["Ai.Runs.Col.Profile"]</th>
+                    <th scope="col">@L["Common.Status"]</th>
+                    <th scope="col" class="mat-num mat-hide-sm">@L["Ai.Runs.Col.Tokens"]</th>
+                    <th scope="col" class="mat-hide-md">@L["Ai.Runs.Col.Started"]</th>
+                    <th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Listing.Rows)
+                {
+                    <tr>
+                        <td data-label="@L["Ai.Runs.Col.Request"]">
+                            <a class="ms-name" href="/Admin/Ai/Runs/Details?id=@r.Id">@Ui.Icon(r.Action == AiAction.Test ? "play" : "sparkles")<span>@(string.IsNullOrEmpty(r.Prompt) ? L["Ai.Action." + r.Action].Value : r.Prompt.Length > 90 ? r.Prompt[..90] + " …" : r.Prompt)</span></a>
+                            @if (r.Error is { } err) { <small class="ms-muted ms-block-line">@(err.Length > 140 ? err[..140] + " …" : err)</small> }
+                        </td>
+                        <td data-label="@L["Ai.Runs.Col.Person"]" class="mat-hide-sm">@(r.UserName ?? "–")</td>
+                        <td data-label="@L["Ai.Runs.Col.Profile"]" class="mat-hide-md">@r.ProfileName <small class="mat-mono ms-muted ms-block-line">@r.Model</small></td>
+                        <td data-label="@L["Common.Status"]"><span class="mat-pill @(r.Status switch { AiRunStatus.Done => "mat-pill--ok", AiRunStatus.Running => "mat-pill--busy", AiRunStatus.LimitReached or AiRunStatus.Cancelled => "mat-pill--warn", _ => "mat-pill--error" })">@L["Ai.Status." + r.Status]</span></td>
+                        <td data-label="@L["Ai.Runs.Col.Tokens"]" class="mat-num mat-mono mat-hide-sm">@(r.Estimated ? "≈" : "")@r.Tokens.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture)</td>
+                        <td data-label="@L["Ai.Runs.Col.Started"]" class="mat-mono mat-hide-md">@Dates.Stamp(r.StartDate, Model.Zone)</td>
+                        <td class="mat-table__cell-actions">
+                            <div class="mat-table__actions">
+                                <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Admin/Ai/Runs/Details?id=@r.Id" aria-label="@L["Ai.Runs.Open"]" data-tip="@L["Ai.Runs.Open"]">@Ui.Icon("eye")</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </ms-table>
+    }
+
+    <partial name="_Pager" model="Model.Pager" />
+</div>

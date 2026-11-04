@@ -1,0 +1,59 @@
+@page "/Admin/Ai"
+@model MatShape.Pages.Admin.Ai.IndexModel
+@{
+    ViewData["Title"] = L["Ai.Title"].Value;
+    ViewData["PageSub"] = L["Ai.Sub"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Ai.Title"].Value, null) };
+}
+
+<partial name="_AiTabs" model='"general"' />
+
+@if (!Model.Available)
+{
+    <div class="mat-alert mat-alert--warning" role="note">@Ui.Icon("alert")<div class="mat-alert__body">@L["Ai.NotAvailable"] <a href="/Admin/Ai/Profiles">@L["Ai.Tab.Profiles"]</a></div></div>
+}
+
+<div class="mat-cols">
+    <div class="mat-col-12 mat-col-lg-7">
+        <form class="mat-form" method="post" novalidate>
+            <partial name="_FormSummary" model="ViewData.ModelState" />
+            <div class="mat-card">
+                <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("sparkles")@L["Ai.Tab.General"]</h2></div>
+                <div class="mat-card__body mat-form">
+                    <ms-field name="Enabled" kind="switch" label="@L["Ai.Enabled"]" value="@Model.Enabled.ToString()" hint="@L["Ai.Enabled.Hint"]" />
+                    <ms-field name="Instruction" kind="textarea" label="@L["Ai.Instruction"]" value="@Model.Instruction" rows="5" maxlength="4000" optional hint="@L["Ai.Instruction.Hint"]" />
+                    <ms-field name="RepairRounds" kind="number" label="@L["Ai.RepairRounds"]" value="@Model.RepairRounds" min="0" max="5" hint="@L["Ai.RepairRounds.Hint"]" />
+                </div>
+            </div>
+            <div class="mat-card">
+                <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("shield")@L["Ai.Limits"]</h2></div>
+                <div class="mat-card__body mat-form">
+                    <p class="mat-hint">@L["Ai.Limits.Hint"]</p>
+                    <ms-field name="UserDailyTokens" kind="number" label="@L["Ai.UserDailyTokens"]" value="@Model.UserDailyTokens" min="0" step="1000" />
+                    <ms-field name="UserMonthlyTokens" kind="number" label="@L["Ai.UserMonthlyTokens"]" value="@Model.UserMonthlyTokens" min="0" step="1000" />
+                    <ms-field name="MonthlyTokens" kind="number" label="@L["Ai.MonthlyTokens"]" value="@Model.MonthlyTokens" min="0" step="1000" />
+                    <ms-field name="PerMinutePerAddress" kind="number" label="@L["Ai.PerMinute"]" value="@Model.PerMinutePerAddress" min="0" />
+                    <ms-field name="MaxTokens" kind="number" label="@L["Ai.MaxTokens"]" value="@Model.MaxTokens" min="1000" max="128000" step="1000" hint="@L["Ai.MaxTokens.Hint"]" />
+                    <ms-field name="TimeoutSeconds" kind="number" label="@L["Ai.Timeout"]" value="@Model.TimeoutSeconds" min="20" max="900" />
+                </div>
+            </div>
+            <ms-buttons save="@L["Common.Save"]" back="/Documents" />
+        </form>
+    </div>
+    <div class="mat-col-12 mat-col-lg-5">
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("info")@L["Ai.About"]</h2></div>
+            <div class="mat-card__body">
+                <p>@L["Ai.About.Text"]</p>
+                <dl class="ms-dl">
+                    <dt>@L["Ai.ActiveProfile"]</dt><dd>@(Model.ActiveProfile ?? "–")</dd>
+                    <dt>@L["Ai.TokensThisMonth"]</dt><dd class="mat-mono">@Model.TokensThisMonth.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture)</dd>
+                </dl>
+                <details class="ms-details">
+                    <summary>@L["Ai.ShowInstruction"]</summary>
+                    <pre class="ms-pre">@Model.FullInstruction</pre>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>

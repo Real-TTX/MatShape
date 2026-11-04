@@ -20,7 +20,8 @@ public sealed class StudioModel(AppDbContext db) : AppPageModel
             return NotFound();
         }
 
-        Studio = new StudioViewModel(access.Document.Id, access.Document.Name, access.Role, version, null, false, Me.DisplayName);
+        var ai = access.CanEdit && version is null && await MatShape.Services.Ai.AiService.IsAvailableAsync(db, HttpContext.RequestServices);
+        Studio = new StudioViewModel(access.Document.Id, access.Document.Name, access.Role, version, null, false, Me.DisplayName, ai);
         Response.Headers.CacheControl = "no-store";
         return Page();
     }

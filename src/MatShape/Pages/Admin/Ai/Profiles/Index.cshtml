@@ -1,0 +1,66 @@
+@page "/Admin/Ai/Profiles"
+@model MatShape.Pages.Admin.Ai.Profiles.IndexModel
+@{
+    ViewData["Title"] = L["Ai.Title"].Value;
+    ViewData["PageSub"] = L["Ai.Profiles.Sub"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Ai.Title"].Value, "/Admin/Ai"), (L["Ai.Tab.Profiles"].Value, null) };
+}
+
+<partial name="_AiTabs" model='"profiles"' />
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Rows.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("sparkles", L[Model.Total == 0 ? "Ai.Profiles.Empty.Title" : "Ai.Profiles.NoMatch"].Value, L[Model.Total == 0 ? "Ai.Profiles.Empty.Text" : "Lists.ChangeTools"].Value, Model.Total == 0, "/Admin/Ai/Profiles/Edit", L["Ai.Profiles.New"].Value, Model.Toolbar.UrlReset()))" />
+    }
+    else
+    {
+        <ms-table caption="@L["Ai.Tab.Profiles"]">
+            <thead>
+                <tr>
+                    <th scope="col">@L["Common.Name"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Ai.Profile.Provider"]</th>
+                    <th scope="col" class="mat-hide-md">@L["Ai.Profile.Model"]</th>
+                    <th scope="col">@L["Common.Status"]</th>
+                    <th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    var p = row.Profile;
+                    <tr>
+                        <td data-label="@L["Common.Name"]"><a class="ms-name" href="/Admin/Ai/Profiles/Edit?id=@p.Id">@Ui.Icon(p.Provider == AiProvider.ChatGpt ? "message-square" : "sparkles")<span>@p.Name</span></a></td>
+                        <td data-label="@L["Ai.Profile.Provider"]" class="mat-hide-sm">@(p.Provider == AiProvider.ChatGpt ? L["Ai.Provider.ChatGpt"].Value : AiPresets.Find(p.Preset)?.Label ?? L["Ai.Provider.OpenAiCompatible"].Value)</td>
+                        <td data-label="@L["Ai.Profile.Model"]" class="mat-mono mat-hide-md">@p.Model</td>
+                        <td data-label="@L["Common.Status"]">
+                            @if (p.IsActive) { <span class="mat-pill mat-pill--ok">@L["Ai.Profile.Active"]</span> }
+                            @if (!row.HasSecret) { <span class="mat-pill mat-pill--warn">@L[p.Provider == AiProvider.ChatGpt ? "Ai.Profile.NotSignedIn" : "Ai.Profile.NoKey"]</span> }
+                            else if (!p.IsActive) { <span class="mat-pill mat-pill--plain">@L["Ai.Profile.Ready"]</span> }
+                        </td>
+                        <td class="mat-table__cell-actions">
+                            <div class="mat-table__actions">
+                                <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Admin/Ai/Profiles/Edit?id=@p.Id" aria-label="@L["Common.EditNamed", p.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a>
+                                @if (!p.IsActive)
+                                {
+                                    <form method="post" asp-page-handler="Activate" asp-route-id="@p.Id">
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@L["Ai.Profile.Activate"]: @p.Name" data-tip="@L["Ai.Profile.Activate"]">@Ui.Icon("check")</button>
+                                    </form>
+                                }
+                                <form method="post" asp-page-handler="Duplicate" asp-route-id="@p.Id">
+                                    <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@L["Documents.DuplicateNamed", p.Name]" data-tip="@L["Documents.Duplicate"]">@Ui.Icon("copy")</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </ms-table>
+    }
+
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--primary" href="/Admin/Ai/Profiles/Edit">@Ui.Icon("plus")<span>@L["Ai.Profiles.New"]</span></a>
+    </div>
+</div>

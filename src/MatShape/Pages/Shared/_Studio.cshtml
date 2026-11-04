@@ -42,6 +42,10 @@
                 <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-action="undo" disabled aria-label="@L["Studio.Undo"]" data-tip="@L["Studio.Undo"] (Ctrl+Z)" data-tip-place="below" data-tip-align="end">@Ui.Icon("undo")</button>
                 <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-action="redo" disabled aria-label="@L["Studio.Redo"]" data-tip="@L["Studio.Redo"] (Ctrl+Y)" data-tip-place="below" data-tip-align="end">@Ui.Icon("redo")</button>
                 <span class="ms-bar__sep" aria-hidden="true"></span>
+                @if (Model.ShowAi)
+                {
+                    <button type="button" class="mat-btn mat-btn--ghost ms-ai-btn" data-action="ai" aria-label="@L["Studio.Ai.Title"]" data-tip="@L["Studio.Ai.Title"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("sparkles")<span class="ms-hide-xs">@L["Studio.Ai.Short"]</span></button>
+                }
                 <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-action="version" aria-label="@L["Studio.CreateVersion"]" data-tip="@L["Studio.CreateVersion"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("version")</button>
             }
             @if (Model.LinkToken is null)
@@ -192,6 +196,36 @@
                 <button type="button" class="mat-btn mat-btn--primary" data-action="reload">@Ui.Icon("refresh")<span>@L["Studio.TryAgain"]</span></button>
             </div>
         </div>
+        @if (Model.ShowAi)
+            {
+                @* the AI assistant: what the person asks becomes features (one step to undo); the server checks every answer *@
+                <section class="ms-ai" data-ai-panel hidden aria-labelledby="ms-ai-title">
+                    <header class="ms-ai__head">
+                        <span class="ms-dialog__icon">@Ui.Icon("sparkles")</span>
+                        <h2 class="ms-dialog__title" id="ms-ai-title">@L["Studio.Ai.Title"]</h2>
+                        <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-action="ai" aria-label="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button>
+                    </header>
+                    <ol class="ms-ai__log" data-ai-log aria-live="polite">
+                        <li class="ms-ai__hello" data-ai-hello>
+                            <p>@L["Studio.Ai.Hello"]</p>
+                            <div class="ms-ai__examples">
+                                <button type="button" class="mat-chip" data-ai-example>@L["Studio.Ai.Example1"]</button>
+                                <button type="button" class="mat-chip" data-ai-example>@L["Studio.Ai.Example2"]</button>
+                                <button type="button" class="mat-chip" data-ai-example>@L["Studio.Ai.Example3"]</button>
+                            </div>
+                        </li>
+                    </ol>
+                    <footer class="ms-ai__foot">
+                        <label class="mat-sr-only" for="ms-ai-input">@L["Studio.Ai.Prompt"]</label>
+                        <textarea class="mat-textarea ms-ai__input" id="ms-ai-input" rows="3" maxlength="4000" placeholder="@L["Studio.Ai.Placeholder"]" data-ai-input></textarea>
+                        <div class="ms-ai__send">
+                            <small class="ms-muted">@L["Studio.Ai.Hint"]</small>
+                            <button type="button" class="mat-btn mat-btn--primary mat-btn--sm" data-ai-send>@Ui.Icon("sparkles")<span>@L["Studio.Ai.Send"]</span></button>
+                        </div>
+                    </footer>
+                </section>
+            }
+
     </div>
 
     <nav class="ms-tabsbar" aria-label="@L["Studio.PartStudios"]">

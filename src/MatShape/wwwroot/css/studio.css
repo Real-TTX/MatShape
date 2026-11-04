@@ -255,3 +255,39 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
   .ms-view .ms-viewtools { top: calc(var(--mat-space-2) + 102px); }
 }
 @media (pointer: coarse) { .ms-cube__roll { opacity: 1; width: 32px; height: 32px; } }
+
+/* ---- the AI assistant (a panel at the right of the view) ------------------------------------------------------------ */
+.ms-ai-btn { gap: var(--mat-space-1); color: var(--mat-accent-text); font-weight: 600; }
+.ms-ai {
+  position: relative; z-index: 6; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  background: var(--mat-surface); border-left: 1px solid var(--mat-border);
+}
+.ms-ai[hidden] { display: none; }
+.ms-ai__head { display: flex; align-items: center; gap: var(--mat-space-2); padding: var(--mat-space-2) var(--mat-space-2) var(--mat-space-2) var(--mat-space-3); border-bottom: 1px solid var(--mat-border); }
+.ms-ai__log { flex: 1 1 auto; overflow: auto; list-style: none; margin: 0; padding: var(--mat-space-3); display: flex; flex-direction: column; gap: var(--mat-space-2); }
+.ms-ai__hello p { margin: 0 0 var(--mat-space-2); color: var(--mat-text-muted); font-size: var(--mat-fs-sm); }
+.ms-ai__examples { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mat-space-1); }
+.ms-ai__examples .mat-chip { text-align: left; white-space: normal; height: auto; padding-block: 4px; }
+.ms-ai__msg { max-width: 92%; padding: var(--mat-space-2) var(--mat-space-3); border-radius: var(--mat-radius); font-size: var(--mat-fs-sm); }
+.ms-ai__msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ms-ai__msg--user { align-self: flex-end; background: var(--mat-accent-soft); }
+.ms-ai__msg--ai { align-self: flex-start; background: var(--mat-surface-2); }
+.ms-ai__msg--error { align-self: flex-start; background: var(--mat-surface-2); color: var(--mat-danger-text); border: 1px solid var(--mat-danger); }
+.ms-ai__msg--busy { align-self: flex-start; display: flex; align-items: center; gap: var(--mat-space-2); color: var(--mat-text-muted); }
+.ms-ai__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2); margin-top: var(--mat-space-2); }
+.ms-ai__tokens { color: var(--mat-text-faint); font-size: var(--mat-fs-xs); }
+.ms-ai__warn { margin-top: var(--mat-space-2) !important; color: var(--mat-warning-text); }
+.ms-ai__warn .mat-icon { width: 14px; height: 14px; vertical-align: -2px; }
+.ms-ai__link { display: inline-flex; align-items: center; gap: var(--mat-space-1); margin-top: var(--mat-space-2); color: var(--mat-accent-text); }
+.ms-ai__link .mat-icon { width: 14px; height: 14px; }
+.ms-ai__foot { padding: var(--mat-space-2) var(--mat-space-3) calc(var(--mat-space-2) + env(safe-area-inset-bottom)); border-top: 1px solid var(--mat-border); display: flex; flex-direction: column; gap: var(--mat-space-2); }
+.ms-ai__input { width: 100%; resize: vertical; min-height: 64px; }
+.ms-ai__send { display: flex; align-items: center; justify-content: space-between; gap: var(--mat-space-2); }
+.is-ai-busy .ms-tools, .is-ai-busy .ms-side, .is-ai-busy .ms-tabsbar, .is-ai-busy [data-action="undo"], .is-ai-busy [data-action="redo"] { pointer-events: none; opacity: .55; }
+/* the panel is a column of its own beside the view (the model stays visible); on a phone it lies over the view */
+.is-ai .ms-work { grid-template-columns: 280px 1fr minmax(300px, 380px); }
+.is-ai.is-side-closed .ms-work { grid-template-columns: 0 1fr minmax(300px, 380px); }
+@media (max-width: 720px) {
+  .is-ai .ms-work, .is-ai.is-side-closed .ms-work { grid-template-columns: 1fr; }
+  .ms-ai { position: absolute; inset: 0; z-index: 9; box-shadow: var(--mat-shadow-3); }
+}

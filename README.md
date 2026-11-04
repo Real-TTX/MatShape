@@ -39,6 +39,14 @@ Ein App-Container und PostgreSQL. Port **3939**.
 - **Versionen**: benannte Stände des ganzen Dokuments, schreibgeschützt öffnen, wiederherstellen (der Stand davor wird vorher gesichert)
 - **Offline**: zuletzt geöffnete Dokumente bleiben verfügbar, Änderungen warten auf dem Gerät und werden bei Wiederverbindung gespeichert
 
+**KI-Assistent**
+- Im Editor der Knopf **KI**: beschreiben, was gebaut oder geändert werden soll („Platte 80 × 40 × 6 mit vier Bohrungen Ø 6“, „Mach die Hauptmaße zu Variablen“) – die KI legt **Features** an (Skizzen, Extrudieren, Muster …), die du wie eigene bearbeitest; die ganze Antwort ist **ein** Rückgängig-Schritt
+- Bauen Features der Antwort nicht, schickt der Editor die Fehler selbst zur **Reparatur** zurück (einstellbar 0–5 Runden)
+- **Profile** (*Administration → KI*): jeder **OpenAI-kompatible** Anbieter mit Schlüssel – **OpenAI**, **OpenRouter**, Mistral, DeepSeek, eigener Server – oder ein **ChatGPT-Konto** per Gerätecode (wie Codex). *Modelle laden* fragt den Anbieter; der Filter **Nur kostenlose Modelle** zeigt, was der Anbieter als kostenlos angibt (OpenRouter `:free` / Preis 0). *Testen*, *Aktivieren*, *Duplizieren*
+- **Grenzen** gegen Kosten: Tokens je Person und Tag/Monat, für alle im Monat, Anfragen je Adresse und Minute, Antwortlänge, Wartezeit; **Hausregeln** für die KI; *Vollständige Anweisung anzeigen*
+- **Läufe**: jede Anfrage mit allem, was gesendet und zurückgekommen ist, Tokens und Status; nach 180 Tagen gelöscht, im Datenexport enthalten, mit dem Konto gelöscht
+- Schlüssel und ChatGPT-Anmeldung liegen **verschlüsselt im Datenvolume**, nie in der Datenbank, in einem Backup oder im Browser. Der Server prüft jede Antwort (bekannte Feature-Arten, eindeutige IDs, Größen) und das Bearbeiten-Recht
+
 **Oberfläche**
 - **Deutsch und Englisch**, **hell / dunkel**, Farbschemata (Standard, Papier, hoher Kontrast, OLED)
 - Dokumentliste als **Bilder** (Vorschau des Modells) oder **Tabelle**, mit Suche, Filter und Sortierung
@@ -67,6 +75,10 @@ Ein App-Container und PostgreSQL. Port **3939**.
 | Dokument bearbeiten | Link teilen |
 |---|---|
 | ![Name, Beschreibung und Einheit](docs/images/document-edit.png) | ![Der Link eines Dokuments](docs/images/document-share.png) |
+
+| KI-Assistent | KI-Profil mit Modellen (Nur kostenlose) |
+|---|---|
+| ![Der KI-Assistent hat eine Lochplatte angelegt und selbst repariert](docs/images/ai-assistant.png) | ![Ein OpenRouter-Profil mit geladenen kostenlosen Modellen](docs/images/ai-profile.png) |
 
 | Smartphone | | |
 |---|---|---|

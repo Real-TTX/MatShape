@@ -1,0 +1,34 @@
+@page "/Admin/Ai/Runs/Details"
+@model MatShape.Pages.Admin.Ai.Runs.DetailsModel
+@{
+    var r = Model.Run;
+    ViewData["Title"] = L["Ai.Runs.One"].Value + " #" + r.Id;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Ai.Title"].Value, "/Admin/Ai"), (L["Ai.Tab.Runs"].Value, "/Admin/Ai/Runs"), ("#" + r.Id, null) };
+}
+
+<div class="mat-card">
+    <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("info")@L["Ai.Runs.Summary"]</h2></div>
+    <div class="mat-card__body">
+        <dl class="ms-dl">
+            <dt>@L["Ai.Runs.Col.Request"]</dt><dd>@(r.Prompt ?? L["Ai.Action." + r.Action].Value)</dd>
+            <dt>@L["Common.Status"]</dt><dd>@L["Ai.Status." + r.Status]@(r.Error is null ? "" : " – " + r.Error)</dd>
+            <dt>@L["Ai.Runs.Col.Person"]</dt><dd>@(Model.UserName ?? "–")</dd>
+            <dt>@L["Ai.Runs.Col.Profile"]</dt><dd>@r.ProfileName <span class="mat-mono">@r.Model</span></dd>
+            <dt>@L["Ai.Runs.Col.Tokens"]</dt><dd class="mat-mono">@(r.TokensEstimated ? "≈" : "")@r.PromptTokens.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture) + @r.CompletionTokens.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture)</dd>
+            <dt>@L["Ai.Runs.Col.Started"]</dt><dd class="mat-mono">@Dates.Stamp(r.StartDate, Model.Zone)</dd>
+            @if (r.DocumentId is { } doc) { <dt>@L["Documents.One"]</dt><dd><a href="/Documents/Studio/@doc">#@doc</a></dd> }
+        </dl>
+    </div>
+</div>
+
+@foreach (var s in r.Steps)
+{
+    <div class="mat-card">
+        <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon(s.Kind == AiStepKind.Message ? "arrow-right" : s.Kind == AiStepKind.Result ? "message-square" : "alert")@L["Ai.Step." + s.Kind] <small class="mat-mono ms-muted">@Dates.Stamp(s.OccurredDate, Model.Zone)</small></h2></div>
+        <div class="mat-card__body"><pre class="ms-pre">@s.Text</pre></div>
+    </div>
+}
+
+<div class="mat-btn-row">
+    <a class="mat-btn mat-btn--secondary" href="/Admin/Ai/Runs">@Ui.Icon("back")<span>@L["Common.Back"]</span></a>
+</div>

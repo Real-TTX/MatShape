@@ -25,6 +25,7 @@ the npm packages (see the README.txt next to them), not loaded from a CDN. Docke
 - **Real tests are end to end in a browser** (Playwright with the installed Edge, see the `screenshots` skill): register, create a document, sketch with the mouse, extrude/revolve through the dialogs,
   undo, offline (`context.setOffline`), the link as a guest, a phone (390 px), dark mode. Look at the screenshots. The geometry can also be tested in Node: import `wwwroot/js/cad/model.js` and pass
   a kernel from `manifold-3d` (`regenerate(kernel, content, 'mm')`).
+- **AI without a real provider:** a fake OpenAI-compatible server (Node, `/v1/models` with free models, `/v1/chat/completions` with a canned answer) on the host, profile address `http://host.docker.internal:<port>/v1` from the container. Never test with a real key in CI.
 - **Migrations:** `dotnet ef migrations add <Name> -p src/MatShape -o Data/Migrations` (local tool in `dotnet-tools.json`; a design-time factory exists). Applied at start-up.
 - **Updating MatUi:** take the release of MatDesign (`origin/main`): the CSS is the parts of `src/MatUi/wwwroot/css` joined in the order of the first line of `matui.css`; `matui.js`, `matui.boot.js`,
   `matui-icons.svg` as they are. **Updating three.js / Manifold:** `npm pack three manifold-3d`, copy `build/three.module.js` + `build/three.core.js` and `manifold.js` + `manifold.wasm`, run the e2e checks.
@@ -46,6 +47,10 @@ src/MatShape
   Services/Mail/MailService  MatSMTP through MailKit, queued in the background; off unless MATSMTP_HOST is set
   Services/Auth/             CurrentUser, PasswordService, SessionService (sessions in the DB), AccountService, ExternalSignInService (MatIdentity), AccountDataService (GDPR export/erase)
   Services/                  Ui (icons, logo), MenuService, InstanceService (numbers, settings, housekeeping), ListModels (toolbar, pager), Dates, Assets, Outcome, StudioViewModel
+  Services/Ai/               the AI (pattern of DesignThix): AiTypes, ChatCompletionsClient (any OpenAI-compatible provider, /models with "free"), ChatGptAccount (device code like Codex),
+                             LenientJson (copied from DesignThix, keep in step); AiSecretStore (keys + sign-ins encrypted in {data}/secrets/ai) + AiRateLimiter; AiSettings (JSON in SystemSetting);
+                             AiAdmin (profiles, settings, runs: administrators only), AiService (one call: on/off, limits, transport, one JSON object, nudges, every step into AiRun/AiRunStep),
+                             ModelAssistant (the instruction = the format of the features, the situation, Merge of append/patch/replace + StudioContent check), AiEndpoints (/live/studios/{id}/ai, /live/ai/*)
   MatPlatform/               copy of the shared package (MatDesign): platform contract, MatIdentity sign-in, back-channel logout, MatSmtpSettings. Never edit here.
   Platform/                  MatShapePlatform (tiles, settings, actions for Mattiverse), MatShapeIdentityUsers
   Controls/                  ONE code base per control: <ms-field>, <ms-buttons>, <ms-table>, <ms-tabs>/<ms-tab>
@@ -61,6 +66,7 @@ src/MatShape
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges + smooth normals, planes, sketches, picking, face highlight, snapshot
     sketcher.js              the sketch editor: tools, snapping, handles (connected ends move together), numbers in the panel, its own undo
+    assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair
     viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
     export.js, util.js       STL/OBJ; texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM

@@ -119,6 +119,8 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts)
         var sessions = await db.Sessions.Where(s => s.IsRevoked || s.ExpiresDate < now.AddDays(-1)).ExecuteDeleteAsync(ct);
         await db.PartStudios.IgnoreQueryFilters().Where(s => s.UpdateState == SoftEntity.Deleted && s.UpdateDate < limit).ExecuteDeleteAsync(ct);
         var documents = await db.Documents.IgnoreQueryFilters().Where(d => d.UpdateState == SoftEntity.Deleted && d.UpdateDate < limit).ExecuteDeleteAsync(ct);
+        // the runs of the AI (with what was sent) are kept for half a year, for the costs and for questions
+        await db.AiRuns.Where(r => r.StartDate < now.AddDays(-180)).ExecuteDeleteAsync(ct);
         return new CleanUpResult(sessions, documents);
     }
 }

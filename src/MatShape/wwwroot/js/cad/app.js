@@ -5,6 +5,7 @@
 
 import { Viewport } from './viewport.js';
 import { ViewCube } from './viewcube.js';
+import { Assistant } from './assistant.js';
 import { loadKernel, regenerate, dispose, FEATURES, properties } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { Sketcher } from './sketcher.js';
@@ -73,6 +74,35 @@ function start() {
 
   const viewport = new Viewport($('[data-canvas]'), $('[data-triad]'));
   const viewCube = new ViewCube($('[data-viewcube]'), viewport);
+
+  // ---- the AI assistant (only when the page offers it) ----------------------------------------------------------------------
+  const aiPanel = $('[data-ai-panel]');
+  const assistant = aiPanel ? new Assistant(aiPanel, {
+    studioId: () => state.studio.id,
+    content: () => state.content,
+    // the answer of the AI is one change: it can be undone like every other
+    apply: content => {
+      closeModes();
+      const before = JSON.stringify(state.content);
+      state.content = normalize(clone(content));
+      commit(before);
+      return before;
+    },
+    statusOf: ids => ids
+      .map(id => ({ id, f: state.content.features.find(x => x.id === id), s: state.result?.status[id] }))
+      .filter(x => x.f && x.s?.state === 'error')
+      .map(x => ({ id: x.id, name: x.f.name || x.f.type, message: t(x.s.key, ...(x.s.args || [])) })),
+    undo: before => {
+      if (!canEdit()) return false;
+      const now = JSON.stringify(state.content);
+      if (now === before) return false;
+      state.content = normalize(JSON.parse(before));
+      commit(now);
+      return true;
+    },
+    fit: () => viewport.fit(true),
+    busy: on => root.classList.toggle('is-ai-busy', on),
+  }) : null;
   const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
     status: text => setStatus(text),
     hud: text => showHud(text),
@@ -1067,6 +1097,7 @@ function start() {
     else if (action === 'display') cycleDisplay(e.target.closest('button'));
     else if (action === 'planes') { state.planes = !state.planes; e.target.closest('button').setAttribute('aria-pressed', String(state.planes)); viewport.setPlanes(state.result?.planes, state.planes); }
     else if (action === 'side') toggleSide();
+    else if (action === 'ai') assistant?.open();
   });
   // the export menu lives outside the root
   document.getElementById('ms-export-menu')?.addEventListener('click', e => {

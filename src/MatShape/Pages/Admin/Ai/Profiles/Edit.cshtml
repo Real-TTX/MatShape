@@ -1,0 +1,109 @@
+@page "/Admin/Ai/Profiles/Edit"
+@model MatShape.Pages.Admin.Ai.Profiles.EditModel
+@{
+    ViewData["Title"] = Model.IsNew ? L["Ai.Profiles.New"].Value : Model.Name;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Ai.Title"].Value, "/Admin/Ai"), (L["Ai.Tab.Profiles"].Value, "/Admin/Ai/Profiles"), (Model.IsNew ? L["Common.New"].Value : Model.Name, null) };
+    ViewData["Width"] = "narrow";
+    var cg = Model.ChatGpt;
+}
+
+<form class="mat-form" method="post" novalidate data-ai-profile data-profile-id="@Model.Id">
+    <partial name="_FormSummary" model="ViewData.ModelState" />
+    @if (Model.TestResult is { } test)
+    {
+        <div class="mat-alert @(Model.TestOk ? "mat-alert--success" : "mat-alert--danger")" role="status">@Ui.Icon(Model.TestOk ? "check-circle" : "x-circle")<div class="mat-alert__body">@test</div></div>
+    }
+    <div class="mat-card">
+        <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("sparkles")@L["Ai.Profile.Connection"]</h2></div>
+        <div class="mat-card__body mat-form">
+            <ms-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="80" autofocus hint="@L["Ai.Profile.Name.Hint"]" msg-required="@L["Common.NameRequired"]" />
+            <ms-field name="Provider" kind="radios" label="@L["Ai.Profile.Provider"]" value="@Model.Provider" options="Model.Providers" />
+            <div class="mat-field" data-show-if="Provider" data-show-value="OpenAiCompatible">
+                <label class="mat-label" for="Preset">@L["Ai.Profile.Preset"]</label>
+                <select class="mat-select" id="Preset" name="Preset" data-ai-preset>
+                    @foreach (var preset in AiPresets.All)
+                    {
+                        <option value="@preset.Id" selected="@(Model.Preset == preset.Id)" data-url="@preset.Url" data-model="@preset.ModelHint">@(preset.Id == "custom" ? L["Ai.Preset.Custom"].Value : preset.Label) (@preset.Region)</option>
+                    }
+                </select>
+                <p class="mat-hint">@L["Ai.Profile.Preset.Hint"]</p>
+            </div>
+            <ms-field name="BaseUrl" kind="url" label="@L["Ai.Profile.BaseUrl"]" value="@Model.BaseUrl" show-if="Provider" show-value="OpenAiCompatible" placeholder="https://openrouter.ai/api/v1" hint="@L["Ai.Profile.BaseUrl.Hint"]" />
+            <ms-field name="ApiKey" kind="password" label="@L["Ai.Profile.ApiKey"]" autocomplete="off" show-if="Provider" show-value="OpenAiCompatible"
+                      hint="@L[Model.HasKey && Model.Provider == nameof(AiProvider.OpenAiCompatible) ? "Ai.Profile.ApiKey.Stored" : "Ai.Profile.ApiKey.Hint"]" />
+            @if (Model.HasKey && Model.Provider == nameof(AiProvider.OpenAiCompatible))
+            {
+                <ms-field name="RemoveKey" kind="switch" label="@L["Ai.Profile.RemoveKey"]" value="false" show-if="Provider" show-value="OpenAiCompatible" />
+            }
+            <div class="mat-field">
+                <label class="mat-label" for="Model">@L["Ai.Profile.Model"] <span class="mat-req" aria-hidden="true">*</span></label>
+                <input class="mat-input mat-mono" id="Model" name="Model" value="@Model.Model" list="ai-models" autocomplete="off" required data-ai-model />
+                <datalist id="ai-models"></datalist>
+                <p class="mat-hint" data-ai-models-info>@L["Ai.Models.Hint"]</p>
+                <div class="ms-models-tools">
+                    <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" data-ai-load-models>@Ui.Icon("download")<span>@L["Ai.Models.Load"]</span></button>
+                    <label class="mat-check" data-ai-free-wrap hidden><input type="checkbox" data-ai-free-only /><span class="mat-check__text">@L["Ai.Models.FreeOnly"]</span></label>
+                    <input class="mat-input mat-input--sm" type="search" data-ai-models-filter placeholder="@L["Ai.Models.Filter"]" aria-label="@L["Ai.Models.Filter"]" hidden />
+                </div>
+                <ul class="ms-models" data-ai-models-list aria-label="@L["Ai.Models.List"]"></ul>
+            </div>
+            <ms-field name="Note" kind="textarea" label="@L["Ai.Profile.Note"]" value="@Model.Note" rows="2" maxlength="1000" optional />
+        </div>
+    </div>
+    <div class="mat-btn-row">
+        <button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("save")<span>@L["Common.Save"]</span></button>
+        <a class="mat-btn mat-btn--secondary" href="/Admin/Ai/Profiles">@Ui.Icon("back")<span>@L["Common.Back"]</span></a>
+        @if (!Model.IsNew)
+        {
+            <button type="submit" class="mat-btn mat-btn--secondary" formaction="@Url.Page("Edit", "Test", new { id = Model.Id })" formnovalidate>@Ui.Icon("play")<span>@L["Ai.Profile.Test"]</span></button>
+            @if (!Model.IsActive)
+            {
+                <button type="submit" class="mat-btn mat-btn--secondary" formaction="@Url.Page("Edit", "Activate", new { id = Model.Id })" formnovalidate>@Ui.Icon("check")<span>@L["Ai.Profile.Activate"]</span></button>
+            }
+            <span class="mat-btn-row__spacer"></span>
+            <button type="submit" class="mat-btn mat-btn--danger" formaction="@Url.Page("Edit", "Delete", new { id = Model.Id })" formnovalidate
+                    data-confirm="@L["Ai.Profile.DeleteConfirm", Model.Name]" data-confirm-ok="@L["Common.Delete"]">@Ui.Icon("trash")<span>@L["Common.Delete"]</span></button>
+        }
+    </div>
+</form>
+
+@if (!Model.IsNew && Model.Provider == nameof(AiProvider.ChatGpt))
+{
+    <div class="mat-card ms-chatgpt">
+        <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("message-square")@L["Ai.ChatGpt.Title"]</h2></div>
+        <div class="mat-card__body">
+            <p class="mat-hint">@L["Ai.ChatGpt.Hint"]</p>
+            @if (cg is { Connected: true })
+            {
+                <p><span class="mat-pill mat-pill--ok">@L["Ai.ChatGpt.Connected"]</span> @cg.Email @(string.IsNullOrEmpty(cg.Plan) ? "" : $"({cg.Plan})")</p>
+                <form method="post" asp-page-handler="ChatGptLogout" asp-route-id="@Model.Id">
+                    <button type="submit" class="mat-btn mat-btn--secondary" data-confirm="@L["Ai.ChatGpt.LogoutConfirm"]" data-confirm-ok="@L["Ai.ChatGpt.Logout"]">@Ui.Icon("logout")<span>@L["Ai.ChatGpt.Logout"]</span></button>
+                </form>
+            }
+            else if (cg?.Pending is { } pending)
+            {
+                <div class="mat-alert mat-alert--info" data-chatgpt-poll="/live/ai/profiles/@Model.Id/chatgpt">
+                    @Ui.Icon("key")
+                    <div class="mat-alert__body">
+                        <p>1. @L["Ai.ChatGpt.Step1"] <a href="@pending.VerificationUrl" target="_blank" rel="noopener noreferrer">@pending.VerificationUrl</a></p>
+                        <p>2. @L["Ai.ChatGpt.Step2"] <strong class="mat-mono ms-code-big">@pending.UserCode</strong>
+                            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-copy="@pending.UserCode" aria-label="@L["Common.Copy"]">@Ui.Icon("copy")</button></p>
+                        <p class="mat-hint" data-chatgpt-state data-done="@L["Ai.ChatGpt.Ended"]">@L["Ai.ChatGpt.Waiting"]</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (cg?.Error is { } err) { <div class="mat-alert mat-alert--warning">@Ui.Icon("alert")<div class="mat-alert__body">@err</div></div> }
+                @if (cg?.LoginError is { } loginErr) { <div class="mat-alert mat-alert--danger">@Ui.Icon("x-circle")<div class="mat-alert__body">@loginErr</div></div> }
+                <form method="post" asp-page-handler="ChatGptStart" asp-route-id="@Model.Id">
+                    <button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("login")<span>@L["Ai.ChatGpt.Login"]</span></button>
+                </form>
+            }
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/ai-admin.js" asp-append-version="true"></script>
+}

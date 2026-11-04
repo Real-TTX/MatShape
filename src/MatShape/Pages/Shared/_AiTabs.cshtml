@@ -1,0 +1,7 @@
+@model string
+@* The areas of the AI administration (tabs): the settings and limits, the profiles (connections), the runs. Each tab is a page of its own. *@
+<ms-tabs label="@L["Ai.Title"]">
+    <ms-tab href="/Admin/Ai" active="@(Model == "general")">@L["Ai.Tab.General"]</ms-tab>
+    <ms-tab href="/Admin/Ai/Profiles" active="@(Model == "profiles")">@L["Ai.Tab.Profiles"]</ms-tab>
+    <ms-tab href="/Admin/Ai/Runs" active="@(Model == "runs")">@L["Ai.Tab.Runs"]</ms-tab>
+</ms-tabs>

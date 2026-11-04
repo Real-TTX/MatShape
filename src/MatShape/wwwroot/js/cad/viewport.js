@@ -517,6 +517,21 @@ export class Viewport {
   render() {
     this.renderer.render(this.scene, this.camera);
     this.drawTriad();
+    this.onRender?.();
+  }
+
+  /** Turns the view about the direction one looks in (degrees; positive = counter-clockwise on the screen). */
+  roll(degrees) {
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const target = new THREE.Quaternion().setFromAxisAngle(forward, -degrees * Math.PI / 180).multiply(this.camera.quaternion);
+    const from = this.camera.quaternion.clone(), start = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - start) / 220);
+      this.camera.quaternion.slerpQuaternions(from, target, k);
+      this.updateCamera();
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   drawTriad() {

@@ -214,6 +214,12 @@
   "Js.Measure.Point": { "en": "Point", "de": "Punkt" },
   "Js.Measure.Distance": { "en": "Distance", "de": "Abstand" },
 
+  "Js.View.Cube.top": { "en": "Top", "de": "Oben" },
+  "Js.View.Cube.bottom": { "en": "Bottom", "de": "Unten" },
+  "Js.View.Cube.front": { "en": "Front", "de": "Vorne" },
+  "Js.View.Cube.back": { "en": "Back", "de": "Hinten" },
+  "Js.View.Cube.right": { "en": "Right", "de": "Rechts" },
+  "Js.View.Cube.left": { "en": "Left", "de": "Links" },
   "Js.View.Display.shaded": { "en": "Shaded with edges", "de": "Schattiert mit Kanten" },
   "Js.View.Display.shaded-plain": { "en": "Shaded without edges", "de": "Schattiert ohne Kanten" },
   "Js.View.Display.wireframe": { "en": "See-through", "de": "Durchsichtig" },

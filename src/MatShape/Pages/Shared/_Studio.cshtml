@@ -128,11 +128,15 @@
         <div class="ms-view" data-view>
             <canvas class="ms-canvas" data-canvas tabindex="0" aria-label="@L["Studio.Viewport"]"></canvas>
 
+            @* the view cube (OnShape-like): turns with the view; a click on a face, an edge or a corner turns the view there, a drag turns the model *@
+            <div class="ms-cube">
+                <canvas class="ms-cube__canvas" data-viewcube role="img" aria-label="@L["View.Cube"]" title="@L["View.Cube.Hint"]"></canvas>
+                <button type="button" class="ms-cube__roll ms-cube__roll--left" data-roll="90" aria-label="@L["View.RollLeft"]" data-tip="@L["View.RollLeft"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("rotate-ccw")</button>
+                <button type="button" class="ms-cube__roll ms-cube__roll--right" data-roll="-90" aria-label="@L["View.RollRight"]" data-tip="@L["View.RollRight"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("rotate-cw")</button>
+            </div>
+
             <div class="ms-viewtools" role="toolbar" aria-label="@L["Studio.Views"]">
                 <button type="button" class="ms-vbtn" data-view-set="iso" aria-label="@L["View.Iso"]" data-tip="@L["View.Iso"] (I)" data-tip-align="end">@Ui.Icon("view-iso")</button>
-                <button type="button" class="ms-vbtn" data-view-set="top" aria-label="@L["View.Top"]" data-tip="@L["View.Top"]" data-tip-align="end">@Ui.Icon("view-top")</button>
-                <button type="button" class="ms-vbtn" data-view-set="front" aria-label="@L["View.Front"]" data-tip="@L["View.Front"]" data-tip-align="end">@Ui.Icon("view-front")</button>
-                <button type="button" class="ms-vbtn" data-view-set="right" aria-label="@L["View.Right"]" data-tip="@L["View.Right"]" data-tip-align="end">@Ui.Icon("view-right")</button>
                 <button type="button" class="ms-vbtn" data-action="fit" aria-label="@L["View.Fit"]" data-tip="@L["View.Fit"] (F)" data-tip-align="end">@Ui.Icon("zoom-fit")</button>
                 <span class="ms-viewtools__sep" aria-hidden="true"></span>
                 <button type="button" class="ms-vbtn" data-action="display" aria-label="@L["View.Display"]" data-tip="@L["View.Display"]" data-tip-align="end">@Ui.Icon("shaded")</button>

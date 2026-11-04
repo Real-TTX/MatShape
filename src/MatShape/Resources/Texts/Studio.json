@@ -55,9 +55,10 @@
   "Sketch.Properties": { "en": "Sketch", "de": "Skizze" },
 
   "View.Iso": { "en": "Isometric", "de": "Isometrisch" },
-  "View.Top": { "en": "Top", "de": "Oben" },
-  "View.Front": { "en": "Front", "de": "Vorne" },
-  "View.Right": { "en": "Right", "de": "Rechts" },
+  "View.Cube": { "en": "View cube: shows how the model is turned", "de": "Ansichtswürfel: zeigt, wie das Modell gedreht ist" },
+  "View.Cube.Hint": { "en": "Click a face, an edge or a corner to look from there; drag to turn the model.", "de": "Klicke eine Fläche, Kante oder Ecke an, um von dort zu schauen; ziehen dreht das Modell." },
+  "View.RollLeft": { "en": "Turn the view 90° to the left", "de": "Ansicht um 90° nach links drehen" },
+  "View.RollRight": { "en": "Turn the view 90° to the right", "de": "Ansicht um 90° nach rechts drehen" },
   "View.Fit": { "en": "Fit", "de": "Einpassen" },
   "View.Display": { "en": "Display: shaded, without edges, see-through", "de": "Darstellung: schattiert, ohne Kanten, durchsichtig" },
   "View.Planes": { "en": "Show the planes", "de": "Ebenen anzeigen" }

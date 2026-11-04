@@ -27,7 +27,8 @@ Ein App-Container und PostgreSQL. Port **3939**.
 - Geometriekern: **[Manifold](https://github.com/elalish/manifold)** (WebAssembly, robuste Boolesche Operationen), Darstellung: **[three.js](https://threejs.org)** – beides als Kopie im Projekt, kein CDN
 
 **Ansehen, messen, ausgeben**
-- Orthografische 3D-Ansicht mit Achsenkreuz, Standardansichten, Einpassen, schattiert / ohne Kanten / durchsichtig, Ebenen ein/aus
+- **Ansichtswürfel** oben rechts wie bei OnShape: dreht sich mit der Ansicht, ein Klick auf Fläche, Kante oder Ecke dreht die Ansicht dorthin, Ziehen dreht das Modell, zwei Pfeile drehen um 90° um die Blickachse
+- Orthografische 3D-Ansicht mit Achsenkreuz, Isometrisch, Einpassen, schattiert / ohne Kanten / durchsichtig, Ebenen ein/aus
 - Maus: Ziehen oder rechts Ziehen dreht, Mitte oder Umschalt+Ziehen verschiebt, Mausrad zoomt zum Zeiger; **Touch**: ein Finger dreht, zwei verschieben und zoomen
 - **Teile** benennen, einfärben, ausblenden, isolieren; **Masseeigenschaften** (Volumen, Oberfläche, Größe); **Messen** von Abständen
 - **Export**: STL (3D-Druck), OBJ, PNG der Ansicht, Part Studio als JSON

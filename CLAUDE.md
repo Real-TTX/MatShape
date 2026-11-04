@@ -61,6 +61,7 @@ src/MatShape
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges + smooth normals, planes, sketches, picking, face highlight, snapshot
     sketcher.js              the sketch editor: tools, snapping, handles (connected ends move together), numbers in the panel, its own undo
+    viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
     export.js, util.js       STL/OBJ; texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM
   wwwroot/css/app.css        accent + few app styles (prefix ms-);  studio.css = the editor page

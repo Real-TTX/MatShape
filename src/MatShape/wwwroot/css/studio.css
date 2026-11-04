@@ -235,3 +235,23 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 @media (pointer: coarse) {
   .ms-vbtn { width: 42px; height: 42px; }
 }
+
+/* ---- the view cube (top right of the view) ------------------------------------------------------------------------- */
+.ms-cube { position: absolute; top: var(--mat-space-2); right: var(--mat-space-2); z-index: 5; width: 124px; height: 124px; }
+.ms-cube__canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.ms-cube__canvas:active { cursor: grabbing; }
+.ms-cube__roll {
+  position: absolute; top: 2px; display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--mat-text-muted); cursor: pointer; opacity: .7;
+}
+.ms-cube__roll:hover, .ms-cube__roll:focus-visible { opacity: 1; background: var(--mat-surface); color: var(--mat-text); box-shadow: var(--mat-shadow-1); outline: none; }
+.ms-cube__roll .mat-icon { width: 16px; height: 16px; }
+.ms-cube__roll--left { left: 0; }
+.ms-cube__roll--right { right: 0; }
+.ms-view .ms-viewtools { top: calc(var(--mat-space-2) + 132px); }
+.is-dialog .ms-hud, .is-sketching .ms-hud { right: calc(var(--mat-space-3) + 140px); }
+@media (max-width: 720px) {
+  .ms-cube { width: 96px; height: 96px; }
+  .ms-view .ms-viewtools { top: calc(var(--mat-space-2) + 102px); }
+}
+@media (pointer: coarse) { .ms-cube__roll { opacity: 1; width: 32px; height: 32px; } }

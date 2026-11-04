@@ -4,6 +4,7 @@
    Without a network the changes wait on this device (localStorage) and are sent when the network is back. */
 
 import { Viewport } from './viewport.js';
+import { ViewCube } from './viewcube.js';
 import { loadKernel, regenerate, dispose, FEATURES, properties } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { Sketcher } from './sketcher.js';
@@ -71,6 +72,7 @@ function start() {
   const unit = () => UNITS[state.doc?.units] || 1;
 
   const viewport = new Viewport($('[data-canvas]'), $('[data-triad]'));
+  const viewCube = new ViewCube($('[data-viewcube]'), viewport);
   const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
     status: text => setStatus(text),
     hud: text => showHud(text),
@@ -1047,6 +1049,8 @@ function start() {
   root.addEventListener('click', e => {
     const feature = e.target.closest('[data-feature]');
     if (feature && feature.closest('[data-toolbar="features"]')) { newFeature(feature.dataset.feature); return; }
+    const roll = e.target.closest('[data-roll]');
+    if (roll) { viewport.roll(Number(roll.dataset.roll)); return; }
     const view = e.target.closest('[data-view-set]');
     if (view) { viewport.setView(view.dataset.viewSet); return; }
     const exp = e.target.closest('[data-export]');
@@ -1117,7 +1121,7 @@ function start() {
   });
 
   // the theme changes the colours of the edges
-  new MutationObserver(() => { viewport.applyDisplay(); viewport.updatePlanes(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  new MutationObserver(() => { viewport.applyDisplay(); viewport.updatePlanes(); viewCube.build(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => viewport.applyDisplay());
 
   window.addEventListener('beforeunload', e => {

@@ -24,10 +24,98 @@ public static class ModelAssistant
 {
     public const int MaxPromptLength = 4000;
     public const int MaxFeaturesPerAnswer = 200;
+    public const int MaxAttachments = 8;   // the editor allows 4; an SVG travels as its text and as a picture
+    public const int MaxAttachmentBytes = 8 * 1024 * 1024;
+    public const int MaxSvgBytes = 256 * 1024;
 
-    public sealed record Request(string Prompt, JsonElement Content, IReadOnlyList<RepairError>? Errors, string? Language);
+    public sealed record Request(string Prompt, JsonElement Content, IReadOnlyList<RepairError>? Errors, string? Language, IReadOnlyList<Attachment>? Attachments = null);
 
     public sealed record RepairError(string Id, string? Name, string Message);
+
+    /// <summary>A file the person attached: a picture (PNG, JPEG, WebP, GIF), a PDF or an SVG, as base64.</summary>
+    public sealed record Attachment(string? Name, string? MediaType, string? Data);
+
+    private static readonly HashSet<string> ImageTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+    /// <summary>The attached SVG files as text after the situation (empty without any).</summary>
+    private static string SvgText(List<(string Name, string Text)> svgs)
+    {
+        var sb = new StringBuilder();
+        foreach (var (name, text) in svgs)
+        {
+            sb.Append("\n\nAttached SVG \"").Append(name).Append("\" (a template; take its paths as outlines):\n```svg\n").Append(text).Append("\n```");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// The attachments as the transports take them: pictures as images, PDFs as files, SVGs as text (their paths are exact coordinates for a model).
+    /// Null with a reason when one is not allowed (type, size, count, not base64).
+    /// </summary>
+    public static (List<AiAttachment> Files, List<(string Name, string Text)> Svgs, string? Problem) ReadAttachments(IReadOnlyList<Attachment>? list)
+    {
+        var files = new List<AiAttachment>();
+        var svgs = new List<(string, string)>();
+        if (list is null || list.Count == 0)
+        {
+            return (files, svgs, null);
+        }
+
+        if (list.Count > MaxAttachments)
+        {
+            return (files, svgs, Text.T("Ai.Attach.TooMany", MaxAttachments));
+        }
+
+        foreach (var a in list)
+        {
+            var name = new string((a.Name ?? "file").Where(c => !char.IsControl(c)).Take(100).ToArray());
+            var type = (a.MediaType ?? string.Empty).Trim().ToLowerInvariant();
+            var data = a.Data ?? string.Empty;
+            var comma = data.IndexOf(',');
+            if (data.StartsWith("data:", StringComparison.Ordinal) && comma > 0)
+            {
+                data = data[(comma + 1)..];
+            }
+
+            var bytes = new byte[data.Length * 3 / 4 + 3];
+            if (data.Length == 0 || !Convert.TryFromBase64String(data, bytes, out var length))
+            {
+                return (files, svgs, Text.T("Ai.Attach.Unreadable", name));
+            }
+
+            if (type == "image/svg+xml")
+            {
+                if (length > MaxSvgBytes)
+                {
+                    return (files, svgs, Text.T("Ai.Attach.TooLarge", name));
+                }
+
+                svgs.Add((name, Encoding.UTF8.GetString(bytes, 0, length)));
+                continue;
+            }
+
+            if (length > MaxAttachmentBytes)
+            {
+                return (files, svgs, Text.T("Ai.Attach.TooLarge", name));
+            }
+
+            if (ImageTypes.Contains(type))
+            {
+                files.Add(new AiAttachment { Kind = "image", MediaType = type, Name = name, Data = data });
+            }
+            else if (type == "application/pdf")
+            {
+                files.Add(new AiAttachment { Kind = "file", MediaType = type, Name = name, Data = data });
+            }
+            else
+            {
+                return (files, svgs, Text.T("Ai.Attach.Type", name));
+            }
+        }
+
+        return (files, svgs, null);
+    }
 
     public static async Task<(AssistResult? Result, AssistFailure? Failure)> AssistAsync(AppDbContext db, IServiceProvider services, long userId, long studioId, Request request, string? address, bool isAdmin, CancellationToken ct = default)
     {
@@ -37,10 +125,21 @@ public static class ModelAssistant
             return (null, new AssistFailure(Text.T("Errors.NotFound.Text"), "denied", null));
         }
 
+        var (files, svgs, attachProblem) = ReadAttachments(request.Attachments);
+        if (attachProblem is not null)
+        {
+            return (null, new AssistFailure(attachProblem, "invalid", null));
+        }
+
         var prompt = (request.Prompt ?? string.Empty).Trim();
         if (prompt.Length == 0)
         {
-            return (null, new AssistFailure(Text.T("Ai.Assist.Empty"), "invalid", null));
+            if (files.Count + svgs.Count == 0)
+            {
+                return (null, new AssistFailure(Text.T("Ai.Assist.Empty"), "invalid", null));
+            }
+
+            prompt = Text.T("Ai.Attach.DefaultPrompt");
         }
 
         if (prompt.Length > MaxPromptLength)
@@ -59,8 +158,9 @@ public static class ModelAssistant
         var messages = new List<AiMessage>
         {
             AiMessage.System(SystemText(settings, language)),
-            AiMessage.User(Situation(access.Document, studio.Name, current, prompt, request.Errors)),
+            AiMessage.User(Situation(access.Document, studio.Name, current, prompt, request.Errors) + SvgText(svgs)),
         };
+        messages[^1].Attachments = files;
         var outcome = await AiService.RunAsync(db, services, new AiService.Call(AiAction.Model, messages, "features", studio.DocumentId, studio.Id, userId, address, prompt), ct);
         if (!outcome.Ok)
         {
@@ -272,5 +372,11 @@ public static class ModelAssistant
         - patch: features with an existing id replace that feature in place; new ids are added at the end (to change or fix features)
         - replace: the whole list is replaced (only when the person asks to start over)
         If the request is not about modelling or cannot be done, answer with "features": [] and explain it in "message".
+        Attachments: the person may attach pictures (photos, drawings, screenshots), PDFs or SVG files.
+        - A picture of an object to rebuild: model it with the features above. Take sizes from the text or the picture (dimension lines, known parts like screws); where none are given,
+          choose plausible ones and say which in "message". Rebuild the main shape first, then holes, pockets and patterns.
+        - A logo, icon or lettering as a template: trace its outlines as closed sketch profiles (lines, arcs, circles; holes as inner profiles) on the Top plane, centred on the origin, about
+          60 mm wide unless a size is asked for, then extrude them (for example a 2 mm base plate and the logo 1.5 mm raised on it with "op": "add"). From an SVG take the coordinates of
+          its paths (flip y: SVG y points down), approximate curves with arcs or short lines.
         """;
 }

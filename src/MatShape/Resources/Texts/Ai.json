@@ -125,6 +125,11 @@
   "Ai.Test.Ok": { "en": "Connected ({0}, {1}): {2}", "de": "Verbindung steht ({0}, {1}): {2}" },
   "Ai.Test.Failed": { "en": "Failed: {0}", "de": "Fehlgeschlagen: {0}" },
   "Ai.Assist.Empty": { "en": "Please write what you need.", "de": "Bitte schreib, was du brauchst." },
+  "Ai.Attach.TooMany": { "en": "At most {0} attachments per request.", "de": "Höchstens {0} Anhänge pro Anfrage." },
+  "Ai.Attach.TooLarge": { "en": "\"{0}\" is too large.", "de": "„{0}“ ist zu groß." },
+  "Ai.Attach.Unreadable": { "en": "\"{0}\" could not be read.", "de": "„{0}“ konnte nicht gelesen werden." },
+  "Ai.Attach.Type": { "en": "\"{0}\": only pictures (PNG, JPEG, WebP, GIF), SVG and PDF can be attached.", "de": "„{0}“: Anhängen lassen sich nur Bilder (PNG, JPEG, WebP, GIF), SVG und PDF." },
+  "Ai.Attach.DefaultPrompt": { "en": "Rebuild what the attachment shows.", "de": "Baue nach, was der Anhang zeigt." },
   "Ai.Assist.Invalid": { "en": "The answer of the AI could not be used ({0}). Please try again or say it differently.", "de": "Die Antwort der KI war nicht verwendbar ({0}). Bitte noch einmal versuchen oder anders formulieren." },
 
   "Studio.Ai.Title": { "en": "AI assistant", "de": "KI-Assistent" },
@@ -135,6 +140,8 @@
   "Studio.Ai.Example3": { "en": "Make the main dimensions variables", "de": "Mach die Hauptmaße zu Variablen" },
   "Studio.Ai.Prompt": { "en": "Your request to the AI", "de": "Deine Anfrage an die KI" },
   "Studio.Ai.Placeholder": { "en": "e.g. a box 100 × 60 × 40 with 2 mm walls, open at the top", "de": "z. B. eine Box 100 × 60 × 40 mit 2 mm Wänden, oben offen" },
-  "Studio.Ai.Hint": { "en": "Ctrl+Enter sends", "de": "Strg+Enter sendet" },
+  "Studio.Ai.Hint": { "en": "Ctrl+Enter sends · paste or drop pictures", "de": "Strg+Enter sendet · Bilder einfügen oder hineinziehen" },
+  "Studio.Ai.Attach": { "en": "Attach a picture, SVG or PDF (to rebuild, or a logo as a template)", "de": "Bild, SVG oder PDF anhängen (zum Nachbauen oder ein Logo als Vorlage)" },
+  "Studio.Ai.Attachments": { "en": "Attachments", "de": "Anhänge" },
   "Studio.Ai.Send": { "en": "Send", "de": "Senden" }
 }

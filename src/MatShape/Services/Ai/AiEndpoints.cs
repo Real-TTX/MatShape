@@ -19,7 +19,7 @@ public static class AiEndpoints
         {
             var errors = body.Errors?.Select(e => new ModelAssistant.RepairError(e.Id ?? string.Empty, e.Name, e.Message ?? string.Empty)).ToList();
             var (result, failure) = await ModelAssistant.AssistAsync(db, http.RequestServices, me.RequiredId, id,
-                new ModelAssistant.Request(body.Prompt ?? string.Empty, body.Content, errors, body.Language), http.Connection.RemoteIpAddress?.ToString(), me.IsAdmin, http.RequestAborted);
+                new ModelAssistant.Request(body.Prompt ?? string.Empty, body.Content, errors, body.Language, body.Attachments), http.Connection.RemoteIpAddress?.ToString(), me.IsAdmin, http.RequestAborted);
             if (failure is not null)
             {
                 return failure.Code == "denied"
@@ -69,7 +69,7 @@ public static class AiEndpoints
         return await next(context);
     }
 
-    public sealed record AssistBody(string? Prompt, JsonElement Content, IReadOnlyList<ErrorBody>? Errors, string? Language);
+    public sealed record AssistBody(string? Prompt, JsonElement Content, IReadOnlyList<ErrorBody>? Errors, string? Language, IReadOnlyList<ModelAssistant.Attachment>? Attachments);
 
     public sealed record ErrorBody(string? Id, string? Name, string? Message);
 }

@@ -20,6 +20,23 @@ export class Assistant {
       e.stopPropagation();
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.submit(); }
     });
+    // attachments: the paperclip, pasting a picture into the field, dropping files on the panel
+    this.files = [];
+    this.fileList = panel.querySelector('[data-ai-files]');
+    this.picker = panel.querySelector('[data-ai-picker]');
+    panel.querySelector('[data-ai-attach]')?.addEventListener('click', () => this.picker.click());
+    this.picker?.addEventListener('change', () => { this.attach([...this.picker.files]); this.picker.value = ''; });
+    this.input.addEventListener('paste', e => {
+      const files = [...(e.clipboardData?.files || [])];
+      if (files.length) { e.preventDefault(); this.attach(files); }
+    });
+    panel.addEventListener('dragover', e => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); panel.classList.add('is-dropping'); } });
+    panel.addEventListener('dragleave', e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('is-dropping'); });
+    panel.addEventListener('drop', e => {
+      panel.classList.remove('is-dropping');
+      const files = [...(e.dataTransfer?.files || [])];
+      if (files.length) { e.preventDefault(); this.attach(files); }
+    });
     panel.querySelectorAll('[data-ai-example]').forEach(b => b.addEventListener('click', () => { this.input.value = b.textContent; this.input.focus(); }));
   }
 
@@ -44,16 +61,47 @@ export class Assistant {
     return item;
   }
 
+  /** Reads the files (pictures are scaled down here) and shows them as chips above the field. */
+  async attach(list) {
+    for (const file of list) {
+      if (this.files.length >= MAX_FILES) { toast(t('Ai.Attach.TooMany', MAX_FILES), 'warning'); break; }
+      try {
+        this.files.push(await readAttachment(file));
+      } catch (error) {
+        toast(t(String(error?.message).startsWith('Ai.') ? error.message : 'Ai.Attach.Unreadable', file.name || ''), 'warning');
+      }
+    }
+    this.renderFiles();
+  }
+
+  renderFiles() {
+    if (!this.fileList) return;
+    this.fileList.replaceChildren(...this.files.map((f, i) => {
+      const remove = el('button', { type: 'button', class: 'ms-ai__file-x', 'aria-label': t('Ai.Attach.Remove', f.name), 'data-tip': t('Ai.Attach.Remove', f.name) }, icon('x'));
+      remove.addEventListener('click', () => { if (f.preview) URL.revokeObjectURL(f.preview); this.files.splice(i, 1); this.renderFiles(); });
+      return el('li', { class: 'ms-ai__file' }, this.thumb(f), el('span', { class: 'ms-ai__file-name' }, f.name), remove);
+    }));
+    this.fileList.hidden = !this.files.length;
+  }
+
+  thumb(f) {
+    return f.preview ? el('img', { class: 'ms-ai__thumb', src: f.preview, alt: '' }) : el('span', { class: 'ms-ai__thumb ms-ai__thumb--file' }, icon('file-text'));
+  }
+
   async submit() {
     const prompt = this.input.value.trim();
-    if (!prompt || this.running) return;
+    if ((!prompt && !this.files.length) || this.running) return;
+    const files = this.files;
+    this.files = [];
+    this.renderFiles();
     this.input.value = '';
-    this.line('user', prompt);
+    const shown = files.length ? el('ul', { class: 'ms-ai__sent' }, ...files.map(f => el('li', null, this.thumb(f), el('span', null, f.name)))) : null;
+    this.line('user', prompt || t('Ai.Attach.DefaultPrompt'), shown);
     this.running = true;
     this.send.disabled = true;
     this.host.busy(true);
     try {
-      await this.run(prompt);
+      await this.run(prompt, files.flatMap(f => f.parts));
     } finally {
       this.running = false;
       this.send.disabled = false;
@@ -62,7 +110,7 @@ export class Assistant {
     }
   }
 
-  async run(prompt) {
+  async run(prompt, attachments = []) {
     let before = null;
     let errors = null;
     let tokens = 0;
@@ -72,7 +120,7 @@ export class Assistant {
       let answer;
       try {
         answer = await request('POST', `/live/studios/${this.host.studioId()}/ai`, {
-          prompt, content: this.host.content(), errors, language: document.documentElement.lang,
+          prompt, content: this.host.content(), errors, language: document.documentElement.lang, attachments,
         });
       } catch (error) {
         busy.remove();
@@ -111,4 +159,79 @@ export class Assistant {
       return;
     }
   }
+}
+
+// ---- attachments: pictures (to rebuild, or a logo as a template), SVG, PDF ---------------------------------------------------
+
+const MAX_FILES = 4;
+const MAX_SIDE = 1600;                       // larger pictures are scaled down in the browser: enough for a model, far fewer tokens
+const PDF_LIMIT = 8 * 1024 * 1024;
+const SVG_LIMIT = 256 * 1024;
+const PICTURES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+const base64Of = blob => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).slice(String(reader.result).indexOf(',') + 1));
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
+const canvasBlob = (canvas, type, quality) => new Promise(resolve => canvas.toBlob(resolve, type, quality));
+
+/** A picture as it is, or scaled to MAX_SIDE (photos as JPEG, the rest as PNG to keep sharp edges and transparency). */
+async function picture(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  if (scale === 1 && file.size <= 1.5 * 1024 * 1024) { bitmap.close?.(); return { type: file.type, blob: file }; }
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const photo = file.type === 'image/jpeg' || file.type === 'image/webp';
+  const type = photo ? 'image/jpeg' : 'image/png';
+  return { type, blob: await canvasBlob(canvas, type, 0.88) };
+}
+
+/** An SVG drawn into a PNG on white, so that models that only see pictures see it too. */
+async function svgPicture(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+    const w = img.naturalWidth || 1024, h = img.naturalHeight || 1024;
+    const scale = 1024 / Math.max(w, h);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    g.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return await canvasBlob(canvas, 'image/png');
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** A file -> { name, preview, parts: [{ name, mediaType, data }] } or throws a text key. */
+export async function readAttachment(file) {
+  const name = file.name || 'clipboard.png';
+  const type = file.type || (/\.svg$/i.test(name) ? 'image/svg+xml' : /\.pdf$/i.test(name) ? 'application/pdf' : '');
+  if (type === 'image/svg+xml') {
+    if (file.size > SVG_LIMIT) throw new Error('Ai.Attach.TooLarge');
+    const parts = [{ name, mediaType: type, data: await base64Of(file) }];
+    const png = await svgPicture(file);
+    if (png) parts.push({ name: name.replace(/\.svg$/i, '') + '.png', mediaType: 'image/png', data: await base64Of(png) });
+    return { name, preview: png ? URL.createObjectURL(png) : null, parts };
+  }
+  if (type === 'application/pdf') {
+    if (file.size > PDF_LIMIT) throw new Error('Ai.Attach.TooLarge');
+    return { name, preview: null, parts: [{ name, mediaType: type, data: await base64Of(file) }] };
+  }
+  if (!PICTURES.includes(type)) throw new Error('Ai.Attach.Type');
+  const shrunk = await picture(file);
+  return { name, preview: URL.createObjectURL(shrunk.blob), parts: [{ name, mediaType: shrunk.type, data: await base64Of(shrunk.blob) }] };
 }

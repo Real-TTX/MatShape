@@ -89,7 +89,7 @@ public static class AiService
         run.ProfileName = transport.Name;
         run.Model = transport.Model;
         var messages = call.Messages.ToList();
-        Step(AiStepKind.Message, string.Join("\n\n---\n\n", messages.Select(m => $"[{m.Role}]\n{m.Content}")));
+        Step(AiStepKind.Message, string.Join("\n\n---\n\n", messages.Select(m => $"[{m.Role}]\n{m.Content}" + AttachmentLine(m))));
 
         try
         {
@@ -167,6 +167,11 @@ public static class AiService
     }
 
     /// <summary>The transport of a call: the profile with this id (the one being tested, active or not), else the active profile; null when it is not complete (no key, not signed in).</summary>
+    /// <summary>For the log of a run: the names, types and sizes of the attachments of a message (never their content).</summary>
+    private static string AttachmentLine(AiMessage m) => m.Attachments.Count == 0
+        ? string.Empty
+        : "\n[attachments: " + string.Join(", ", m.Attachments.Select(a => $"{a.Name} ({a.MediaType}, {a.Data.Length * 3 / 4 / 1024} KB)")) + "]";
+
     public static async Task<Transport?> TransportAsync(AppDbContext db, IServiceProvider services, AiSettings settings, long? profileId, CancellationToken ct)
     {
         var profile = profileId is { } wanted

@@ -283,6 +283,12 @@
   "Js.Version.Failed": { "en": "The version could not be created.", "de": "Die Version konnte nicht angelegt werden." },
 
   "Js.Ai.Thinking": { "en": "The AI is modelling …", "de": "Die KI modelliert …" },
+  "Js.Ai.Attach.TooMany": { "en": "At most {0} attachments.", "de": "Höchstens {0} Anhänge." },
+  "Js.Ai.Attach.TooLarge": { "en": "\"{0}\" is too large.", "de": "„{0}“ ist zu groß." },
+  "Js.Ai.Attach.Unreadable": { "en": "\"{0}\" could not be read.", "de": "„{0}“ konnte nicht gelesen werden." },
+  "Js.Ai.Attach.Type": { "en": "\"{0}\": only pictures (PNG, JPEG, WebP, GIF), SVG and PDF.", "de": "„{0}“: nur Bilder (PNG, JPEG, WebP, GIF), SVG und PDF." },
+  "Js.Ai.Attach.DefaultPrompt": { "en": "Rebuild what the attachment shows.", "de": "Baue nach, was der Anhang zeigt." },
+  "Js.Ai.Attach.Remove": { "en": "Remove {0}", "de": "{0} entfernen" },
   "Js.Ai.Repairing": { "en": "Some features did not build – the AI repairs them …", "de": "Einige Features bauen nicht – die KI repariert sie …" },
   "Js.Ai.Failed": { "en": "The AI could not be reached.", "de": "Die KI war nicht erreichbar." },
   "Js.Ai.Offline": { "en": "No connection – the assistant needs the network.", "de": "Keine Verbindung – der Assistent braucht das Netz." },

@@ -349,3 +349,17 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 .ms-swatch-btn { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--mat-radius-xs); background: transparent; cursor: pointer; }
 .ms-swatch-btn:hover .ms-swatch, .ms-swatch-btn:focus-visible .ms-swatch { box-shadow: 0 0 0 2px var(--mat-accent); }
 .ms-swatch-btn:focus-visible { outline: none; }
+
+/* attachments of the AI panel: chips above the field, thumbnails in the log, a frame while files are dragged over */
+.ms-ai__files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ms-ai__files[hidden] { display: none; }
+.ms-ai__file { display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 4px 3px 3px; border: 1px solid var(--mat-border); border-radius: var(--mat-radius-sm); background: var(--mat-surface); font-size: var(--mat-fs-xs); }
+.ms-ai__file-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-ai__file-x { display: inline-flex; padding: 2px; border: 0; border-radius: 3px; background: none; color: var(--mat-text-muted); cursor: pointer; }
+.ms-ai__file-x:hover { color: var(--mat-danger-text); }
+.ms-ai__thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 3px; background: #fff; border: 1px solid var(--mat-border); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.ms-ai__sent { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--mat-fs-xs); }
+.ms-ai__sent li { display: flex; align-items: center; gap: 4px; }
+.ms-ai__sent .ms-ai__thumb { width: 56px; height: 56px; }
+.ms-ai__hint { flex: 1; }
+.ms-ai.is-dropping { outline: 2px dashed var(--mat-accent); outline-offset: -4px; }

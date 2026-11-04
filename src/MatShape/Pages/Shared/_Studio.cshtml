@@ -236,9 +236,12 @@
                     </ol>
                     <footer class="ms-ai__foot">
                         <label class="mat-sr-only" for="ms-ai-input">@L["Studio.Ai.Prompt"]</label>
+                        <ul class="ms-ai__files" data-ai-files hidden aria-label="@L["Studio.Ai.Attachments"]"></ul>
                         <textarea class="mat-textarea ms-ai__input" id="ms-ai-input" rows="3" maxlength="4000" placeholder="@L["Studio.Ai.Placeholder"]" data-ai-input></textarea>
                         <div class="ms-ai__send">
-                            <small class="ms-muted">@L["Studio.Ai.Hint"]</small>
+                            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-ai-attach aria-label="@L["Studio.Ai.Attach"]" data-tip="@L["Studio.Ai.Attach"]">@Ui.Icon("paperclip")</button>
+                            <input type="file" class="mat-sr-only" data-ai-picker multiple accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf" tabindex="-1" aria-hidden="true">
+                            <small class="ms-muted ms-ai__hint">@L["Studio.Ai.Hint"]</small>
                             <button type="button" class="mat-btn mat-btn--primary mat-btn--sm" data-ai-send>@Ui.Icon("sparkles")<span>@L["Studio.Ai.Send"]</span></button>
                         </div>
                     </footer>

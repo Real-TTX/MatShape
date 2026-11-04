@@ -439,3 +439,96 @@ export function migrateDims(dims) {
 export function constraintsOf(params) {
   return params?.cons || migrateDims(params?.dims);
 }
+
+/**
+ * Makes a sketch from before the constraints (or from the AI) editable like one drawn here, the way OnShape builds these shapes:
+ * - a rectangle becomes four lines, joined, two horizontal and two vertical (its width / height dimensions become lengths of its sides);
+ * - a polygon becomes its sides on a construction circle (joined, corners on the circle, all sides equal; its radius dimension goes to the circle);
+ * - with infer: ends that lie on each other become coincident (also with the origin), exactly level / upright lines horizontal / vertical.
+ * Returns { entities, cons, replaced: { oldId: [newIds] } } – replaced is needed to rename the chosen profiles of features.
+ */
+export function adoptSketch(entities, constraints, { infer = false, id = n => n } = {}) {
+  const out = [];
+  const cons = (constraints || []).map(c => ({ ...c, refs: (c.refs || []).map(r => ({ ...r })) }));
+  const added = [];
+  const replaced = {};
+  const add = (type, refs, extra) => added.push({ id: id('k'), type, refs, ...extra });
+  const redirect = (oldId, map) => cons.forEach(c => c.refs.forEach((r, i) => { if (r?.e === oldId) c.refs[i] = map(r, c); }));
+
+  for (const e of entities || []) {
+    if (e.t === 'rect') {
+      const [x0, y0] = e.a, [x1, y1] = e.b;
+      const P = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      const L = P.map((p, i) => ({ id: `${e.id}_${i + 1}`, t: 'line', a: p, b: P[(i + 1) % 4], ...(e.cons ? { cons: true } : {}) }));
+      out.push(...L);
+      for (let i = 0; i < 4; i++) add('coincident', [{ e: L[i].id, k: 'b' }, { e: L[(i + 1) % 4].id, k: 'a' }]);
+      add('horizontal', [{ e: L[0].id }]); add('horizontal', [{ e: L[2].id }]); add('vertical', [{ e: L[1].id }]); add('vertical', [{ e: L[3].id }]);
+      redirect(e.id, (r, c) => (r.k === 'a' ? { e: L[0].id, k: 'a' } : r.k === 'b' ? { e: L[2].id, k: 'a' } : c.type === 'height' ? { e: L[1].id } : { e: L[0].id }));
+      cons.forEach(c => { if (c.type === 'width' || c.type === 'height') c.type = 'length'; });
+      replaced[e.id] = L.map(l => l.id);
+      continue;
+    }
+    if (e.t === 'polygon') {
+      const n = Math.max(3, Math.round(e.n || 6)), rot = (e.rot || 0) * Math.PI / 180;
+      const V = Array.from({ length: n }, (_, i) => [e.c[0] + e.r * Math.cos(rot + 2 * Math.PI * i / n), e.c[1] + e.r * Math.sin(rot + 2 * Math.PI * i / n)]);
+      const circle = { id: `${e.id}_c`, t: 'circle', c: [...e.c], r: e.r, cons: true };
+      const L = V.map((p, i) => ({ id: `${e.id}_${i + 1}`, t: 'line', a: p, b: V[(i + 1) % n], ...(e.cons ? { cons: true } : {}) }));
+      out.push(circle, ...L);
+      for (let i = 0; i < n; i++) {
+        add('coincident', [{ e: L[i].id, k: 'b' }, { e: L[(i + 1) % n].id, k: 'a' }]);
+        add('onCurve', [{ e: L[i].id, k: 'a' }, { e: circle.id }]);
+        if (i) add('equal', [{ e: L[0].id }, { e: L[i].id }]);
+      }
+      redirect(e.id, r => (r.k ? { e: circle.id, k: 'c' } : { e: circle.id }));
+      replaced[e.id] = L.map(l => l.id);
+      continue;
+    }
+    out.push(e);
+  }
+
+  const all = [...cons, ...added];
+  if (infer) {
+    // ends on each other: coincident (unless a chain of coincidents joins them already)
+    const parent = new Map();
+    const find = k => { while (parent.has(k) && parent.get(k) !== k) k = parent.get(k); return k; };
+    const union = (a, b) => parent.set(find(a), find(b));
+    for (const c of all) if (c.type === 'coincident' && c.refs[0]?.k && c.refs[1]?.k) union(c.refs[0].e + '.' + c.refs[0].k, c.refs[1].e + '.' + c.refs[1].k);
+    const spots = new Map();
+    const place = (ref, p) => {
+      const key = `${Math.round(p[0] * 1e5)}:${Math.round(p[1] * 1e5)}`;
+      if (!spots.has(key)) spots.set(key, []);
+      spots.get(key).push(ref);
+    };
+    place({ e: ORIGIN, k: 'p' }, [0, 0]);
+    for (const e of out) {
+      if (e.t === 'line') { place({ e: e.id, k: 'a' }, e.a); place({ e: e.id, k: 'b' }, e.b); }
+      else if (e.t === 'arc') { place({ e: e.id, k: 's' }, [e.c[0] + e.r * Math.cos(e.a0), e.c[1] + e.r * Math.sin(e.a0)]); place({ e: e.id, k: 'e' }, [e.c[0] + e.r * Math.cos(e.a1), e.c[1] + e.r * Math.sin(e.a1)]); place({ e: e.id, k: 'c' }, e.c); }
+      else if (e.t === 'circle') place({ e: e.id, k: 'c' }, e.c);
+      else if (e.t === 'point') place({ e: e.id, k: 'p' }, e.p);
+    }
+    for (const refs of spots.values()) {
+      for (let i = 1; i < refs.length; i++) {
+        const a = refs[0].e + '.' + refs[0].k, b = refs[i].e + '.' + refs[i].k;
+        if (find(a) === find(b)) continue;
+        add('coincident', [refs[0], refs[i]]);
+        union(a, b);
+      }
+    }
+    // exactly level or upright lines
+    const hv = new Set(all.filter(c => (c.type === 'horizontal' || c.type === 'vertical') && c.refs.length === 1).map(c => c.refs[0].e));
+    for (const e of out) {
+      if (e.t !== 'line' || hv.has(e.id)) continue;
+      const dx = e.b[0] - e.a[0], dy = e.b[1] - e.a[1], l = Math.hypot(dx, dy);
+      if (l < 1e-9) continue;
+      if (Math.abs(dy) < 1e-7 * l) add('horizontal', [{ e: e.id }]);
+      else if (Math.abs(dx) < 1e-7 * l) add('vertical', [{ e: e.id }]);
+    }
+  }
+  return { entities: out, cons: [...cons, ...added], replaced };
+}
+
+/** The chosen profiles of a feature after adoptSketch replaced entities: every old id in a profile key becomes the ids of its parts. */
+export function renameProfiles(profiles, replaced) {
+  if (!Array.isArray(profiles) || !replaced || !Object.keys(replaced).length) return profiles;
+  return profiles.map(key => key.split('+').flatMap(id => replaced[id] || [id]).sort().join('+'));
+}

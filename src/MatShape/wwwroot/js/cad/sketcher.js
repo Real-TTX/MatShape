@@ -5,11 +5,11 @@
    Drawing sets the obvious constraints by itself (snapped to a point: coincident, to a curve: on it, nearly level: horizontal …), like OnShape. */
 
 import { arcThrough, distToEntity, sketchLoops, toLocal, toWorld } from './geom.js';
-import { CONSTRAINTS, ORIGIN, constraintsOf, measure, pointKeys, pointOfRef, solveSketch } from './sketchsolve.js';
+import { CONSTRAINTS, ORIGIN, adoptSketch, constraintsOf, measure, pointKeys, pointOfRef, solveSketch } from './sketchsolve.js';
 import { evalAngle, evalLength, evalNumber } from './expr.js';
 import { clone, el, fmt, icon, t, uid, UNITS } from './util.js';
 
-const SNAP_PX = 10;
+const SNAP_PX = 12;                       // how close (px) the pointer must be to a point; to a curve 10 px
 const DRAW_TOOLS = ['line', 'rect', 'crect', 'circle', 'arc', 'polygon', 'point'];
 
 export class Sketcher {
@@ -27,8 +27,11 @@ export class Sketcher {
     this.active = true;
     this.name = name;
     this.frame = frame;
-    this.entities = clone(entities || []);
-    this.cons = clone(cons || constraintsOf({ dims }) || []);
+    // rectangles and polygons of older sketches (or of the AI) become lines; a sketch without any constraints gets the obvious ones (joined ends, level lines)
+    const adopted = adoptSketch(clone(entities || []), clone(cons || constraintsOf({ dims }) || []), { infer: !cons, id: uid });
+    this.entities = adopted.entities;
+    this.cons = adopted.cons;
+    this.replaced = adopted.replaced;
     this.units = units;
     this.unit = UNITS[units] || 1;
     this.variables = variables || {};
@@ -168,7 +171,7 @@ export class Sketcher {
       if (d < bestD) { bestD = d; best = { kind: 'point', ref: q.ref, p: q.p }; }
     }
     if (best) return best;
-    bestD = 8 * this.vp.mmPerPixel;
+    bestD = 10 * this.vp.mmPerPixel;
     for (const e of this.entities) {
       const d = distToEntity(p, e);
       if (d < bestD) { bestD = d; best = { kind: 'curve', ref: { e: e.id }, entity: e }; }
@@ -225,8 +228,10 @@ export class Sketcher {
     if (!DRAW_TOOLS.includes(this.tool)) {
       const p = this.local(e);
       const hit = p && this.pickAt(p);
-      const id = hit && hit.ref.e !== ORIGIN ? hit.ref.e : null;
-      if (id !== this.hover) { this.hover = id; this.draw(); }
+      // a point under the pointer lights up alone (not its whole line), a curve as a whole: so one sees what a click takes
+      const curve = hit?.kind === 'curve' ? hit.ref.e : null;
+      const point = hit?.kind === 'point' ? hit.ref.e + '.' + hit.ref.k : null;
+      if (curve !== this.hover || point !== this.hoverPoint) { this.hover = curve; this.hoverPoint = point; this.draw(); }
       this.vp.canvas.style.cursor = hit ? 'pointer' : '';
       return;
     }
@@ -372,7 +377,12 @@ export class Sketcher {
         if (pts.length < 2) break;
         const r = Math.hypot(pts[1].p[0] - pts[0].p[0], pts[1].p[1] - pts[0].p[1]);
         const rot = Math.atan2(pts[1].p[1] - pts[0].p[1], pts[1].p[0] - pts[0].p[0]) * 180 / Math.PI;
-        if (r > 0) { const g = { id: id(), t: 'polygon', c: pts[0].p, r, n: this.polygonSides, rot: Math.round(rot * 1e6) / 1e6 }; this.addAll([g], this.tie({ e: g.id, k: 'c' }, pts[0])); }
+        if (r > 0) {
+          // like OnShape: the sides as lines on a construction circle, all equal; the tie of the centre goes to the circle
+          const g = { id: id(), t: 'polygon', c: pts[0].p, r, n: this.polygonSides, rot: Math.round(rot * 1e6) / 1e6 };
+          const made = adoptSketch([g], [], { id: uid });
+          this.addAll(made.entities, [...made.cons, ...this.tie({ e: g.id + '_c', k: 'c' }, pts[0])]);
+        }
         this.points = [];
         break;
       }
@@ -622,6 +632,7 @@ export class Sketcher {
       entities: [...this.entities, ...dimLines],
       selected: new Set([...this.selection, ...picked, ...this.constraintHighlight()]),
       hover: this.hover,
+      hoverPoint: this.hoverPoint,
       status: this.analysis?.entity,
       pointStatus: this.analysis?.point,
       preview,
@@ -667,7 +678,7 @@ export class Sketcher {
     }
     const old = new Map([...this.labels.children].map(n => [n.dataset.id, n]));
     const stack = new Map();
-    const touched = new Set([this.hover, ...[...this.selection].filter(k => k.startsWith('e:') || k.startsWith('p:')).map(k => k.slice(2).split('.')[0])]);
+    const touched = new Set([this.hover, this.hoverPoint?.split('.')[0], ...[...this.selection].filter(k => k.startsWith('e:') || k.startsWith('p:')).map(k => k.slice(2).split('.')[0])]);
     for (const c of this.cons) {
       const kind = CONSTRAINTS[c.type];
       if (!kind) continue;

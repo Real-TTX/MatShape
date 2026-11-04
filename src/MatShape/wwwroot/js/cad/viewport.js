@@ -532,7 +532,7 @@ export class Viewport {
     // the grid of the sketch
     group.add(gridObject(f, state.grid, state.gridExtent));
     for (const loop of state.loops || []) group.add(fillObject(f, loop.points, state.selectedProfiles?.includes(loop.key)));
-    group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, points: true, status: state.status, pointStatus: state.pointStatus }));
+    group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, hoverPoint: state.hoverPoint, points: true, status: state.status, pointStatus: state.pointStatus }));
     if (state.origin) group.add(markerObject(toWorld(f, 0, 0), state.selected?.has?.('p:origin.p') ? palette.select : palette.defined));
     if (state.preview?.length) group.add(sketchObject(f, state.preview, { color: palette.select, points: true }));
     if (state.snap) group.add(markerObject(toWorld(f, state.snap[0], state.snap[1]), 0xef4444));
@@ -778,7 +778,7 @@ function sketchObject(frame, entities, style) {
     const ends = e.t === 'line' || e.t === 'rect' ? [['a', e.a], ['b', e.b]] : e.t === 'arc' ? [['s', [e.c[0] + e.r * Math.cos(e.a0), e.c[1] + e.r * Math.sin(e.a0)]], ['e', [e.c[0] + e.r * Math.cos(e.a1), e.c[1] + e.r * Math.sin(e.a1)]], ['c', e.c]] : e.c ? [['c', e.c]] : [];
     for (const [k, p] of ends) {
       const key = e.id + '.' + k;
-      const c = style.selected?.has?.('p:' + key) ? palette.select : style.pointStatus ? colourOf(style.pointStatus.get(key)) : colour;
+      const c = style.selected?.has?.('p:' + key) ? palette.select : style.hoverPoint === key ? palette.hover : style.pointStatus ? colourOf(style.pointStatus.get(key)) : colour;
       dot(c, toWorld(frame, p[0], p[1]));
     }
   }
@@ -792,7 +792,7 @@ function sketchObject(frame, entities, style) {
     group.add(lines);
   }
   for (const [colour, list] of points) {
-    const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(list.map(p => new THREE.Vector3(...p))), new THREE.PointsMaterial({ color: colour, size: colour === palette.select ? 9 : 6, sizeAttenuation: false, depthTest: false }));
+    const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(list.map(p => new THREE.Vector3(...p))), new THREE.PointsMaterial({ color: colour, size: colour === palette.select || colour === palette.hover ? 10 : 6, sizeAttenuation: false, depthTest: false }));
     pts.renderOrder = 7;
     group.add(pts);
   }

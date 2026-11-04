@@ -9,6 +9,7 @@ import { Assistant } from './assistant.js';
 import { loadKernel, regenerate, dispose, FEATURES, properties } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { Sketcher } from './sketcher.js';
+import { renameProfiles } from './sketchsolve.js';
 import { toObj, toStl, toThreeMf } from './export.js';
 import { STANDARD_PLANES, frameFromNormal, v3 } from './geom.js';
 import { clone, debounce, download, el, fileName, fmt, icon, length, request, swatch, t, toast, uid, UNITS } from './util.js';
@@ -824,10 +825,15 @@ function start() {
     if (state.mode !== 'sketch') return;
     const d = state.dialog;
     d.feature.params.entities = sketcher.entities;
-    if (sketcher.cons.length) d.feature.params.cons = sketcher.cons; else delete d.feature.params.cons;
+    // always a list (also empty): a sketch with a list is not given the obvious constraints again when it is opened
+    d.feature.params.cons = sketcher.cons;
     delete d.feature.params.dims;
     const before = JSON.stringify(state.content);
     const content = normalize(withDialogFeature());
+    // rectangles and polygons that became lines: the features that chose their profiles keep them under the new names
+    for (const f of content.features) {
+      if (f.params?.sketch === d.feature.id && Array.isArray(f.params.profiles)) f.params.profiles = renameProfiles(f.params.profiles, sketcher.replaced);
+    }
     closeSketch();
     if (d.isNew && !d.feature.params.entities.length) { regen(); return; }
     state.content = content;

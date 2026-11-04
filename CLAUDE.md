@@ -65,7 +65,10 @@ src/MatShape
     geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketch loops (closed chains of lines/arcs + circles, rects, polygons)
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges + smooth normals, planes, sketches, picking, face highlight, snapshot
-    sketcher.js              the sketch editor: tools, snapping, handles (connected ends move together), dimensions (tool D: params.dims, applied by geom.applyDimensions also in model.js), numbers in the panel, its own undo
+    sketcher.js              the sketch editor (like OnShape): tools that set the obvious constraints themselves, additive selection, constraint tools (I, H, V, ∥, ⊥, T, =, M, ◎, fix), dimension tool D
+                             (two points, point + line, two lines = distance or angle, one curve), symbols over the view, state colours, conflict list in the panel, drag through the solver, own undo
+    sketchsolve.js           the constraint solver: Levenberg-Marquardt over the numbers of the entities, Gram-Schmidt rank analysis (degrees of freedom, defined/free per entity and point,
+                             conflicts = redundant or unmeetable constraints, which are shown but NOT applied); legacy params.dims are migrated (constraintsOf). Used by model.js too
     assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair
     viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
@@ -82,6 +85,7 @@ tests/MatShape.Tests         unit + database tests (DocumentTests, AccountTests,
 `{ "features": [ { "id", "type", "name", "suppressed", "view" (sketch: show/hide), "params": {...} } ], "parts": { "<partId>": { "name", "color" } }, "rollback": null | index }`.
 Part ids are derived from the feature that made the part (`<featureId>`, `<featureId>.<n>` for several bodies or copies, `<partId>~<featureId>` for the other half of a split), so names and colours
 survive a regeneration. A sketch plane is `{ kind: "std", name }`, `{ kind: "plane", id }` (a Plane feature) or `{ kind: "face", frame: { o, x, y, n } }` (fixed when the face was picked).
+Sketch constraints: `params.cons = [{ id, type, refs, value? }]`, a ref is a point `{ e, k: a|b|c|s|e|p }` (`{ e: "origin", k: "p" }`) or a curve `{ e }`; types and glyphs in `sketchsolve.js` (CONSTRAINTS).
 Sketch entities: `line {a,b}`, `rect {a,b}`, `circle {c,r}`, `arc {c,r,a0,a1}` (radians, counter-clockwise), `polygon {c,r,n,rot}`, `point {p}`; `cons: true` = construction. Profiles are referred to by
 the sorted ids of their entities (`profiles: null` = all). Fields of features are strings (expressions), evaluated at regeneration.
 

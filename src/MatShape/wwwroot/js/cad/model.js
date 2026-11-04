@@ -3,8 +3,9 @@
    A feature that fails gets an error and is left out; the ones after it still run (they may fail too when they needed it). */
 
 import { evalAngle, evalLength, evalNumber, evalVariable, errorKey, ExprError, isVariableName } from './expr.js';
-import { AXES, STANDARD_PLANES, applyDimensions, frameMatrix, mirrorMatrix, rotationMatrix, sketchLoops, v3, offsetFrame } from './geom.js';
+import { AXES, STANDARD_PLANES, frameMatrix, mirrorMatrix, rotationMatrix, sketchLoops, v3, offsetFrame } from './geom.js';
 import { UNITS } from './util.js';
+import { CONSTRAINTS, constraintsOf, solveSketch } from './sketchsolve.js';
 
 let kernelPromise = null;
 
@@ -164,15 +165,14 @@ export function regenerate(kernel, content, units = 'mm') {
   const run = {
     sketch(f) {
       const frame = plane(f.params.plane);
-      // the dimensions drive the geometry: their values are expressions (variables before the sketch count)
-      const applied = applyDimensions(f.params.entities || [], f.params.dims || [], text => len(text));
-      if (applied.errors.length) {
-        const first = applied.errors[0].error;
-        if (first instanceof FeatureError) throw first;
-        throw new FeatureError('Feature.Dimension');
-      }
-      const entities = applied.entities;
+      // the constraints and dimensions drive the geometry: values are expressions (variables before the sketch count)
+      const cons = constraintsOf(f.params);
+      for (const c of cons) if (CONSTRAINTS[c.type]?.dimension) (CONSTRAINTS[c.type].angle ? ang : len)(c.value);
+      const solved = solveSketch(f.params.entities || [], cons, c => (CONSTRAINTS[c.type]?.angle ? ang(c.value) : len(c.value)), { analyse: cons.length > 0 });
+      const entities = solved.entities;
       ctx.sketches.set(f.id, { frame, entities, loops: sketchLoops(entities) });
+      const a = solved.analysis;
+      if (a && (a.conflicts.length || a.errors.length)) return { state: 'warn', key: 'Feature.SketchConflict', args: [a.conflicts.length + a.errors.length] };
     },
 
     plane(f) {
@@ -349,8 +349,8 @@ export function regenerate(kernel, content, units = 'mm') {
     const step = run[f.type];
     if (!step) { ctx.status[f.id] = { state: 'error', key: 'Feature.Unknown' }; return; }
     try {
-      step(f);
-      ctx.status[f.id] = { state: 'ok' };
+      const result = step(f);
+      ctx.status[f.id] = result?.state ? result : { state: 'ok' };
     } catch (e) {
       if (e instanceof FeatureError) ctx.status[f.id] = { state: 'error', key: e.key, args: e.args };
       else { console.warn('MatShape: feature failed', f, e); ctx.status[f.id] = { state: 'error', key: 'Feature.Failed' }; }

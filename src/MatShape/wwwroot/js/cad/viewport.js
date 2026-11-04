@@ -9,12 +9,12 @@ import { LineMaterial } from '/lib/three/lines/LineMaterial.js';
 import { STANDARD_PLANES, entityPolyline, toWorld } from './geom.js';
 
 // ---- the colour schemes of the view (themes). Lines have real widths in pixels (WebGL alone draws 1 px). "auto" follows light and dark mode of the app.
-const AUTO_LIGHT = { background: null, edge: 0x1f2937, edgeOpacity: 0.9, edgeWidth: 1.6, sketch: 0x1d4ed8, sketchWidth: 2.2, cons: 0x6b7280, grid: 0x6b7280, gridOpacity: 0.16, axis: 0x4b5563, plane: 0x3cb764, select: 0xf59e0b, hover: 0x3b82f6 };
-const AUTO_DARK = { background: null, edge: 0xe5e7eb, edgeOpacity: 0.95, edgeWidth: 1.6, sketch: 0x60a5fa, sketchWidth: 2.2, cons: 0x9ca3af, grid: 0x9ca3af, gridOpacity: 0.16, axis: 0x9ca3af, plane: 0x3cb764, select: 0xfbbf24, hover: 0x93c5fd };
+const AUTO_LIGHT = { background: null, edge: 0x1f2937, edgeOpacity: 0.9, edgeWidth: 1.6, sketch: 0x2563eb, defined: 0x111827, conflict: 0xdc2626, sketchWidth: 2.2, cons: 0x6b7280, grid: 0x6b7280, gridOpacity: 0.16, axis: 0x4b5563, plane: 0x3cb764, select: 0xf59e0b, hover: 0x3b82f6 };
+const AUTO_DARK = { background: null, edge: 0xe5e7eb, edgeOpacity: 0.95, edgeWidth: 1.6, sketch: 0x60a5fa, defined: 0xf9fafb, conflict: 0xf87171, sketchWidth: 2.2, cons: 0x9ca3af, grid: 0x9ca3af, gridOpacity: 0.16, axis: 0x9ca3af, plane: 0x3cb764, select: 0xfbbf24, hover: 0x93c5fd };
 const THEMES = {
-  contrast: { background: '#ffffff', edge: 0x000000, edgeOpacity: 1, edgeWidth: 2.4, sketch: 0x0030c8, sketchWidth: 2.8, cons: 0x374151, grid: 0x111827, gridOpacity: 0.22, axis: 0x111827, plane: 0x15803d, select: 0xd97706, hover: 0x2563eb },
-  dark: { background: 'linear-gradient(180deg, #2c313a 0%, #121418 100%)', edge: 0xf9fafb, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0x7dd3fc, sketchWidth: 2.5, cons: 0xa1a1aa, grid: 0xe5e7eb, gridOpacity: 0.14, axis: 0xd1d5db, plane: 0x4ade80, select: 0xfbbf24, hover: 0x93c5fd },
-  blueprint: { background: 'linear-gradient(180deg, #1e4f93 0%, #0b2a57 100%)', edge: 0xffffff, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0xffd166, sketchWidth: 2.6, cons: 0xbfdbfe, grid: 0xffffff, gridOpacity: 0.13, axis: 0xdbeafe, plane: 0x93c5fd, select: 0xfb923c, hover: 0xfde68a },
+  contrast: { background: '#ffffff', edge: 0x000000, edgeOpacity: 1, edgeWidth: 2.4, sketch: 0x0050ff, defined: 0x000000, conflict: 0xdc2626, sketchWidth: 2.8, cons: 0x374151, grid: 0x111827, gridOpacity: 0.22, axis: 0x111827, plane: 0x15803d, select: 0xd97706, hover: 0x2563eb },
+  dark: { background: 'linear-gradient(180deg, #2c313a 0%, #121418 100%)', edge: 0xf9fafb, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0x7dd3fc, defined: 0xffffff, conflict: 0xf87171, sketchWidth: 2.5, cons: 0xa1a1aa, grid: 0xe5e7eb, gridOpacity: 0.14, axis: 0xd1d5db, plane: 0x4ade80, select: 0xfbbf24, hover: 0x93c5fd },
+  blueprint: { background: 'linear-gradient(180deg, #1e4f93 0%, #0b2a57 100%)', edge: 0xffffff, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0xffd166, defined: 0xffffff, conflict: 0xff6b6b, sketchWidth: 2.6, cons: 0xbfdbfe, grid: 0xffffff, gridOpacity: 0.13, axis: 0xdbeafe, plane: 0x93c5fd, select: 0xfb923c, hover: 0xfde68a },
 };
 export const VIEW_THEMES = ['auto', 'contrast', 'dark', 'blueprint'];
 let themeName = 'auto';
@@ -252,6 +252,7 @@ export class Viewport {
       if (!drag) return;
       const info = this.eventInfo(e);
       if (drag.mode === 'left') this.emit(drag.moved ? 'dragend' : 'click', { ...info, button: drag.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
+      else if (drag.mode === 'pan' && !drag.moved && drag.button === 0) this.emit('click', { ...info, button: 0, shift: true, ctrl: e.ctrlKey || e.metaKey });
       else if (!drag.moved && drag.button === 2) this.emit('context', info);
       drag = null;
     };
@@ -531,7 +532,8 @@ export class Viewport {
     // the grid of the sketch
     group.add(gridObject(f, state.grid, state.gridExtent));
     for (const loop of state.loops || []) group.add(fillObject(f, loop.points, state.selectedProfiles?.includes(loop.key)));
-    group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, points: true }));
+    group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, points: true, status: state.status, pointStatus: state.pointStatus }));
+    if (state.origin) group.add(markerObject(toWorld(f, 0, 0), state.selected?.has?.('p:origin.p') ? palette.select : palette.defined));
     if (state.preview?.length) group.add(sketchObject(f, state.preview, { color: palette.select, points: true }));
     if (state.snap) group.add(markerObject(toWorld(f, state.snap[0], state.snap[1]), 0xef4444));
     group.renderOrder = 5;
@@ -749,34 +751,48 @@ function fillObject(frame, points, selected) {
   return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: selected ? palette.select : palette.sketch, transparent: true, opacity: selected ? 0.3 : 0.1, side: THREE.DoubleSide, depthWrite: false }));
 }
 
+/**
+ * The lines and points of a sketch. style: { color } for everything (other sketches, previews), or the states of the sketch being edited:
+ * status (Map id -> defined | free | conflict: black, blue, red like OnShape), pointStatus (Map 'id.k' -> state), selected (Set of 'e:id' and 'p:id.k'), hover (id), points (draw the ends).
+ */
 function sketchObject(frame, entities, style) {
   const group = new THREE.Group();
-  const solid = [], cons = [], sel = [], hov = [], points = [];
+  const buckets = new Map();               // colour -> { width, segments }
+  const dashed = [];
+  const points = new Map();                // colour -> list of points
+  const colourOf = state => (state === 'conflict' ? palette.conflict : state === 'defined' ? palette.defined : palette.sketch);
+  const push = (colour, width, a, b) => { const k = colour + '/' + width; if (!buckets.has(k)) buckets.set(k, { colour, width, list: [] }); buckets.get(k).list.push(a, b); };
+  const dot = (colour, p) => { if (!points.has(colour)) points.set(colour, []); points.get(colour).push(p); };
   for (const e of entities || []) {
-    if (e.t === 'point') { points.push(toWorld(frame, e.p[0], e.p[1])); continue; }
+    const selected = style.selected?.has?.('e:' + e.id), hovered = style.hover === e.id;
+    const state = style.status?.get(e.id);
+    const colour = selected ? palette.select : hovered ? palette.hover : style.status ? colourOf(state) : style.color;
+    if (e.t === 'point') { dot(colour, toWorld(frame, e.p[0], e.p[1])); continue; }
     const poly = entityPolyline(e).map(p => toWorld(frame, p[0], p[1]));
-    const target = style.selected?.has?.(e.id) ? sel : style.hover === e.id ? hov : e.cons ? cons : solid;
-    for (let i = 1; i < poly.length; i++) target.push(poly[i - 1], poly[i]);
-    if (style.points && (e.t === 'line' || e.t === 'arc')) { points.push(poly[0], poly[poly.length - 1]); }
-    if (style.points && (e.t === 'circle' || e.t === 'polygon' || e.t === 'arc')) points.push(toWorld(frame, e.c[0], e.c[1]));
+    const width = palette.sketchWidth + (selected || hovered ? 1 : 0);
+    for (let i = 1; i < poly.length; i++) {
+      if (e.cons && !selected && !hovered) dashed.push({ a: poly[i - 1], b: poly[i], colour: state === 'conflict' ? palette.conflict : palette.cons });
+      else push(colour, width, poly[i - 1], poly[i]);
+    }
+    if (!style.points) continue;
+    const ends = e.t === 'line' || e.t === 'rect' ? [['a', e.a], ['b', e.b]] : e.t === 'arc' ? [['s', [e.c[0] + e.r * Math.cos(e.a0), e.c[1] + e.r * Math.sin(e.a0)]], ['e', [e.c[0] + e.r * Math.cos(e.a1), e.c[1] + e.r * Math.sin(e.a1)]], ['c', e.c]] : e.c ? [['c', e.c]] : [];
+    for (const [k, p] of ends) {
+      const key = e.id + '.' + k;
+      const c = style.selected?.has?.('p:' + key) ? palette.select : style.pointStatus ? colourOf(style.pointStatus.get(key)) : colour;
+      dot(c, toWorld(frame, p[0], p[1]));
+    }
   }
-  const add = (list, color, dashed, width = palette.sketchWidth) => {
-    if (!list.length) return;
-    const g = new THREE.BufferGeometry().setFromPoints(list.map(p => new THREE.Vector3(...p)));
-    if (!dashed) { group.add(fatLines(list, color, width, { depthTest: false, renderOrder: 6 })); return; }
-    const m = new THREE.LineDashedMaterial({ color, dashSize: 2, gapSize: 1.5, depthTest: false });
-    const lines = new THREE.LineSegments(g, m);
-    if (dashed) lines.computeLineDistances();
+  for (const { colour, width, list } of buckets.values()) group.add(fatLines(list, colour, width, { depthTest: false, renderOrder: 6 }));
+  const byColour = new Map();
+  for (const d of dashed) { if (!byColour.has(d.colour)) byColour.set(d.colour, []); byColour.get(d.colour).push(d.a, d.b); }
+  for (const [colour, list] of byColour) {
+    const lines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(list.map(p => new THREE.Vector3(...p))), new THREE.LineDashedMaterial({ color: colour, dashSize: 2, gapSize: 1.5, depthTest: false }));
+    lines.computeLineDistances();
     lines.renderOrder = 6;
     group.add(lines);
-  };
-  add(solid, style.color);
-  add(cons, palette.cons, true);
-  add(hov, palette.hover, false, palette.sketchWidth + 1);
-  add(sel, palette.select, false, palette.sketchWidth + 1);
-  if (points.length) {
-    const g = new THREE.BufferGeometry().setFromPoints(points.map(p => new THREE.Vector3(...p)));
-    const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: style.color, size: 5, sizeAttenuation: false, depthTest: false }));
+  }
+  for (const [colour, list] of points) {
+    const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(list.map(p => new THREE.Vector3(...p))), new THREE.PointsMaterial({ color: colour, size: colour === palette.select ? 9 : 6, sizeAttenuation: false, depthTest: false }));
     pts.renderOrder = 7;
     group.add(pts);
   }

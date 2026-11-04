@@ -320,6 +320,29 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 }
 .ms-dim:hover, .ms-dim:focus-visible { border-color: var(--mat-accent); outline: none; }
 .ms-dim.is-error { border-color: var(--mat-danger); color: var(--mat-danger-text); }
+.ms-dim.is-conflict { border-color: var(--mat-danger); color: var(--mat-danger-text); }
+.ms-dim.is-selected, .ms-glyph.is-selected { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, .35); }
+/* the symbols of the constraints next to their entities (H, V, ⊥, ∥, =, ◎ …), like OnShape */
+.ms-glyph {
+  position: absolute; left: 0; top: 0; pointer-events: auto; min-width: 16px; height: 16px; padding: 0 3px; border: 1px solid var(--mat-border-strong); border-radius: 3px;
+  background: var(--mat-surface); color: var(--mat-text); font: 600 11px/14px var(--mat-mono); text-align: center; cursor: pointer; box-shadow: var(--mat-shadow-1);
+}
+.ms-glyph:hover, .ms-glyph:focus-visible { border-color: var(--mat-accent); outline: none; }
+.ms-glyph.is-conflict { border-color: var(--mat-danger); background: var(--mat-danger); color: #fff; }
+.ms-glyph.is-dot { pointer-events: none; min-width: 9px; width: 9px; height: 9px; padding: 0; border-radius: 50%; font-size: 0; background: var(--mat-text); border-color: var(--mat-surface); }
+.ms-glyph.is-dot.is-conflict { background: var(--mat-danger); }
+.ms-dialog__summary.is-ok { color: var(--mat-success-text); }
+.ms-dialog__summary.is-free { color: var(--mat-app-accent-text, #1d7a3c); }
+.ms-dialog__summary.is-conflict { color: var(--mat-danger-text); font-weight: 600; }
+.ms-conflict-head { color: var(--mat-danger-text); display: flex; align-items: center; gap: 4px; }
+.ms-conslist { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 2px; }
+.ms-conslist li { display: flex; align-items: center; gap: 4px; }
+.ms-conslist__name { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 6px; border: 0; border-radius: var(--mat-radius-xs); background: none; color: var(--mat-text); font: inherit; font-size: var(--mat-fs-sm); text-align: left; cursor: pointer; }
+.ms-conslist__name:hover { background: var(--mat-surface-2, rgba(127, 127, 127, .1)); }
+.ms-conslist__name.is-conflict { color: var(--mat-danger-text); }
+.ms-conslist__glyph { min-width: 18px; font: 600 11px var(--mat-mono); text-align: center; }
+.ms-tree__item.is-warn .ms-tree__name { color: var(--mat-warning-text, #a15c00); }
+.ms-tree__item.is-warn .ms-tree__warn { color: var(--mat-warning); }
 .ms-dimedit { position: absolute; z-index: 12; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--mat-accent); border-radius: var(--mat-radius-sm); background: var(--mat-surface); box-shadow: var(--mat-shadow-2); }
 .ms-dimedit .mat-input { width: 140px; }
 .ms-dimedit .mat-input[aria-invalid="true"] { border-color: var(--mat-danger); }

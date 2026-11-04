@@ -432,10 +432,10 @@ function start() {
       const s = status[f.id] || {};
       const editing = state.dialog?.feature.id === f.id;
       const row = el('li', {
-        class: 'ms-tree__item' + (s.state === 'error' ? ' is-error' : '') + (f.suppressed ? ' is-suppressed' : '') + (i >= rollback ? ' is-rolled' : '') + (editing ? ' is-editing' : ''),
+        class: 'ms-tree__item' + (s.state === 'error' ? ' is-error' : s.state === 'warn' ? ' is-warn' : '') + (f.suppressed ? ' is-suppressed' : '') + (i >= rollback ? ' is-rolled' : '') + (editing ? ' is-editing' : ''),
         'data-feature': f.id,
         tabindex: '0',
-        title: s.state === 'error' ? t(s.key, ...(s.args || [])) : '',
+        title: s.state === 'error' || s.state === 'warn' ? t(s.key, ...(s.args || [])) : '',
       });
       row.append(icon(FEATURES[f.type]?.icon || 'cube', 'ms-tree__icon'));
       row.append(el('span', { class: 'ms-tree__name' }, f.name || t('Feature.' + f.type)));
@@ -443,7 +443,7 @@ function start() {
         const v = state.result?.variables?.[f.params.name];
         if (v) row.append(el('span', { class: 'ms-tree__value mat-mono' }, '#' + f.params.name + ' = ' + (v.d === 1 ? length(v.v, state.doc.units) : fmt(v.v))));
       }
-      if (s.state === 'error') row.append(icon('alert', 'ms-tree__warn'));
+      if (s.state === 'error' || s.state === 'warn') row.append(icon('alert', 'ms-tree__warn'));
       if (f.type === 'sketch') {
         const shown = state.result ? sketchVisible({ fid: f.id, used: state.result.sketches.find(x => x.fid === f.id)?.used }, content) : true;
         const eye = el('button', { type: 'button', class: 'ms-tree__btn', 'aria-label': t(shown ? 'Tree.HideSketch' : 'Tree.ShowSketch'), 'data-tip': t(shown ? 'Tree.HideSketch' : 'Tree.ShowSketch') }, icon(shown ? 'eye' : 'eye-off'));
@@ -816,7 +816,7 @@ function start() {
     ui.empty.hidden = true;
     showHud('');
     regen(withDialogFeature());
-    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, dims: feature.params.dims, units: state.doc.units, variables: input.variables });
+    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, cons: feature.params.cons, dims: feature.params.dims, units: state.doc.units, variables: input.variables });
     updateUndo();
   }
 
@@ -824,7 +824,8 @@ function start() {
     if (state.mode !== 'sketch') return;
     const d = state.dialog;
     d.feature.params.entities = sketcher.entities;
-    if (sketcher.dims.length) d.feature.params.dims = sketcher.dims; else delete d.feature.params.dims;
+    if (sketcher.cons.length) d.feature.params.cons = sketcher.cons; else delete d.feature.params.cons;
+    delete d.feature.params.dims;
     const before = JSON.stringify(state.content);
     const content = normalize(withDialogFeature());
     closeSketch();
@@ -857,6 +858,8 @@ function start() {
   ui.sketchTools.addEventListener('click', e => {
     const tool = e.target.closest('[data-sketch-tool]');
     if (tool) { sketcher.setTool(tool.dataset.sketchTool); return; }
+    const constraint = e.target.closest('[data-sketch-constraint]');
+    if (constraint) sketcher.constrain(constraint.dataset.sketchConstraint);
   });
   root.addEventListener('click', e => {
     const action = e.target.closest('[data-sketch-action]');
@@ -867,8 +870,6 @@ function start() {
     else if (name === 'delete') sketcher.deleteSelected();
     else if (name === 'construction') sketcher.toggleConstruction();
     else if (name === 'normal') viewport.normalTo(sketcher.frame);
-    else if (name === 'horizontal') sketcher.align(true);
-    else if (name === 'vertical') sketcher.align(false);
   });
 
   // ---- the view: clicks and hover ------------------------------------------------------------------------------------------
@@ -1172,13 +1173,16 @@ function start() {
     }
 
     if (state.mode === 'sketch') {
+      // a value field of a dimension is open (the focus may still be on the view): keys go to it, Enter applies it
+      if (sketcher.editor) { if (e.key === 'Enter') { e.preventDefault(); sketcher.applyEditor(); } else if (!ctrl && e.key.length === 1) sketcher.focusEditor(); return; }
       if (ctrl && key === 'a') { e.preventDefault(); sketcher.selectAll(); return; }
       if (ctrl) return;
       if (SKETCH_TOOLS[key] && !e.shiftKey) { sketcher.setTool(SKETCH_TOOLS[key]); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { sketcher.deleteSelected(); return; }
       if (key === 'q') { sketcher.toggleConstruction(); return; }
-      if (key === 'h') { sketcher.align(true); return; }
-      if (key === 'v') { sketcher.align(false); return; }
+      if (key === 'h') { sketcher.constrain('horizontal'); return; }
+      if (key === 'i') { sketcher.constrain('coincident'); return; }
+      if (key === 'v') { sketcher.constrain('vertical'); return; }
       if (key === 'n') { viewport.normalTo(sketcher.frame); return; }
       if (e.key === 'Enter') { finishSketch(); return; }
     }

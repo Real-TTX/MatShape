@@ -69,7 +69,11 @@ src/MatShape
                              (two points, point + line, two lines = distance or angle, one curve), symbols over the view, state colours, conflict list in the panel, drag through the solver, own undo
     sketchsolve.js           the constraint solver: Levenberg-Marquardt over the numbers of the entities, Gram-Schmidt rank analysis (degrees of freedom, defined/free per entity and point,
                              conflicts = redundant or unmeetable constraints, which are shown but NOT applied); legacy params.dims are migrated (constraintsOf). Used by model.js too
-    assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair
+    assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair;
+                             attachments (paperclip, paste, drop; pictures scaled down in the browser, an SVG as text and as PNG)
+    imagetrace.js            picture -> 3D without DOM (tested in Node): k-means colours (near ones merged), anti-aliasing seams dissolved, majority smoothing, specks removed,
+                             outlines traced per colour, Douglas-Peucker, circles / rectangles recognised; buildFeatures = base plate (outline, rectangle, none) + plane + sketch/extrude per colour
+    imagedialog.js           its editor (dialog ms-image): preview original / colours / shapes, a click toggles a colour, palette with height, colour, name; adds the features as one step
     viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
     export.js, util.js       STL/OBJ/3MF (with a small stored ZIP writer, colours as basematerials); texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM

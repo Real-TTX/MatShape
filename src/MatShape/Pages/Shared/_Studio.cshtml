@@ -94,6 +94,7 @@
             <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="plane" data-tip="@L["Feature.plane"]">@Ui.Icon("plane")<span>@L["Feature.plane"]</span></button>
             <button type="button" class="ms-tool" data-feature="variable" data-tip="@L["Feature.variable"]">@Ui.Icon("variable")<span>@L["Feature.variable"]</span></button>
+            <button type="button" class="ms-tool" data-action="image" data-tip="@L["Image.Tool"]">@Ui.Icon("image")<span>@L["Image.Short"]</span></button>
             <span class="ms-tools__sep" aria-hidden="true"></span>
         }
         <button type="button" class="ms-tool" data-action="measure" aria-pressed="false" data-tip="@L["Studio.Measure"] (M)">@Ui.Icon("ruler")<span>@L["Studio.Measure"]</span></button>
@@ -277,6 +278,98 @@
                     }
                 </dl>
             }
+        </div>
+    </div>
+</dialog>
+
+@* picture -> 3D model: the colours of a picture become parts (imagedialog.js) *@
+<dialog class="mat-dialog mat-dialog--xl ms-imgdlg" id="ms-image" aria-labelledby="ms-image-title">
+    <div class="mat-dialog__form">
+        <div class="mat-dialog__head">@Ui.Icon("image")<h2 class="mat-dialog__title" id="ms-image-title">@L["Image.Title"]</h2>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-dialog__close" data-dialog-close aria-label="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button></div>
+        <div class="mat-dialog__body ms-imgdlg__body">
+            <div class="ms-imgdlg__view">
+                <div class="mat-empty mat-empty--framed ms-imgdlg__drop" data-img-empty>
+                    <span class="mat-empty__icon">@Ui.Icon("image")</span>
+                    <span class="mat-empty__title">@L["Image.Empty"]</span>
+                    <span>@L["Image.EmptyHint"]</span>
+                    <button type="button" class="mat-btn mat-btn--primary" data-img-pick>@Ui.Icon("upload")<span>@L["Image.Pick"]</span></button>
+                </div>
+                <input type="file" class="mat-sr-only" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" data-img-file tabindex="-1" aria-hidden="true">
+                <div class="ms-imgdlg__stage" data-img-stage hidden>
+                    <canvas class="ms-imgdlg__canvas" data-img-canvas aria-label="@L["Image.Preview"]"></canvas>
+                </div>
+                <div class="ms-imgdlg__bar" data-img-bar hidden>
+                    <div class="mat-seg" role="group" aria-label="@L["Image.Show"]">
+                        <button type="button" class="mat-seg__btn" data-img-show="original" aria-pressed="false">@L["Image.Show.Original"]</button>
+                        <button type="button" class="mat-seg__btn" data-img-show="colours" aria-pressed="false">@L["Image.Show.Colours"]</button>
+                        <button type="button" class="mat-seg__btn" data-img-show="shapes" aria-pressed="true">@L["Image.Show.Shapes"]</button>
+                    </div>
+                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm" data-img-pick>@Ui.Icon("upload")<span>@L["Image.Other"]</span></button>
+                </div>
+                <p class="ms-muted ms-imgdlg__stats" data-img-stats aria-live="polite"></p>
+            </div>
+            <div class="ms-imgdlg__side mat-form" data-img-settings>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-width">@L["Image.Width"]</label>
+                    <input class="mat-input mat-input--sm mat-mono" id="ms-img-width" type="number" min="1" max="2000" step="1" value="80" data-img-width>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-colours">@L["Image.Colours"] <output class="mat-mono" data-img-out="colours"></output></label>
+                    <input class="mat-range" id="ms-img-colours" type="range" min="2" max="10" step="1" value="6" data-img-colours>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-detail">@L["Image.Detail"]</label>
+                    <select class="mat-select mat-select--sm" id="ms-img-detail" data-img-detail>
+                        <option value="200">@L["Image.Detail.Coarse"]</option>
+                        <option value="360" selected>@L["Image.Detail.Medium"]</option>
+                        <option value="600">@L["Image.Detail.Fine"]</option>
+                    </select>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-smooth">@L["Image.Smooth"] <output class="mat-mono" data-img-out="smooth"></output></label>
+                    <input class="mat-range" id="ms-img-smooth" type="range" min="0" max="4" step="1" value="1" data-img-smooth>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-tol">@L["Image.Tolerance"] <output class="mat-mono" data-img-out="tol"></output></label>
+                    <input class="mat-range" id="ms-img-tol" type="range" min="0.5" max="4" step="0.25" value="1" data-img-tol>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-minarea">@L["Image.MinArea"] <output class="mat-mono" data-img-out="minarea"></output></label>
+                    <input class="mat-range" id="ms-img-minarea" type="range" min="0" max="400" step="4" value="24" data-img-minarea>
+                </div>
+                <div class="mat-checks">
+                    <label class="mat-check"><input type="checkbox" checked data-img-circles><span class="mat-check__text">@L["Image.Circles"]</span></label>
+                    <label class="mat-check"><input type="checkbox" checked data-img-rects><span class="mat-check__text">@L["Image.Rects"]</span></label>
+                </div>
+                <h3 class="ms-imgdlg__h">@L["Image.Base"]</h3>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-img-base">@L["Image.Base.Kind"]</label>
+                    <select class="mat-select mat-select--sm" id="ms-img-base" data-img-base>
+                        <option value="outline">@L["Image.Base.Outline"]</option>
+                        <option value="rect">@L["Image.Base.Rect"]</option>
+                        <option value="none">@L["Image.Base.None"]</option>
+                    </select>
+                </div>
+                <div class="ms-imgdlg__row" data-img-base-fields>
+                    <div class="mat-field"><label class="mat-label" for="ms-img-baseh">@L["Image.Base.Height"]</label><input class="mat-input mat-input--sm mat-mono" id="ms-img-baseh" type="number" min="0" step="0.2" value="2" data-img-baseh></div>
+                    <div class="mat-field"><label class="mat-label" for="ms-img-margin">@L["Image.Base.Margin"]</label><input class="mat-input mat-input--sm mat-mono" id="ms-img-margin" type="number" min="0" step="0.5" value="2" data-img-margin></div>
+                    <div class="mat-field"><label class="mat-label" for="ms-img-basecolor">@L["Image.Base.Color"]</label><input class="ms-imgdlg__color" id="ms-img-basecolor" type="color" value="#ffffff" data-img-basecolor></div>
+                </div>
+                <h3 class="ms-imgdlg__h">@L["Image.Palette"]</h3>
+                <p class="mat-hint">@L["Image.PaletteHint"]</p>
+                <ul class="ms-imgdlg__palette" data-img-palette></ul>
+            </div>
+        </div>
+        <div class="mat-dialog__foot">
+            <div class="mat-btn-row">
+                <button type="button" class="mat-btn mat-btn--primary" data-img-apply disabled>@Ui.Icon("check")<span>@L["Image.Apply"]</span></button>
+                @if (Model.ShowAi)
+                {
+                    <button type="button" class="mat-btn mat-btn--secondary" data-img-ai disabled>@Ui.Icon("sparkles")<span>@L["Image.ToAi"]</span></button>
+                }
+                <button type="button" class="mat-btn mat-btn--ghost" data-dialog-close>@L["Common.Cancel"]</button>
+            </div>
         </div>
     </div>
 </dialog>

@@ -263,10 +263,12 @@ function gradient(row, x) {
   return g;
 }
 
-/** Levenberg-Marquardt on weighted rows; changes x in place. */
+/** Levenberg-Marquardt on weighted rows; changes x in place. Only the unknowns the rows use take part (a traced sketch has thousands that no constraint touches). */
 function minimize(rows, x, iterations = 80) {
-  const n = x.length;
-  if (!rows.length || !n) return 0;
+  if (!rows.length || !x.length) return 0;
+  const used = [...new Set(rows.flatMap(r => r.vars))].sort((a, b) => a - b);
+  const pos = new Map(used.map((v, i) => [v, i]));
+  const n = used.length;
   let lambda = 1e-3;
   const cost = () => rows.reduce((s, r) => { const v = r.f(x) * r.w; return s + v * v; }, 0);
   let current = cost();
@@ -274,9 +276,10 @@ function minimize(rows, x, iterations = 80) {
     const A = new Float64Array(n * n), g = new Float64Array(n);
     for (const row of rows) {
       const r = row.f(x) * row.w, grad = gradient(row, x).map(v => v * row.w);
-      row.vars.forEach((vi, a) => {
+      const at = row.vars.map(v => pos.get(v));
+      at.forEach((vi, a) => {
         g[vi] += grad[a] * r;
-        row.vars.forEach((vj, b) => { A[vi * n + vj] += grad[a] * grad[b]; });
+        at.forEach((vj, b) => { A[vi * n + vj] += grad[a] * grad[b]; });
       });
     }
     let improved = false;
@@ -285,11 +288,11 @@ function minimize(rows, x, iterations = 80) {
       for (let i = 0; i < n; i++) M[i * n + i] += lambda * (1 + A[i * n + i]);
       const step = cholesky(M, g.map(v => -v), n);
       if (!step) { lambda *= 10; continue; }
-      const old = x.slice();
-      for (let i = 0; i < n; i++) x[i] += step[i];
+      const old = used.map(v => x[v]);
+      for (let i = 0; i < n; i++) x[used[i]] += step[i];
       const next = cost();
       if (next < current) { current = next; lambda = Math.max(1e-9, lambda / 3); improved = true; break; }
-      for (let i = 0; i < n; i++) x[i] = old[i];
+      for (let i = 0; i < n; i++) x[used[i]] = old[i];
       lambda *= 4;
     }
     if (!improved) break;

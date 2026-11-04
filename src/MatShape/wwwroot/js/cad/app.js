@@ -6,6 +6,7 @@
 import { Viewport } from './viewport.js';
 import { ViewCube } from './viewcube.js';
 import { Assistant } from './assistant.js';
+import { ImageDialog } from './imagedialog.js';
 import { loadKernel, regenerate, dispose, FEATURES, properties } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { Sketcher } from './sketcher.js';
@@ -104,6 +105,39 @@ function start() {
     fit: () => viewport.fit(true),
     busy: on => root.classList.toggle('is-ai-busy', on),
   }) : null;
+  // picture -> 3D model: the features of the editor are added as one step (before the rollback bar when it was moved), the view shows them
+  const imageDialogEl = document.getElementById('ms-image');
+  const imageDialog = imageDialogEl ? new ImageDialog(imageDialogEl, {
+    apply: (features, parts) => {
+      if (!canEdit()) return;
+      closeModes();
+      const before = JSON.stringify(state.content);
+      const content = clone(state.content);
+      const at = Number.isInteger(content.rollback) ? content.rollback : content.features.length;
+      content.features.splice(at, 0, ...features);
+      if (Number.isInteger(content.rollback)) content.rollback += features.length;
+      content.parts = { ...content.parts, ...parts };
+      state.content = normalize(content);
+      commit(before);
+      setTimeout(() => viewport.fit(), 50);
+      toast(t('Studio.Image.Added', features.length));
+    },
+    toAi: assistant ? file => { assistant.open(true); assistant.attach([file]); if (!assistant.input.value.trim()) assistant.input.value = t('Studio.Image.AiPrompt'); } : null,
+  }) : null;
+  const openImage = file => { if (canEdit() && imageDialog && state.mode !== 'sketch') imageDialog.open(file); };
+  // a picture dropped on the view or pasted (outside of fields) opens the editor with it
+  root.addEventListener('dragover', e => { if (canEdit() && imageDialog && e.dataTransfer?.types?.includes('Files') && !e.target.closest('[data-ai-panel]')) e.preventDefault(); });
+  root.addEventListener('drop', e => {
+    if (e.target.closest('[data-ai-panel]')) return;
+    const file = [...(e.dataTransfer?.files || [])].find(f => /^image\//.test(f.type));
+    if (file && canEdit() && imageDialog) { e.preventDefault(); openImage(file); }
+  });
+  document.addEventListener('paste', e => {
+    if (e.target.closest?.('input, textarea, [contenteditable], dialog')) return;
+    const file = [...(e.clipboardData?.files || [])].find(f => /^image\//.test(f.type));
+    if (file && canEdit() && imageDialog) { e.preventDefault(); openImage(file); }
+  });
+
   const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), summary: $('[data-sketch-summary]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
     status: text => setStatus(text),
     hud: text => showHud(text),
@@ -1122,6 +1156,7 @@ function start() {
     else if (action === 'planes') togglePlanes();
     else if (action === 'side') toggleSide();
     else if (action === 'ai') assistant?.open();
+    else if (action === 'image') openImage();
     else if (action === 'keys') openKeys();
   });
   // the export menu lives outside the root

@@ -360,7 +360,10 @@ export function regenerate(kernel, content, units = 'mm') {
   // the parts with their names, colours and meshes
   const meta = content.parts || {};
   const parts = ctx.parts.map((p, i) => {
-    const info = meta[p.id] || {};
+    // several bodies of one feature (<id>.<n>) or the other half of a split (<id>~<feature>) take the colour of the feature unless they have their own
+    const own = meta[p.id] || {}, base = meta[String(p.id).split(/[.~]/)[0]] || {};
+    const body = /\.(\d+)$/.exec(String(p.id));
+    const info = { name: own.name || (base.name && body ? `${base.name} ${Number(body[1]) + 1}` : null), color: own.color || base.color };
     return {
       id: p.id,
       name: info.name || null,

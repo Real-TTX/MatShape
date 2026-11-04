@@ -47,6 +47,18 @@ checks it and decides who may see and change what.
 - **Undo / redo**, keyboard shortcuts like the CAD tools on the web – **?** shows them all
 - Geometry kernel **[Manifold](https://github.com/elalish/manifold)** (WebAssembly, robust booleans), view **[three.js](https://threejs.org)** – both copied into the project
 
+**Picture to 3D model**
+- **Bild** in the toolbar – or paste a picture (Ctrl+V) or drop it on the view: a logo, an icon, a drawing or a photo with
+  clear colours (PNG, JPEG, WebP, GIF, SVG) becomes a model, computed in the browser without any AI
+- **Colours are found** (near shades merged, the seams of anti-aliasing dissolved) and named (green, black …); the
+  background is recognised and left out
+- **Elements are recognised**: circles become real circles, rectangles real rectangles, other outlines straight lines –
+  with smoothing, edge tolerance and a smallest area against specks
+- Per colour: on/off (also by a click into the preview), **height**, colour and name; a **base plate** in the outline of the
+  motif, as a rectangle or none; the width in mm
+- The result are ordinary features – a sketch and an extrude per colour, each colour **a part of its own in its colour**,
+  ready for the **3MF export** to a multi-colour printer; or hand the picture to the AI instead
+
 **Viewing, measuring, export**
 - **View cube** in the corner: turns with the view, a click on a face, edge or corner looks from there
 - **View themes**: automatic, high contrast (thick black lines), dark, blueprint
@@ -88,6 +100,15 @@ fully defined – the lines turn black and the sketch box says so. Free geometry
 
 A distance that contradicts the length of the same side turns red and is listed in the sketch box with a delete button.
 It is not applied, so the rest of the sketch keeps its shape. The feature tree flags the sketch with a warning.
+
+### Picture to 3D model
+
+| The editor | The model |
+|---|---|
+| ![The picture editor: recognised circles and rectangles, the colours of the picture, base plate settings](docs/images/image-editor.png) | ![The result: a base plate and one coloured part per colour](docs/images/image-model.png) |
+
+An SVG badge: the circles and the square are recognised as such (green outlines), the triangle becomes three lines. Each
+colour is a part in its colour on a base plate in the outline of the motif; the yellow triangle stands 2 mm high.
 
 ### The AI rebuilds a logo
 
@@ -252,7 +273,8 @@ at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E
 | M4 | AI assistant with profiles, limits, repair rounds | ✅ |
 | M5 | **Constraint sketcher**: solver, constraint tools and symbols, dimensions by picks, conflicts | ✅ |
 | M6 | **AI attachments**: rebuild from pictures, logos as templates | ✅ |
-| M7 | Fillet / chamfer, shell, sketch from an image as a tracing background, assemblies | open |
+| M6b | **Picture to 3D model**: colours, recognised circles / rectangles, base plate, a part per colour | ✅ |
+| M7 | Fillet / chamfer, shell, picture as a tracing background in a sketch, model edges in sketches, assemblies | open |
 
 ## Development
 

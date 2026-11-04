@@ -103,6 +103,12 @@ checks it and decides who may see and change what.
 The rectangle came with its four H/V constraints; two dimensions (80 and 40) and a coincident with the origin make it
 fully defined – the lines turn black and the sketch box says so. Free geometry stays blue.
 
+### Snapping and live dimensions
+
+| Snapping while drawing | A new value, the part follows at once |
+|---|---|
+| ![Drawing a line: the H symbol and the length at the pointer, a dashed guide](docs/images/sketch-snapping.png) | ![The width set to 100 while the sketch is open: the extruded part is already wider](docs/images/sketch-live.png) |
+
 ### Conflicts at a glance
 
 ![A redundant distance in red, listed in the sketch box with a delete button](docs/images/sketch-conflict.png)

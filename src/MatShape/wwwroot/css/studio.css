@@ -394,3 +394,15 @@ dialog.ms-imgdlg.is-dropping .ms-imgdlg__view { outline: 2px dashed var(--mat-ac
   .ms-imgdlg__body { grid-template-columns: 1fr; }
   .ms-imgdlg__side { max-height: none; }
 }
+
+/* sketching like OnShape: the symbol of the snap and the length at the pointer, the selection box, a dimension being placed */
+.ms-snapglyph { position: absolute; left: 0; top: 0; pointer-events: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 4px; background: #f59e0b; color: #111827;
+  font: 700 11px/18px var(--mat-mono); text-align: center; box-shadow: var(--mat-shadow-1); }
+.ms-snapglyph.is-dot { min-width: 12px; width: 12px; height: 12px; padding: 0; border-radius: 50%; font-size: 0; border: 2px solid #fff; }
+.ms-snapglyph[hidden], .ms-drawhud[hidden] { display: none; }
+.ms-drawhud { position: absolute; left: 0; top: 0; pointer-events: none; padding: 1px 6px; border-radius: var(--mat-radius-xs); background: var(--mat-surface); color: var(--mat-text);
+  border: 1px solid var(--mat-border); font-size: var(--mat-fs-xs); white-space: nowrap; box-shadow: var(--mat-shadow-1); }
+.ms-selbox { position: absolute; pointer-events: none; border: 1.5px solid #2563eb; background: rgba(37, 99, 235, .08); }
+.ms-selbox.is-crossing { border-style: dashed; border-color: #16a34a; background: rgba(22, 163, 74, .08); }
+.ms-dim.is-preview { pointer-events: none; border-color: var(--mat-accent); }
+.ms-dims.is-busy .ms-dim, .ms-dims.is-busy .ms-glyph { pointer-events: none; }

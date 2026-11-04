@@ -9,12 +9,12 @@ import { LineMaterial } from '/lib/three/lines/LineMaterial.js';
 import { STANDARD_PLANES, entityPolyline, toWorld } from './geom.js';
 
 // ---- the colour schemes of the view (themes). Lines have real widths in pixels (WebGL alone draws 1 px). "auto" follows light and dark mode of the app.
-const AUTO_LIGHT = { background: null, edge: 0x1f2937, edgeOpacity: 0.9, edgeWidth: 1.6, sketch: 0x2563eb, defined: 0x111827, conflict: 0xdc2626, sketchWidth: 2.2, cons: 0x6b7280, grid: 0x6b7280, gridOpacity: 0.16, axis: 0x4b5563, plane: 0x3cb764, select: 0xf59e0b, hover: 0x3b82f6 };
-const AUTO_DARK = { background: null, edge: 0xe5e7eb, edgeOpacity: 0.95, edgeWidth: 1.6, sketch: 0x60a5fa, defined: 0xf9fafb, conflict: 0xf87171, sketchWidth: 2.2, cons: 0x9ca3af, grid: 0x9ca3af, gridOpacity: 0.16, axis: 0x9ca3af, plane: 0x3cb764, select: 0xfbbf24, hover: 0x93c5fd };
+const AUTO_LIGHT = { background: null, edge: 0x1f2937, edgeOpacity: 0.9, edgeWidth: 1.6, sketch: 0x2563eb, defined: 0x111827, conflict: 0xdc2626, sketchWidth: 2.2, cons: 0x6b7280, dim: 0x374151, grid: 0x6b7280, gridOpacity: 0.16, axis: 0x4b5563, plane: 0x3cb764, select: 0xf59e0b, hover: 0x3b82f6 };
+const AUTO_DARK = { background: null, edge: 0xe5e7eb, edgeOpacity: 0.95, edgeWidth: 1.6, sketch: 0x60a5fa, defined: 0xf9fafb, conflict: 0xf87171, sketchWidth: 2.2, cons: 0x9ca3af, dim: 0xd1d5db, grid: 0x9ca3af, gridOpacity: 0.16, axis: 0x9ca3af, plane: 0x3cb764, select: 0xfbbf24, hover: 0x93c5fd };
 const THEMES = {
-  contrast: { background: '#ffffff', edge: 0x000000, edgeOpacity: 1, edgeWidth: 2.4, sketch: 0x0050ff, defined: 0x000000, conflict: 0xdc2626, sketchWidth: 2.8, cons: 0x374151, grid: 0x111827, gridOpacity: 0.22, axis: 0x111827, plane: 0x15803d, select: 0xd97706, hover: 0x2563eb },
-  dark: { background: 'linear-gradient(180deg, #2c313a 0%, #121418 100%)', edge: 0xf9fafb, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0x7dd3fc, defined: 0xffffff, conflict: 0xf87171, sketchWidth: 2.5, cons: 0xa1a1aa, grid: 0xe5e7eb, gridOpacity: 0.14, axis: 0xd1d5db, plane: 0x4ade80, select: 0xfbbf24, hover: 0x93c5fd },
-  blueprint: { background: 'linear-gradient(180deg, #1e4f93 0%, #0b2a57 100%)', edge: 0xffffff, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0xffd166, defined: 0xffffff, conflict: 0xff6b6b, sketchWidth: 2.6, cons: 0xbfdbfe, grid: 0xffffff, gridOpacity: 0.13, axis: 0xdbeafe, plane: 0x93c5fd, select: 0xfb923c, hover: 0xfde68a },
+  contrast: { background: '#ffffff', edge: 0x000000, edgeOpacity: 1, edgeWidth: 2.4, sketch: 0x0050ff, defined: 0x000000, conflict: 0xdc2626, sketchWidth: 2.8, cons: 0x374151, dim: 0x111827, grid: 0x111827, gridOpacity: 0.22, axis: 0x111827, plane: 0x15803d, select: 0xd97706, hover: 0x2563eb },
+  dark: { background: 'linear-gradient(180deg, #2c313a 0%, #121418 100%)', edge: 0xf9fafb, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0x7dd3fc, defined: 0xffffff, conflict: 0xf87171, sketchWidth: 2.5, cons: 0xa1a1aa, dim: 0xe5e7eb, grid: 0xe5e7eb, gridOpacity: 0.14, axis: 0xd1d5db, plane: 0x4ade80, select: 0xfbbf24, hover: 0x93c5fd },
+  blueprint: { background: 'linear-gradient(180deg, #1e4f93 0%, #0b2a57 100%)', edge: 0xffffff, edgeOpacity: 1, edgeWidth: 1.9, sketch: 0xffd166, defined: 0xffffff, conflict: 0xff6b6b, sketchWidth: 2.6, cons: 0xbfdbfe, dim: 0xffffff, grid: 0xffffff, gridOpacity: 0.13, axis: 0xdbeafe, plane: 0x93c5fd, select: 0xfb923c, hover: 0xfde68a },
 };
 export const VIEW_THEMES = ['auto', 'contrast', 'dark', 'blueprint'];
 let themeName = 'auto';
@@ -535,7 +535,25 @@ export class Viewport {
     group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, hoverPoint: state.hoverPoint, points: true, status: state.status, pointStatus: state.pointStatus }));
     if (state.origin) group.add(markerObject(toWorld(f, 0, 0), state.selected?.has?.('p:origin.p') ? palette.select : palette.defined));
     if (state.preview?.length) group.add(sketchObject(f, state.preview, { color: palette.select, points: true }));
-    if (state.snap) group.add(markerObject(toWorld(f, state.snap[0], state.snap[1]), 0xef4444));
+    // dimensions: extension and dimension lines with arrows, leaders, angle arcs (thin, in the colour of their state)
+    for (const a of state.annotations || []) {
+      if (!a.segs.length) continue;
+      const colour = a.state === 'conflict' ? palette.conflict : a.state === 'selected' ? palette.select : a.state === 'preview' ? palette.hover : palette.dim;
+      group.add(fatLines(a.segs.flatMap(([p, q]) => [toWorld(f, p[0], p[1]), toWorld(f, q[0], q[1])]), colour, 1.3, { depthTest: false, renderOrder: 8 }));
+    }
+    // the guides of snapping: dashed lines to the point a new point lines up with
+    if (state.guides?.length) {
+      const list = state.guides.flatMap(([p, q]) => [new THREE.Vector3(...toWorld(f, p[0], p[1])), new THREE.Vector3(...toWorld(f, q[0], q[1]))]);
+      const lines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(list), new THREE.LineDashedMaterial({ color: palette.hover, dashSize: this.mmPerPixel * 5, gapSize: this.mmPerPixel * 4, depthTest: false }));
+      lines.computeLineDistances();
+      lines.renderOrder = 9;
+      group.add(lines);
+    }
+    if (state.snap) {
+      const marker = markerObject(toWorld(f, state.snap[0], state.snap[1]), palette.select);
+      marker.material.size = 12;
+      group.add(marker);
+    }
     group.renderOrder = 5;
     this.sketchOverlay = group;
     this.overlayGroup.add(group);

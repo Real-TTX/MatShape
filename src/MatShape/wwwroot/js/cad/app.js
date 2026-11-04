@@ -141,7 +141,21 @@ function start() {
   const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), summary: $('[data-sketch-summary]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
     status: text => setStatus(text),
     hud: text => showHud(text),
+    // like OnShape: every change of the sketch (a value, a constraint, a drag) rebuilds the parts at once, not only when the sketch is accepted
+    changed: () => liveSketch(),
   });
+  let liveTimer = 0;
+  function liveSketch() {
+    if (liveTimer) return;
+    liveTimer = setTimeout(() => {
+      liveTimer = 0;
+      if (state.mode !== 'sketch' || !state.dialog) return;
+      state.dialog.feature.params.entities = sketcher.entities;
+      state.dialog.feature.params.cons = sketcher.cons;
+      delete state.dialog.feature.params.dims;
+      regen(withDialogFeature(), { keepTree: true });
+    }, 40);
+  }
 
   // ---- loading -------------------------------------------------------------------------------------------------------------
 
@@ -238,7 +252,8 @@ function start() {
       $('[data-empty-title]').textContent = t(canEdit() ? 'Studio.Empty.Title' : 'Studio.Empty.ViewTitle');
       $('[data-empty-text]').textContent = t(canEdit() ? 'Studio.Empty.Text' : 'Studio.Empty.ViewText');
     }
-    setStatus(t('Studio.Regenerated', fmt(performance.now() - started, 0)));
+    // while sketching, the line below the view keeps the hint of the tool
+    if (state.mode !== 'sketch') setStatus(t('Studio.Regenerated', fmt(performance.now() - started, 0)));
     // the numbers of a part shown before may be old now
     if (state.mode !== 'measure') ui.measure.hidden = true;
     // the first part of a Part Studio: show it whole

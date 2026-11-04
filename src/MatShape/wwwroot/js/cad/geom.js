@@ -149,70 +149,121 @@ export function entityPolyline(e) {
 const key = p => `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)}`;
 
 /**
- * The closed profiles of a sketch: every circle, rectangle and polygon, and every closed chain of lines and arcs (each end meets exactly one other end).
- * Construction geometry is left out. Returns [{ key, ids, points }] — key is the sorted ids of the entities, so a choice of profiles survives edits of the sketch.
+ * The closed profiles of a sketch, found like OnShape does: every curve that is not construction geometry is cut where it meets another, loose ends are
+ * trimmed away, and every smallest enclosed region becomes a profile – so a line across a rectangle makes two profiles, a line ending at a corner does not
+ * spoil the rectangle, and crossing lines enclose what they enclose. Returns [{ key, ids, points }] (points counter-clockwise); key is the sorted ids of the
+ * entities of its border, so a choice of profiles survives edits of the sketch (regions with the same border entities get #2, #3 … from left to right).
  */
 export function sketchLoops(entities) {
-  const loops = [];
-  const open = [];
+  // the curves as polylines, each piece knows its entity
+  const segs = [];
   for (const e of entities || []) {
-    if (e.cons) continue;
-    if (e.t === 'circle' && e.r > 0) loops.push({ ids: [e.id], points: circlePoints(e.c[0], e.c[1], e.r) });
-    else if (e.t === 'rect' && Math.abs(e.a[0] - e.b[0]) > 1e-9 && Math.abs(e.a[1] - e.b[1]) > 1e-9) loops.push({ ids: [e.id], points: rectPoints(e) });
-    else if (e.t === 'polygon' && e.r > 0) loops.push({ ids: [e.id], points: polygonPoints(e) });
-    else if ((e.t === 'line' || e.t === 'arc') && ends(e)) open.push(e);
-  }
-
-  // the chains: a graph of the ends
-  const nodes = new Map();
-  const link = (p, e, which) => { const k = key(p); if (!nodes.has(k)) nodes.set(k, []); nodes.get(k).push({ e, which }); };
-  for (const e of open) {
-    const [a, b] = ends(e);
-    if (key(a) === key(b)) continue;
-    link(a, e, 0);
-    link(b, e, 1);
-  }
-
-  const used = new Set();
-  for (const start of open) {
-    if (used.has(start)) continue;
-    // walk from the start along the chain; it is a loop when we come back and every node on the way has exactly two ends
-    const chain = [];
-    let ok = true;
-    let current = start, forward = true;
-    const startKey = key(ends(start)[0]);
-    for (let guard = 0; guard < open.length + 1; guard++) {
-      chain.push({ e: current, forward });
-      used.add(current);
-      const [a, b] = ends(current);
-      const tail = forward ? b : a;
-      const k = key(tail);
-      const there = nodes.get(k) || [];
-      if (there.length !== 2) { ok = false; break; }
-      if (k === startKey) break;
-      const next = there.find(x => x.e !== current);
-      if (!next || used.has(next.e)) { ok = false; break; }
-      current = next.e;
-      forward = next.which === 0;
+    if (e.cons || e.t === 'point') continue;
+    if (e.t === 'circle' && !(e.r > 0)) continue;
+    const pts = entityPolyline(e);
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-9) segs.push({ a, b, id: e.id, cuts: [] });
     }
-    if (!ok || chain.length < 1) continue;
-    const lastEnd = (() => { const l = chain[chain.length - 1]; const [a, b] = ends(l.e); return l.forward ? b : a; })();
-    if (key(lastEnd) !== startKey) continue;
-    if (chain.length === 1 && chain[0].e.t === 'line') continue;
+  }
+  if (!segs.length) return [];
 
-    const points = [];
-    for (const { e, forward: fw } of chain) {
-      let pts = e.t === 'line' ? [e.a, e.b] : arcPoints(e.c[0], e.c[1], e.r, e.a0, e.a1);
-      if (!fw) pts = pts.slice().reverse();
-      points.push(...pts.slice(0, -1));
+  // where pieces cross or touch: cut both there (sweep over x, so large traced sketches stay fast)
+  const box = s => [Math.min(s.a[0], s.b[0]), Math.max(s.a[0], s.b[0]), Math.min(s.a[1], s.b[1]), Math.max(s.a[1], s.b[1])];
+  const order = segs.map((s, i) => ({ s, i, bb: box(s) })).sort((p, q) => p.bb[0] - q.bb[0]);
+  const eps = 1e-9;
+  for (let i = 0; i < order.length; i++) {
+    const A = order[i];
+    for (let j = i + 1; j < order.length && order[j].bb[0] <= A.bb[1] + 1e-7; j++) {
+      const B = order[j];
+      if (B.bb[2] > A.bb[3] + 1e-7 || B.bb[3] < A.bb[2] - 1e-7) continue;
+      const p = A.s.a, r = [A.s.b[0] - p[0], A.s.b[1] - p[1]], q = B.s.a, s = [B.s.b[0] - q[0], B.s.b[1] - q[1]];
+      const den = r[0] * s[1] - r[1] * s[0];
+      if (Math.abs(den) < eps * Math.hypot(...r) * Math.hypot(...s)) continue;   // parallel: touching ends join by their points anyway
+      const w = [q[0] - p[0], q[1] - p[1]];
+      const t = (w[0] * s[1] - w[1] * s[0]) / den, u = (w[0] * r[1] - w[1] * r[0]) / den;
+      const tol = 1e-9;
+      if (t < -tol || t > 1 + tol || u < -tol || u > 1 + tol) continue;
+      const x = [p[0] + r[0] * t, p[1] + r[1] * t];
+      if (t > tol && t < 1 - tol) A.s.cuts.push([t, x]);
+      if (u > tol && u < 1 - tol) B.s.cuts.push([u, x]);
     }
-    if (points.length >= 3) loops.push({ ids: chain.map(c => c.e.id), points });
   }
 
-  for (const loop of loops) loop.key = [...loop.ids].sort().join('+');
-  return loops;
+  // the graph: points merged (to a ten-thousandth of a millimetre), edges between them with the ids of their entities
+  const index = new Map(), coords = [];
+  const vertex = p => { const k = key(p); if (!index.has(k)) { index.set(k, coords.length); coords.push(p); } return index.get(k); };
+  const edges = new Map();
+  for (const s of segs) {
+    const chain = [s.a, ...s.cuts.sort((x, y) => x[0] - y[0]).map(c => c[1]), s.b];
+    for (let i = 1; i < chain.length; i++) {
+      const u = vertex(chain[i - 1]), v = vertex(chain[i]);
+      if (u === v) continue;
+      const k = u < v ? u + ':' + v : v + ':' + u;
+      if (!edges.has(k)) edges.set(k, { u, v, ids: new Set() });
+      edges.get(k).ids.add(s.id);
+    }
+  }
+  // loose ends do not enclose anything: trim them until every point has two or more edges
+  const out = coords.map(() => []);
+  for (const e of edges.values()) { out[e.u].push(e); out[e.v].push(e); }
+  const degree = out.map(l => l.length);
+  const gone = new Set();
+  const queue = degree.map((d, i) => (d === 1 ? i : -1)).filter(i => i >= 0);
+  while (queue.length) {
+    const v = queue.pop();
+    for (const e of out[v]) {
+      if (gone.has(e)) continue;
+      gone.add(e);
+      const w = e.u === v ? e.v : e.u;
+      if (--degree[w] === 1) queue.push(w);
+      degree[v]--;
+    }
+  }
+  // half-edges sorted by angle around each point; a face is walked keeping it on the left: at each point the next edge clockwise from the way back
+  const around = coords.map(() => []);
+  for (const e of edges.values()) {
+    if (gone.has(e)) continue;
+    for (const [from, to] of [[e.u, e.v], [e.v, e.u]]) {
+      around[from].push({ from, to, e, angle: Math.atan2(coords[to][1] - coords[from][1], coords[to][0] - coords[from][0]) });
+    }
+  }
+  around.forEach(list => list.sort((x, y) => x.angle - y.angle));
+  const seen = new Set();
+  const regions = [];
+  for (const list of around) {
+    for (const start of list) {
+      if (seen.has(start)) continue;
+      const cycle = [];
+      let h = start, guard = 0;
+      while (h && !seen.has(h) && guard++ < 1e6) {
+        seen.add(h);
+        cycle.push(h);
+        const at = around[h.to];
+        const back = at.findIndex(x => x.to === h.from && x.e === h.e);
+        h = at[(back - 1 + at.length) % at.length];
+      }
+      if (cycle.length < 3 || h !== start) continue;
+      const points = cycle.map(x => coords[x.from]);
+      if (area2(points) <= 1e-9) continue;              // the outside of a group of regions runs clockwise
+      const ids = [...new Set(cycle.flatMap(x => [...x.e.ids]))];
+      regions.push({ ids, points });
+    }
+  }
+  // keys: the sorted ids of the border; regions with the same border entities are told apart from left to right
+  const byKey = new Map();
+  for (const r of regions) {
+    r.key = [...r.ids].sort().join('+');
+    r.cx = r.points.reduce((s, p) => s + p[0], 0) / r.points.length;
+    if (!byKey.has(r.key)) byKey.set(r.key, []);
+    byKey.get(r.key).push(r);
+  }
+  for (const list of byKey.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => a.cx - b.cx).forEach((r, i) => { if (i) r.key += '#' + (i + 1); });
+  }
+  return regions.map(({ key: k, ids, points }) => ({ key: k, ids, points }));
 }
-
 /** The signed area of a polygon (counter-clockwise > 0). */
 export function area2(points) {
   let a = 0;

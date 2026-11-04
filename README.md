@@ -37,7 +37,16 @@ checks it and decides who may see and change what.
 - **Colours tell the state**: blue = still free, black = fully defined, red = conflict. The sketch box shows the degrees of
   freedom; conflicting constraints are listed there (and flagged in the feature tree) and are **not applied**, so the
   geometry never tears apart
-- Dragging moves entities as far as the constraints allow – a solver (Levenberg-Marquardt with a rank analysis) holds them
+- **Snapping you can see**: the pointer snaps to ends and centres (•), the middle of lines (M), onto curves, level or upright (H / V),
+  at a right angle to the line before (⊥) and lines up with other points (dashed guides); the symbol and the length stand at the pointer.
+  No grid snapping – sizes come from dimensions
+- **Dimensions are placed like in OnShape**: pick, the dimension follows the pointer, a click places it, type the value; drawn with
+  extension and dimension lines, arrows, leaders and angle arcs, and they can be dragged elsewhere later
+- **The model follows at once**: a new value, a constraint or a drag rebuilds the parts while the sketch is still open
+- **Profiles like OnShape**: every enclosed region counts – a line across a rectangle makes two profiles, a line ending at a corner
+  does not spoil one, crossing lines enclose what they enclose
+- Select by clicking or with a **box** (to the right: wholly inside, to the left: touched); dragging moves entities as far as the
+  constraints allow – a solver (Levenberg-Marquardt with a rank analysis) holds them
 
 **Modelling**
 - **Features**: extrude (blind, symmetric, through all; new / add / remove / intersect), revolve, boolean, move / rotate /

@@ -62,11 +62,14 @@ src/MatShape
                              autosave (PUT with revision; 409 -> ask), polling for changes of others, offline queue (localStorage ms.pending.<studio>), thumbnail, export, keys
     model.js                 regenerate(kernel, content, units): runs the features with Manifold -> parts (meshes with face ids), sketches (+ closed loops), planes, variables, status per feature;
                              every kernel object is in an arena freed by dispose(result). FEATURES = the kinds and their default parameters
-    geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketch loops (closed chains of lines/arcs + circles, rects, polygons)
+    geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketchLoops = profiles like OnShape: curves cut at their crossings, loose ends trimmed, the smallest enclosed regions (key = sorted border ids, #2 … for regions with the same border)
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges + smooth normals, planes, sketches, picking, face highlight, snapshot
-    sketcher.js              the sketch editor (like OnShape): tools that set the obvious constraints themselves, additive selection, constraint tools (I, H, V, ∥, ⊥, T, =, M, ◎, fix), dimension tool D
-                             (two points, point + line, two lines = distance or angle, one curve), symbols over the view, state colours, conflict list in the panel, drag through the solver, own undo
+    sketcher.js              the sketch editor (like OnShape): snapping without a grid (point •, midpoint M, on curve, H/V, ⊥ to the line before, dashed guides to lined-up points) with the symbol
+                             and the length at the pointer; tools set the matching constraints; additive selection + selection box (right = window, left = crossing); constraint tools
+                             (I, H, V, ∥, ⊥, T, =, M, ◎, fix); dimension tool D: pick, the dimension follows the pointer, click places it, type the value; dimensionShape() draws extension
+                             and dimension lines with arrows, leaders, angle arcs (c.off = place of the value relative to its anchor); state colours, conflict list, drag through the
+                             solver, own undo; callbacks.changed -> app.js rebuilds the parts live while the sketch is open
     sketchsolve.js           the constraint solver: Levenberg-Marquardt over the numbers of the entities, Gram-Schmidt rank analysis (degrees of freedom, defined/free per entity and point,
                              conflicts = redundant or unmeetable constraints, which are shown but NOT applied); legacy params.dims are migrated (constraintsOf). Used by model.js too
     assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair;

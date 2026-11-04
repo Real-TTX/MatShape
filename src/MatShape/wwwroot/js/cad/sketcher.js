@@ -4,7 +4,7 @@
    by the solver (sketchsolve.js) after every change, also while dragging. Colours: blue = still free, black = fully defined, red = conflict.
    Drawing sets the obvious constraints by itself (snapped to a point: coincident, to a curve: on it, nearly level: horizontal …), like OnShape. */
 
-import { arcThrough, distToEntity, sketchLoops, toLocal, toWorld } from './geom.js';
+import { arcThrough, distToEntity, entityPolyline, sketchLoops, toLocal, toWorld } from './geom.js';
 import { CONSTRAINTS, ORIGIN, adoptSketch, constraintsOf, measure, pointKeys, pointOfRef, solveSketch } from './sketchsolve.js';
 import { evalAngle, evalLength, evalNumber } from './expr.js';
 import { clone, el, fmt, icon, t, uid, UNITS } from './util.js';
@@ -41,7 +41,9 @@ export class Sketcher {
     this.points = [];              // the clicks of a drawing tool
     this.picks = [];               // the picks of a constraint or dimension tool
     this.cursor = null;
-    this.snap = null;
+    this.located = null;           // where the pointer would land with a drawing tool (snap, glyph, guides)
+    this.placing = null;           // a dimension that follows the pointer until it is placed: { c, final }
+    this.box = null;               // a selection box being dragged
     this.history = [];
     this.future = [];
     this.polygonSides = polygonSides || 6;
@@ -59,6 +61,10 @@ export class Sketcher {
     this.vp.setSketchOverlay(null);
     this.closeEditor();
     this.labels?.replaceChildren();
+    this.placing = null;
+    this.box = null;
+    this.located = null;
+    this.pointer = null;
   }
 
   /** Lets the solver hold every constraint; with analysis the states (free, defined, conflict) are new. */
@@ -75,6 +81,8 @@ export class Sketcher {
     this.tool = tool;
     this.points = [];
     this.picks = [];
+    this.placing = null;
+    this.located = null;
     this.closeEditor();
     this.vp.navigationOnly = DRAW_TOOLS.includes(tool);
     this.toolbar.querySelectorAll('[data-sketch-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sketchTool === tool ? 'true' : 'false'));
@@ -99,6 +107,7 @@ export class Sketcher {
     this.solve();
     this.renderPanel();
     this.draw();
+    this.cb.changed?.();
   }
 
   undo() { if (this.history.length) { this.future.push(this.snapshot()); this.restore(this.history.pop()); } }
@@ -112,6 +121,7 @@ export class Sketcher {
     this.solve();
     this.renderPanel();
     this.draw();
+    this.cb.changed?.();
   }
 
   deleteSelected() {
@@ -179,30 +189,66 @@ export class Sketcher {
     return best;
   }
 
-  /** Where a drawing click lands: snapped to a point (ref), onto a curve (curve), level or upright to the last point (h / v), else onto the grid. */
-  locate(e, from) {
+  /**
+   * Where a drawing click lands, like OnShape: on a point (coincident), in the middle of a line (midpoint), on a curve (on it); level or upright to the
+   * point before (H / V), at a right angle to the line before (⊥), lined up with other points (dashed guides, no constraint). No grid: sizes come from
+   * dimensions. Returns { p, ref | mid | curve, h, v, perp, glyph, target, snap, guides }.
+   */
+  locate(e, from, prevLine) {
     const p = this.local(e);
     if (!p) return null;
-    const tolerance = SNAP_PX * this.vp.mmPerPixel;
-    this.snap = null;
-    let best = null, bestD = tolerance;
+    const tol = SNAP_PX * this.vp.mmPerPixel;
+    let best = null, bestD = tol;
     for (const q of this.allPoints()) {
       const d = Math.hypot(q.p[0] - p[0], q.p[1] - p[1]);
       if (d < bestD) { bestD = d; best = q; }
     }
-    if (best) { this.snap = best.p; return { p: [...best.p], ref: best.ref }; }
-    const curve = this.entities.map(x => ({ x, d: distToEntity(p, x) })).filter(c => c.d < tolerance * 0.8 && c.x.t !== 'polygon' && c.x.t !== 'rect').sort((a, b) => a.d - b.d)[0];
-    if (curve) {
-      const on = projectOnto(curve.x, p);
-      if (on) { this.snap = on; return { p: on, curve: curve.x.id }; }
+    if (best) return { p: [...best.p], ref: best.ref, glyph: 'coincident', target: 'p:' + best.ref.e + '.' + best.ref.k, snap: best.p, guides: [] };
+    for (const x of this.entities) {
+      if (x.t !== 'line') continue;
+      const m = [(x.a[0] + x.b[0]) / 2, (x.a[1] + x.b[1]) / 2];
+      if (Math.hypot(m[0] - p[0], m[1] - p[1]) < tol * 0.8) return { p: m, mid: x.id, glyph: 'midpoint', target: 'e:' + x.id, snap: m, guides: [] };
     }
+    const out = { p: [...p], guides: [] };
     if (from) {
-      const dx = p[0] - from[0], dy = p[1] - from[1];
-      if (Math.abs(dy) < tolerance * 0.8 && Math.abs(dx) > tolerance) return { p: [p[0], from[1]], h: true };
-      if (Math.abs(dx) < tolerance * 0.8 && Math.abs(dy) > tolerance) return { p: [from[0], p[1]], v: true };
+      const dx = p[0] - from[0], dy = p[1] - from[1], len = Math.hypot(dx, dy);
+      if (Math.abs(dy) < tol * 0.6 && Math.abs(dx) > tol) { out.p[1] = from[1]; out.h = true; out.glyph = 'horizontal'; }
+      else if (Math.abs(dx) < tol * 0.6 && Math.abs(dy) > tol) { out.p[0] = from[0]; out.v = true; out.glyph = 'vertical'; }
+      else if (prevLine && len > tol) {
+        const u = unit2(prevLine), along = dx * u[0] + dy * u[1];
+        if (Math.abs(along) / len < Math.sin(3 * Math.PI / 180)) { out.p = [p[0] - along * u[0], p[1] - along * u[1]]; out.perp = true; out.glyph = 'perpendicular'; }
+      }
     }
-    const step = this.gridStep();
-    return { p: [Math.round(p[0] / step) * step, Math.round(p[1] / step) * step] };
+    if (!out.glyph) {
+      const curve = this.entities.filter(x => x.t === 'line' || x.t === 'circle' || x.t === 'arc')
+        .map(x => ({ x, d: distToEntity(p, x) })).filter(c => c.d < tol * 0.7).sort((a, b) => a.d - b.d)[0];
+      const on = curve && projectOnto(curve.x, p);
+      if (on) return { p: on, curve: curve.x.id, glyph: 'onCurve', target: 'e:' + curve.x.id, snap: on, guides: [] };
+    }
+    // lined up with another point: that coordinate snaps, a dashed guide shows to which point
+    if (!out.perp) {
+      const points = this.allPoints().filter(q => !from || Math.hypot(q.p[0] - from[0], q.p[1] - from[1]) > 1e-9);
+      if (!out.v) {
+        const q = points.map(q => ({ q, d: Math.abs(q.p[0] - p[0]) })).filter(x => x.d < tol * 0.6).sort((a, b) => a.d - b.d)[0]?.q;
+        if (q) { out.p[0] = q.p[0]; out.guides.push(q.p); }
+      }
+      if (!out.h) {
+        const q = points.map(q => ({ q, d: Math.abs(q.p[1] - p[1]) })).filter(x => x.d < tol * 0.6).sort((a, b) => a.d - b.d)[0]?.q;
+        if (q) { out.p[1] = q.p[1]; out.guides.push(q.p); }
+      }
+    }
+    out.guides = out.guides.map(q => [q, [...out.p]]);
+    if (from && (out.h || out.v || out.perp)) out.guides.push([from, [...out.p]]);
+    if (out.glyph || out.guides.length) out.snap = out.p;
+    return out;
+  }
+
+  /** The point a line goes on from, and the line before it (for ⊥), while the line tool draws a chain. */
+  drawContext() {
+    if (this.tool !== 'line') return [null, null];
+    const last = this.points[this.points.length - 1];
+    const prev = last?.ref?.k === 'b' ? this.entities.find(x => x.id === last.ref.e && x.t === 'line') : null;
+    return [last?.p || null, prev];
   }
 
   gridStep() {
@@ -225,28 +271,45 @@ export class Sketcher {
   }
 
   move(e) {
+    this.pointer = { x: e.clientX, y: e.clientY };
+    if (this.placing) {
+      // the dimension follows the pointer until it is placed
+      const p = this.local(e);
+      const shape = p && dimensionShape(this.entities, this.placing.c, this.vp.mmPerPixel);
+      if (shape) this.placing.c.off = [p[0] - shape.anchor[0], p[1] - shape.anchor[1]];
+      if (this.placing.final) { this.draw(); return; }
+    }
     if (!DRAW_TOOLS.includes(this.tool)) {
       const p = this.local(e);
       const hit = p && this.pickAt(p);
       // a point under the pointer lights up alone (not its whole line), a curve as a whole: so one sees what a click takes
       const curve = hit?.kind === 'curve' ? hit.ref.e : null;
       const point = hit?.kind === 'point' ? hit.ref.e + '.' + hit.ref.k : null;
-      if (curve !== this.hover || point !== this.hoverPoint) { this.hover = curve; this.hoverPoint = point; this.draw(); }
+      if (curve !== this.hover || point !== this.hoverPoint || this.placing) { this.hover = curve; this.hoverPoint = point; this.draw(); }
       this.vp.canvas.style.cursor = hit ? 'pointer' : '';
       return;
     }
-    const located = this.locate(e, this.points[this.points.length - 1]?.p);
-    this.cursor = located?.p || null;
+    const [from, prev] = this.drawContext();
+    this.located = this.locate(e, from, prev);
+    this.cursor = this.located?.p || null;
+    // what the pointer snaps to lights up like a hover
+    const target = this.located?.target || '';
+    this.hover = target.startsWith('e:') ? target.slice(2) : null;
+    this.hoverPoint = target.startsWith('p:') ? target.slice(2) : null;
     this.draw();
   }
 
-  /** Dragging in the select tool: a point, a line (both ends) or a circle (its centre) follows the pointer as far as the constraints allow. */
+  /**
+   * Pressing in the select tool: on a point, a line (both ends) or a circle (its centre) it is dragged as far as the constraints allow;
+   * in empty space a selection box is drawn (to the right: what lies wholly inside; to the left: what it touches), like OnShape.
+   */
   down(e) {
     if (this.tool !== 'select') return;
     const p = this.local(e);
-    const hit = p && this.pickAt(p);
-    if (!hit || hit.ref.e === ORIGIN) return;
+    if (!p) return;
+    const hit = this.pickAt(p);
     this.vp.navigationOnly = true;
+    if (!hit || hit.ref.e === ORIGIN) { this.box = { a: p, b: p, sx: e.clientX, sy: e.clientY, ex: e.clientX, ey: e.clientY }; return; }
     let refs;
     if (hit.kind === 'point') refs = [hit.ref];
     else if (hit.entity.t === 'line' || hit.entity.t === 'rect') refs = [{ e: hit.ref.e, k: 'a' }, { e: hit.ref.e, k: 'b' }];
@@ -256,16 +319,32 @@ export class Sketcher {
   }
 
   dragMove(e) {
-    if (!this.dragging) return;
     const p = this.local(e);
     if (!p) return;
+    if (this.box) {
+      Object.assign(this.box, { b: p, ex: e.clientX, ey: e.clientY });
+      this.drawBox();
+      return;
+    }
+    if (!this.dragging) return;
     const dx = p[0] - this.dragging.start[0], dy = p[1] - this.dragging.start[1];
     this.dragging.moved = true;
     this.solve({ drag: this.dragging.refs.map(r => ({ ref: r.ref, to: [r.from[0] + dx, r.from[1] + dy] })), analyse: false, iterations: 20 });
     this.draw();
+    this.cb.changed?.();
   }
 
   dragEnd() {
+    if (this.box) {
+      const crossing = this.box.ex < this.box.sx;
+      this.boxSelect(this.box.a, this.box.b, crossing);
+      this.box = null;
+      this.drawBox();
+      this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool);
+      this.renderPanel();
+      this.draw();
+      return;
+    }
     if (!this.dragging) return;
     if (this.dragging.moved) { this.history.push(this.dragging.before); this.future = []; }
     this.dragging = null;
@@ -273,17 +352,59 @@ export class Sketcher {
     this.solve();
     this.renderPanel();
     this.draw();
+    this.cb.changed?.();
+  }
+
+  /** Adds what the box holds to the selection: wholly inside (window) or touched (crossing). */
+  boxSelect(a, b, crossing) {
+    const [x0, x1] = [Math.min(a[0], b[0]), Math.max(a[0], b[0])], [y0, y1] = [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+    const inside = q => q[0] >= x0 && q[0] <= x1 && q[1] >= y0 && q[1] <= y1;
+    // a piece of a curve touches the box when it lies in it or crosses it (Liang-Barsky clipping)
+    const touches = (a, b) => {
+      let t0 = 0, t1 = 1;
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      for (const [p, q] of [[-dx, a[0] - x0], [dx, x1 - a[0]], [-dy, a[1] - y0], [dy, y1 - a[1]]]) {
+        if (p === 0) { if (q < 0) return false; continue; }
+        const r = q / p;
+        if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; }
+      }
+      return true;
+    };
+    for (const e of this.entities) {
+      if (e.t === 'point') { if (inside(e.p)) this.selection.add('p:' + e.id + '.p'); continue; }
+      const poly = entityPolyline(e);
+      const hit = crossing ? poly.some((p, i) => i > 0 && touches(poly[i - 1], p)) || (poly.length === 1 && inside(poly[0])) : poly.every(inside);
+      if (hit) this.selection.add('e:' + e.id);
+    }
+  }
+
+  /** The selection box over the view: solid to the right (window), dashed to the left (crossing). */
+  drawBox() {
+    let node = this.labels?.querySelector('.ms-selbox');
+    if (!this.box) { node?.remove(); return; }
+    if (!node && this.labels) { node = el('div', { class: 'ms-selbox' }); this.labels.append(node); }
+    if (!node) return;
+    const host = this.vp.canvas.parentElement.getBoundingClientRect();
+    const { sx, sy, ex, ey } = this.box;
+    node.classList.toggle('is-crossing', ex < sx);
+    node.style.left = Math.min(sx, ex) - host.left + 'px';
+    node.style.top = Math.min(sy, ey) - host.top + 'px';
+    node.style.width = Math.abs(ex - sx) + 'px';
+    node.style.height = Math.abs(ey - sy) + 'px';
   }
 
   click(e) {
     if (this.dragging) { this.dragging = null; this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool); }
+    if (this.box) { this.box = null; this.drawBox(); this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool); }
     if (this.tool === 'select') return this.selectClick(e);
     if (this.tool === 'dimension') return this.dimensionClick(e);
     if (this.tool.startsWith('constraint:')) return this.constraintClick(e);
-    const located = this.locate(e, this.points[this.points.length - 1]?.p);
+    const [from, prev] = this.drawContext();
+    const located = this.locate(e, from, prev);
     if (!located) return;
     this.points.push(located);
     this.tryComplete();
+    this.located = null;
     this.draw();
   }
 
@@ -305,6 +426,7 @@ export class Sketcher {
   tie(ref, located) {
     if (located.ref) return [{ type: 'coincident', refs: [ref, located.ref] }];
     if (located.curve) return [{ type: 'onCurve', refs: [ref, { e: located.curve }] }];
+    if (located.mid) return [{ type: 'midpoint', refs: [ref, { e: located.mid }] }];
     return [];
   }
 
@@ -333,6 +455,8 @@ export class Sketcher {
         const cons = [...this.tie({ e: line.id, k: 'a' }, a), ...this.tie({ e: line.id, k: 'b' }, b)];
         if (b.h) cons.push({ type: 'horizontal', refs: [{ e: line.id }] });
         if (b.v) cons.push({ type: 'vertical', refs: [{ e: line.id }] });
+        const before = a.ref?.k === 'b' ? this.entities.find(x => x.id === a.ref.e && x.t === 'line') : null;
+        if (b.perp && before) cons.push({ type: 'perpendicular', refs: [{ e: before.id }, { e: line.id }] });
         this.addAll([line], cons);
         // a chain: the next line starts at the end of this one; it ends when it closes on a point that was there, or with Esc
         this.points = b.ref ? [] : [{ p: b.p, ref: { e: line.id, k: 'b' } }];
@@ -499,60 +623,78 @@ export class Sketcher {
 
   // ---- dimensions (tool D): pick one or two things, then set the value -------------------------------------------------------
 
+  /**
+   * Like OnShape: click one curve (its length / diameter / radius follows the pointer) or two things (distance or angle), move the dimension to where it
+   * should stand, click to place it, type the value.
+   */
   dimensionClick(e) {
     const p = this.local(e);
     if (!p) return;
     const hit = this.pickAt(p);
+    if (this.placing && (this.placing.final || !hit)) { this.placeDimension(e); return; }
     if (!hit) {
-      // a click on empty space after one curve: its own dimension (length, diameter, radius)
-      if (this.picks.length === 1 && this.picks[0].kind === 'curve') this.createDimension(this.picks, e);
       this.picks = [];
+      this.placing = null;
       this.cb.status(t('Sketch.Hint.dimension'));
       this.draw();
       return;
     }
     this.picks.push(hit);
+    const c = this.dimensionFor(this.picks);
     if (this.picks.length === 1) {
-      const round = hit.kind === 'curve' && ['circle', 'arc'].includes(hit.entity.t);
-      if (round) { this.createDimension(this.picks, e); this.picks = []; }
-      else this.cb.status(t(hit.kind === 'curve' ? 'Sketch.Hint.dimensionOne' : 'Sketch.Hint.dimension2'));
-      this.draw();
-      return;
+      this.placing = c ? { c, final: false } : null;
+      this.cb.status(t(c ? 'Sketch.Hint.dimensionOne' : 'Sketch.Hint.dimension2'));
+    } else {
+      this.picks = [];
+      if (!c) { this.placing = null; this.cb.status(t('Sketch.DimensionNoFit')); this.draw(); return; }
+      this.placing = { c, final: true };
+      this.cb.status(t('Sketch.Hint.dimensionPlace'));
     }
-    this.createDimension(this.picks, e);
-    this.picks = [];
-    this.cb.status(t('Sketch.Hint.dimension'));
+    if (this.placing) {
+      const shape = dimensionShape(this.entities, this.placing.c, this.vp.mmPerPixel);
+      if (shape) this.placing.c.off = [p[0] - shape.anchor[0], p[1] - shape.anchor[1]];
+    }
     this.draw();
   }
 
-  createDimension(picks, e) {
+  /** The dimension the picks ask for: { type, refs } or null. */
+  dimensionFor(picks) {
     const [a, b] = picks;
-    let c = null;
     if (picks.length === 1 || (b && a.kind === 'curve' && b.kind === 'curve' && a.ref.e === b.ref.e)) {
       const x = a.entity;
-      if (x?.t === 'line') c = { type: 'length', refs: [a.ref] };
-      else if (x?.t === 'circle') c = { type: 'diameter', refs: [a.ref] };
-      else if (x?.t === 'arc' || x?.t === 'polygon') c = { type: 'radius', refs: [a.ref] };
-    } else if (a.kind === 'point' && b.kind === 'point') c = { type: 'distance', refs: [a.ref, b.ref] };
-    else if (a.kind === 'point' || b.kind === 'point') {
-      const point = a.kind === 'point' ? a : b, curve = a.kind === 'point' ? b : a;
-      c = curve.entity?.t === 'line' ? { type: 'distance', refs: [point.ref, curve.ref] } : curve.entity?.c ? { type: 'distance', refs: [point.ref, { e: curve.ref.e, k: 'c' }] } : null;
-    } else {
-      const [x, y] = [a.entity, b.entity];
-      if (x?.t === 'line' && y?.t === 'line') {
-        const u = unit2(x), v = unit2(y);
-        c = Math.abs(u[0] * v[1] - u[1] * v[0]) < 0.02 ? { type: 'distance', refs: [a.ref, b.ref] } : { type: 'angle', refs: [a.ref, b.ref] };
-      } else if (x?.c && y?.c) c = { type: 'distance', refs: [{ e: x.id, k: 'c' }, { e: y.id, k: 'c' }] };
-      else if (x?.t === 'line' && y?.c) c = { type: 'distance', refs: [{ e: y.id, k: 'c' }, a.ref] };
-      else if (y?.t === 'line' && x?.c) c = { type: 'distance', refs: [{ e: x.id, k: 'c' }, b.ref] };
+      if (x?.t === 'line') return { type: 'length', refs: [a.ref] };
+      if (x?.t === 'circle') return { type: 'diameter', refs: [a.ref] };
+      if (x?.t === 'arc' || x?.t === 'polygon') return { type: 'radius', refs: [a.ref] };
+      return null;
     }
-    if (!c) { this.cb.status(t('Sketch.DimensionNoFit')); return; }
+    if (a.kind === 'point' && b.kind === 'point') return { type: 'distance', refs: [a.ref, b.ref] };
+    if (a.kind === 'point' || b.kind === 'point') {
+      const point = a.kind === 'point' ? a : b, curve = a.kind === 'point' ? b : a;
+      return curve.entity?.t === 'line' ? { type: 'distance', refs: [point.ref, curve.ref] } : curve.entity?.c ? { type: 'distance', refs: [point.ref, { e: curve.ref.e, k: 'c' }] } : null;
+    }
+    const [x, y] = [a.entity, b.entity];
+    if (x?.t === 'line' && y?.t === 'line') {
+      const u = unit2(x), v = unit2(y);
+      return Math.abs(u[0] * v[1] - u[1] * v[0]) < 0.02 ? { type: 'distance', refs: [a.ref, b.ref] } : { type: 'angle', refs: [a.ref, b.ref] };
+    }
+    if (x?.c && y?.c) return { type: 'distance', refs: [{ e: x.id, k: 'c' }, { e: y.id, k: 'c' }] };
+    if (x?.t === 'line' && y?.c) return { type: 'distance', refs: [{ e: y.id, k: 'c' }, a.ref] };
+    if (y?.t === 'line' && x?.c) return { type: 'distance', refs: [{ e: x.id, k: 'c' }, b.ref] };
+    return null;
+  }
+
+  /** The click that places the dimension: it becomes a constraint with the measured value, and the field opens for the real one. */
+  placeDimension(e) {
+    const { c } = this.placing;
+    this.placing = null;
+    this.picks = [];
+    this.cb.status(t('Sketch.Hint.dimension'));
     const existing = this.cons.find(x => x.type === c.type && JSON.stringify(x.refs) === JSON.stringify(c.refs));
-    if (existing) { this.editDimension(existing, e.clientX, e.clientY); return; }
+    if (existing) { existing.off = c.off; this.draw(); this.editDimension(existing, e.clientX, e.clientY); return; }
     const value = measure(this.entities, c);
-    if (value === null) { this.cb.status(t('Sketch.DimensionNoFit')); return; }
+    if (value === null) { this.cb.status(t('Sketch.DimensionNoFit')); this.draw(); return; }
     const shown = CONSTRAINTS[c.type].angle ? value : value / this.unit;
-    const dim = { id: uid('k'), ...c, value: fmt(shown, 3).replace(',', '.') };
+    const dim = { id: uid('k'), type: c.type, refs: c.refs, value: fmt(shown, 3).replace(',', '.'), off: c.off };
     this.change(() => { this.cons.push(dim); });
     this.editDimension(dim, e.clientX, e.clientY);
   }
@@ -609,7 +751,7 @@ export class Sketcher {
   /** Esc: first the field, then the picks or clicks of the tool, then the tool, then the selection. */
   escape() {
     if (this.editor) { this.closeEditor(); return; }
-    if (this.points.length || this.picks.length) { this.points = []; this.picks = []; this.draw(); return; }
+    if (this.placing || this.points.length || this.picks.length) { this.placing = null; this.points = []; this.picks = []; this.located = null; this.draw(); return; }
     if (this.tool !== 'select') { this.setTool('select'); return; }
     this.selection.clear();
     this.renderPanel();
@@ -621,23 +763,36 @@ export class Sketcher {
   draw() {
     if (!this.active) return;
     const preview = this.preview();
-    this.cb.hud(this.measureText(preview[0]));
+    this.cb.hud('');   // the length and angle of what is drawn stand at the pointer (pointerDecor)
     const picked = new Set(this.picks.map(p => (p.kind === 'point' ? 'p:' + p.ref.e + '.' + p.ref.k : 'e:' + p.ref.e)));
-    // the lines of the distance dimensions between two points, thin
-    const dimLines = this.cons.filter(c => c.type === 'distance' && c.refs[0]?.k && c.refs[1]?.k)
-      .map((c, i) => [pointOfRef(this.entities, c.refs[0]), pointOfRef(this.entities, c.refs[1]), i]).filter(([a, b]) => a && b)
-      .map(([a, b, i]) => ({ id: 'dim' + i, t: 'line', a, b, cons: true }));
+    const mm = this.vp.mmPerPixel;
+    // the dimensions as drawings: extension lines, dimension lines with arrows, leaders, arcs
+    const annotations = [];
+    for (const c of this.cons) {
+      if (!CONSTRAINTS[c.type]?.dimension) continue;
+      const shape = dimensionShape(this.entities, c, mm);
+      if (!shape) continue;
+      const state = this.analysis?.constraint.get(c.id) || 'ok';
+      annotations.push({ segs: shape.segs, state: state !== 'ok' ? 'conflict' : this.selection.has('c:' + c.id) ? 'selected' : 'ok' });
+    }
+    if (this.placing) {
+      const shape = dimensionShape(this.entities, this.placing.c, mm);
+      if (shape) annotations.push({ segs: shape.segs, state: 'preview' });
+    }
+    const drawing = DRAW_TOOLS.includes(this.tool);
     this.vp.setSketchOverlay({
       frame: this.frame,
-      entities: [...this.entities, ...dimLines],
+      entities: this.entities,
       selected: new Set([...this.selection, ...picked, ...this.constraintHighlight()]),
       hover: this.hover,
       hoverPoint: this.hoverPoint,
       status: this.analysis?.entity,
       pointStatus: this.analysis?.point,
       preview,
+      annotations,
+      guides: drawing ? this.located?.guides : null,
       origin: true,
-      snap: DRAW_TOOLS.includes(this.tool) ? this.snap : null,
+      snap: drawing ? this.located?.snap : null,
       loops: sketchLoops(this.entities),
       grid: this.gridStep(),
       gridExtent: Math.max(200, this.vp.viewHeight * 2),
@@ -676,17 +831,20 @@ export class Sketcher {
       this.labels = el('div', { class: 'ms-dims', 'aria-label': t('Sketch.Dimensions') });
       this.vp.canvas.parentElement.append(this.labels);
     }
-    const old = new Map([...this.labels.children].map(n => [n.dataset.id, n]));
+    const old = new Map([...this.labels.children].filter(n => n.dataset.id).map(n => [n.dataset.id, n]));
     const stack = new Map();
+    const mm = this.vp.mmPerPixel;
+    const placing = this.placing ? [{ ...this.placing.c, id: '__placing' }] : [];
     const touched = new Set([this.hover, this.hoverPoint?.split('.')[0], ...[...this.selection].filter(k => k.startsWith('e:') || k.startsWith('p:')).map(k => k.slice(2).split('.')[0])]);
-    for (const c of this.cons) {
+    for (const c of [...this.cons, ...placing]) {
       const kind = CONSTRAINTS[c.type];
       if (!kind) continue;
       const state = this.analysis?.constraint.get(c.id) || 'ok';
+      const shape = kind.dimension ? dimensionShape(this.entities, c, mm) : null;
       // the coincident dots only where one looks (hover, selection) or when they are wrong, else the sketch is full of dots
       const dot = c.type === 'coincident' || c.type === 'onCurve';
       const quiet = dot && !(c.refs || []).some(r => touched.has(r?.e)) && !this.selection.has('c:' + c.id);
-      const at = anchorOf(this.entities, c);
+      const at = kind.dimension ? shape?.label : anchorOf(this.entities, c);
       let node = old.get(c.id);
       old.delete(c.id);
       if (!at || (quiet && state === 'ok')) { node?.remove(); continue; }
@@ -698,7 +856,7 @@ export class Sketcher {
       if (kind.dimension) {
         const value = measure(this.entities, c);
         const shown = value === null ? '' : kind.angle ? fmt(value, 2) + '°' : fmt(value / this.unit, 3);
-        const plain = /^[-+]?\d*[.,]?\d+$/.test(String(c.value).trim());
+        const plain = c.value === undefined || /^[-+]?\d*[.,]?\d+$/.test(String(c.value).trim());
         const prefix = { diameter: 'Ø ', radius: 'R ' }[c.type] || '';
         node.textContent = prefix + (plain ? shown : `${c.value} = ${shown}`);
       } else {
@@ -708,7 +866,8 @@ export class Sketcher {
       node.classList.toggle('is-conflict', state !== 'ok');
       node.classList.toggle('is-selected', this.selection.has('c:' + c.id));
       node.classList.toggle('is-dot', dot);
-      const s = this.vp.project(toWorld(this.frame, at[0] + (c.off?.[0] || 0), at[1] + (c.off?.[1] || 0)));
+      node.classList.toggle('is-preview', c.id === '__placing');
+      const s = this.vp.project(toWorld(this.frame, at[0], at[1]));
       let x = s.x, y = s.y;
       if (!kind.dimension) {
         const key = `${Math.round(s.x / 6)}:${Math.round(s.y / 6)}`;
@@ -719,24 +878,48 @@ export class Sketcher {
       node.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -50%)`;
     }
     old.forEach(n => n.remove());
+    this.pointerDecor();
   }
 
-  /** A label: a click selects the constraint (a dimension also opens its field), a drag moves the value of a dimension away from its place. */
+  /** At the pointer while drawing: the symbol of what it snaps to (as OnShape shows it) and the length and angle of what is drawn. */
+  pointerDecor() {
+    // while a dimension is placed or a drawing tool draws, labels and symbols let clicks through to the sketch (a click on them would take the wrong thing)
+    this.labels.classList.toggle('is-busy', !!this.placing || DRAW_TOOLS.includes(this.tool));
+    let glyph = this.labels.querySelector('.ms-snapglyph'), hud = this.labels.querySelector('.ms-drawhud');
+    if (!glyph) { glyph = el('span', { class: 'ms-snapglyph', 'aria-hidden': 'true' }); hud = el('span', { class: 'ms-drawhud mat-mono', 'aria-hidden': 'true' }); this.labels.append(glyph, hud); }
+    const drawing = DRAW_TOOLS.includes(this.tool) && this.pointer && this.located;
+    const host = this.vp.canvas.parentElement.getBoundingClientRect();
+    const x = (this.pointer?.x ?? 0) - host.left, y = (this.pointer?.y ?? 0) - host.top;
+    const symbol = drawing && this.located.glyph ? CONSTRAINTS[this.located.glyph]?.glyph : '';
+    glyph.hidden = !symbol;
+    if (symbol) {
+      glyph.textContent = symbol;
+      glyph.title = t('Sketch.Constraint.' + this.located.glyph);
+      glyph.classList.toggle('is-dot', this.located.glyph === 'coincident' || this.located.glyph === 'onCurve');
+      glyph.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 12)}px)`;
+    }
+    const text = drawing && this.points.length ? this.measureText(this.preview()[0]) : '';
+    hud.hidden = !text;
+    if (text) { hud.textContent = text; hud.style.transform = `translate(${Math.round(x + 16)}px, ${Math.round(y - 30)}px)`; }
+  }
+
+  /** A label: a click selects the constraint (a dimension also opens its field), a drag moves a dimension to another place (its lines follow). */
   labelDown(ev, node) {
     ev.stopPropagation();
     ev.preventDefault();
     const c = this.cons.find(x => x.id === node.dataset.id);
     if (!c) return;
-    const start = { x: ev.clientX, y: ev.clientY, off: [...(c.off || [0, 0])] };
+    const start = { x: ev.clientX, y: ev.clientY };
     let moved = false;
-    const mm = this.vp.mmPerPixel;
     const onMove = e => {
-      const dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (!moved && Math.hypot(dx, dy) < 4) return;
+      if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
       if (!CONSTRAINTS[c.type].dimension) return;
+      if (!moved) this.remember();
       moved = true;
-      c.off = [start.off[0] + dx * mm, start.off[1] - dy * mm];
-      this.placeLabels();
+      const p = this.local({ ndc: this.vp.ndc(e.clientX, e.clientY) });
+      const shape = p && dimensionShape(this.entities, c, this.vp.mmPerPixel);
+      if (shape) c.off = [p[0] - shape.anchor[0], p[1] - shape.anchor[1]];
+      this.draw();
     };
     const onUp = e => {
       window.removeEventListener('pointermove', onMove);
@@ -809,6 +992,127 @@ export class Sketcher {
     input.addEventListener('keydown', ev => ev.stopPropagation());
     return el('div', { class: 'mat-field ms-field-sm' }, el('label', { class: 'mat-label', for: 'ms-sides' }, t('Sketch.Sides')), input);
   }
+}
+
+// ---- the drawing of a dimension ------------------------------------------------------------------------------------------------
+
+const V = {
+  add: (a, b) => [a[0] + b[0], a[1] + b[1]],
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1]],
+  mul: (a, k) => [a[0] * k, a[1] * k],
+  dot: (a, b) => a[0] * b[0] + a[1] * b[1],
+  len: a => Math.hypot(a[0], a[1]),
+  unit: a => { const l = Math.hypot(a[0], a[1]); return l > 1e-12 ? [a[0] / l, a[1] / l] : [1, 0]; },
+};
+
+/** Two short strokes of an arrow head: the tip, the direction back along the line, its normal, the size. */
+function arrow(tip, back, n, s) {
+  return [[tip, V.add(tip, V.add(V.mul(back, s), V.mul(n, s * 0.32)))], [tip, V.add(tip, V.sub(V.mul(back, s), V.mul(n, s * 0.32)))]];
+}
+
+function footOn(p, line) {
+  const u = unit2(line);
+  return V.add(line.a, V.mul(u, V.dot(V.sub(p, line.a), u)));
+}
+
+/** The two points a linear dimension measures between (length of a line, distance of points, of a point to a line, of two parallel lines). */
+function linearEnds(entities, c) {
+  const E = r => entities.find(e => e.id === r?.e);
+  const [r1, r2] = c.refs || [];
+  if (c.type === 'length') { const l = E(r1); return l?.t === 'line' ? [l.a, l.b] : null; }
+  if (!['distance', 'hdistance', 'vdistance'].includes(c.type)) return null;
+  const p1 = r1?.k ? pointOfRef(entities, r1) : null, p2 = r2?.k ? pointOfRef(entities, r2) : null;
+  const l1 = r1?.k ? null : E(r1), l2 = r2?.k ? null : E(r2);
+  if (p1 && p2) return [p1, p2];
+  if (p1 && l2?.t === 'line') return [p1, footOn(p1, l2)];
+  if (p2 && l1?.t === 'line') return [footOn(p2, l1), p2];
+  if (l1?.t === 'line' && l2?.t === 'line') { const m = [(l1.a[0] + l1.b[0]) / 2, (l1.a[1] + l1.b[1]) / 2]; return [m, footOn(m, l2)]; }
+  return null;
+}
+
+/**
+ * How a dimension is drawn, in the coordinates of the sketch: { segs: [[p, q]], label, anchor }. c.off is where the value stands, relative to the anchor
+ * (the middle of what is measured, the centre of a circle, the corner of an angle); the lines follow it. mm = millimetres per pixel (sizes of arrows, gaps).
+ */
+export function dimensionShape(entities, c, mm) {
+  const s = 9 * mm, gap = 3 * mm, ext = 6 * mm;
+  const E = r => entities.find(e => e.id === r?.e);
+  const off = c.off && V.len(c.off) > 1e-9 ? c.off : null;
+  if (c.type === 'radius' || c.type === 'diameter') {
+    const e = E(c.refs?.[0]);
+    if (!e?.c) return null;
+    const o = off || V.mul([0.7071, 0.7071], e.r + 16 * mm);
+    const d = V.unit(o), n = [-d[1], d[0]];
+    const A = V.add(e.c, V.mul(d, e.r));
+    const B = c.type === 'diameter' ? V.sub(e.c, V.mul(d, e.r)) : e.c;
+    const label = V.add(e.c, o);
+    const segs = [[B, A], ...arrow(A, V.mul(d, -1), n, s)];
+    if (c.type === 'diameter') segs.push(...arrow(B, d, n, s));
+    if (V.len(o) > e.r) segs.push([A, label]);
+    return { segs, label, anchor: e.c };
+  }
+  if (c.type === 'angle') {
+    const l1 = E(c.refs?.[0]), l2 = E(c.refs?.[1]);
+    if (l1?.t !== 'line' || l2?.t !== 'line') return null;
+    const u = unit2(l1), v = unit2(l2), den = u[0] * v[1] - u[1] * v[0];
+    if (Math.abs(den) < 1e-9) return null;
+    const w = V.sub(l2.a, l1.a), t1 = (w[0] * v[1] - w[1] * v[0]) / den;
+    const O = V.add(l1.a, V.mul(u, t1));
+    const away = l => V.unit(V.sub(V.len(V.sub(l.a, O)) > V.len(V.sub(l.b, O)) ? l.a : l.b, O));
+    let d1 = away(l1), d2 = away(l2);
+    const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
+    const within = (a, b, x) => cross(a, x) * cross(a, b) >= 0 && cross(x, b) * cross(a, b) >= 0 && V.dot(x, V.add(a, b)) > 0;
+    if (off) {
+      const x = V.unit(off);
+      const options = [[d1, d2], [V.mul(d1, -1), d2], [d1, V.mul(d2, -1)], [V.mul(d1, -1), V.mul(d2, -1)]];
+      const fit = options.find(([a, b]) => within(a, b, x));
+      if (fit) [d1, d2] = fit;
+    }
+    const R = off ? Math.max(10 * mm, V.len(off)) : 34 * mm;
+    let a1 = Math.atan2(d1[1], d1[0]), da = Math.atan2(d2[1], d2[0]) - a1;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    const segs = [];
+    const at = k => V.add(O, V.mul([Math.cos(a1 + da * k), Math.sin(a1 + da * k)], R));
+    for (let i = 0; i < 24; i++) segs.push([at(i / 24), at((i + 1) / 24)]);
+    const tangent = k => { const a = a1 + da * k; return [-Math.sin(a) * Math.sign(da), Math.cos(a) * Math.sign(da)]; };
+    const radial = k => [Math.cos(a1 + da * k), Math.sin(a1 + da * k)];
+    segs.push(...arrow(at(0), tangent(0), radial(0), s), ...arrow(at(1), V.mul(tangent(1), -1), radial(1), s));
+    // extension of the lines to the arc when the arc lies beyond them
+    for (const [l, dir] of [[l1, d1], [l2, d2]]) {
+      const reach = Math.max(V.dot(V.sub(l.a, O), dir), V.dot(V.sub(l.b, O), dir));
+      if (reach < R) segs.push([V.add(O, V.mul(dir, Math.max(0, reach) + gap)), V.add(O, V.mul(dir, R + ext))]);
+    }
+    const label = off ? V.add(O, off) : V.add(O, V.mul(V.unit(V.add(d1, d2)), R + 12 * mm));
+    return { segs, label, anchor: O };
+  }
+  const ends = linearEnds(entities, c);
+  if (!ends) return null;
+  const [P, Q] = ends;
+  const u = c.type === 'hdistance' ? [1, 0] : c.type === 'vdistance' ? [0, 1] : V.unit(V.sub(Q, P));
+  const n = [-u[1], u[0]];
+  const M = V.mul(V.add(P, Q), 0.5);
+  const o = off || V.mul(n, 18 * mm);
+  const d = V.dot(o, n);
+  const base = V.add(M, V.mul(n, d));
+  const onLine = X => V.add(X, V.mul(n, V.dot(V.sub(base, X), n)));
+  const P2 = onLine(P), Q2 = onLine(Q);
+  const segs = [];
+  for (const [X, X2] of [[P, P2], [Q, Q2]]) {
+    const L = V.dot(V.sub(X2, X), n), sg = Math.sign(L) || 1;
+    if (Math.abs(L) > gap) segs.push([V.add(X, V.mul(n, sg * gap)), V.add(X2, V.mul(n, sg * ext))]);
+  }
+  segs.push([P2, Q2]);
+  const along = V.sub(Q2, P2), span = V.len(along);
+  if (span > 1e-9) {
+    const k = V.unit(along);
+    segs.push(...arrow(P2, k, n, Math.min(s, span / 3)), ...arrow(Q2, V.mul(k, -1), n, Math.min(s, span / 3)));
+    const label = V.add(M, o);
+    const tl = V.dot(V.sub(label, P2), k);
+    if (tl < 0) segs.push([V.add(P2, V.mul(k, tl)), P2]);
+    if (tl > span) segs.push([Q2, V.add(P2, V.mul(k, tl))]);
+  }
+  return { segs, label: V.add(M, o), anchor: M };
 }
 
 // ---- helpers ------------------------------------------------------------------------------------------------------------------

@@ -77,15 +77,23 @@
     </div>
 
     @* the feature tools (OnShape-like: a row of tools over the work area); hidden while a sketch is edited *@
-    <div class="ms-tools" role="toolbar" aria-label="@L["Studio.Tools"]" data-toolbar="features">
+    <div class="ms-tools ms-tools--icons" role="toolbar" aria-label="@L["Studio.Tools"]" data-toolbar="features">
         @if (canEdit)
         {
             <button type="button" class="ms-tool" data-feature="sketch" data-tip="@L["Feature.sketch"] (Shift+S)">@Ui.Icon("sketch")<span>@L["Feature.sketch"]</span></button>
             <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="extrude" data-tip="@L["Feature.extrude"] (Shift+E)">@Ui.Icon("extrude")<span>@L["Feature.extrude"]</span></button>
             <button type="button" class="ms-tool" data-feature="revolve" data-tip="@L["Feature.revolve"] (Shift+W)">@Ui.Icon("revolve")<span>@L["Feature.revolve"]</span></button>
+            <button type="button" class="ms-tool" data-feature="sweep" data-tip="@L["Feature.sweep"]">@Ui.Icon("sweep")<span>@L["Feature.sweep"]</span></button>
+            <button type="button" class="ms-tool" data-feature="loft" data-tip="@L["Feature.loft"]">@Ui.Icon("loft")<span>@L["Feature.loft"]</span></button>
+            <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="fillet" data-tip="@L["Feature.fillet"] (Shift+F)">@Ui.Icon("fillet")<span>@L["Feature.fillet"]</span></button>
             <button type="button" class="ms-tool" data-feature="chamfer" data-tip="@L["Feature.chamfer"]">@Ui.Icon("chamfer")<span>@L["Feature.chamfer"]</span></button>
+            <button type="button" class="ms-tool" data-feature="hole" data-tip="@L["Feature.hole"]">@Ui.Icon("hole")<span>@L["Feature.hole"]</span></button>
+            <button type="button" class="ms-tool" data-feature="shell" data-tip="@L["Feature.shell"]">@Ui.Icon("shell")<span>@L["Feature.shell"]</span></button>
+            <button type="button" class="ms-tool" data-feature="rib" data-tip="@L["Feature.rib"]">@Ui.Icon("rib")<span>@L["Feature.rib"]</span></button>
+            <button type="button" class="ms-tool" data-feature="draft" data-tip="@L["Feature.draft"]">@Ui.Icon("draft")<span>@L["Feature.draft"]</span></button>
+            <button type="button" class="ms-tool" data-feature="thread" data-tip="@L["Feature.thread"]">@Ui.Icon("thread")<span>@L["Feature.thread"]</span></button>
             <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="boolean" data-tip="@L["Feature.boolean"]">@Ui.Icon("boolean")<span>@L["Feature.boolean"]</span></button>
             <button type="button" class="ms-tool" data-feature="split" data-tip="@L["Feature.split"]">@Ui.Icon("split")<span>@L["Feature.split"]</span></button>

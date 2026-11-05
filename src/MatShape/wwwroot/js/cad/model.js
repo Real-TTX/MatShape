@@ -3,11 +3,12 @@
    A feature that fails gets an error and is left out; the ones after it still run (they may fail too when they needed it). */
 
 import { evalAngle, evalLength, evalNumber, evalVariable, errorKey, ExprError, isVariableName } from './expr.js';
-import { AXES, STANDARD_PLANES, distToEntity, distToSegment, frameMatrix, mirrorMatrix, polygonPoints, rectPoints, rotationMatrix, sketchLoops, toWorld, v3, offsetFrame } from './geom.js';
+import { AXES, STANDARD_PLANES, distToEntity, distToSegment, entityPolyline, frameMatrix, mirrorMatrix, polygonPoints, rectPoints, rotationMatrix, sketchLoops, toLocal, toWorld, v3, offsetFrame } from './geom.js';
 import { UNITS } from './util.js';
 import { CONSTRAINTS, constraintsOf, solveSketch } from './sketchsolve.js';
 import { distToSegment3, topology } from './topo.js';
 import { blendTools } from './blend.js';
+import { axisOfFace, holeProfile, loftMesh, loftRings, offsetVertices, pathFrames, sweepMesh, threadTool } from './solids.js';
 
 /** The face numbers the model gives (every triangle carries one); smaller numbers are ones the kernel made itself. */
 export const FACE_BASE = 1 << 20;
@@ -48,6 +49,15 @@ export const FEATURES = {
   // edges: [{ part, faces: [face, face], at }] an edge (by the names of its two faces, at = where it was picked), { part, face } every edge of a face, { part } every edge of a part
   fillet: { icon: 'fillet', params: () => ({ edges: [], radius: '2' }) },
   chamfer: { icon: 'chamfer', params: () => ({ edges: [], mode: 'equal', distance: '1', distance2: '2', flip: false }) },
+  // hole: at every point (and circle centre) of a sketch, into the material (against the normal of the sketch plane)
+  hole: { icon: 'hole', params: () => ({ sketch: null, kind: 'simple', diameter: '6', end: 'through', depth: '10', cbDiameter: '11', cbDepth: '6', csDiameter: '12', csAngle: '90', tipAngle: '118', flip: false, thread: false, pitch: '1', scope: null }) },
+  // shell: faces (refs like the edges of a fillet: { part, face }) are opened, the rest becomes a wall; { part } alone: a closed hollow part
+  shell: { icon: 'shell', params: () => ({ faces: [], thickness: '2' }) },
+  rib: { icon: 'rib', params: () => ({ sketch: null, thickness: '3', flip: false, scope: null }) },
+  sweep: { icon: 'sweep', params: () => ({ sketch: null, profiles: null, path: null, op: 'new', scope: null }) },
+  loft: { icon: 'loft', params: () => ({ sketches: [], op: 'new', scope: null }) },
+  draft: { icon: 'draft', params: () => ({ faces: [], neutral: { kind: 'std', name: 'top' }, angle: '3', flip: false }) },
+  thread: { icon: 'thread', params: () => ({ faces: [], pitch: '1.5', depth: '', length: '', flip: false, left: false }) },
 };
 
 class FeatureError extends Error {
@@ -408,6 +418,184 @@ export function regenerate(kernel, content, units = 'mm') {
     },
 
     fillet(f) { return blend(f); },
+
+    hole(f) {
+      const p = f.params;
+      const sketch = ctx.sketches.get(p.sketch);
+      if (!sketch) throw new FeatureError(p.sketch ? 'Feature.MissingSketch' : 'Feature.NoSketch');
+      ctx.used.add(p.sketch);
+      const at = sketch.entities.filter(e => e.t === 'point' || e.t === 'circle').map(e => e.p || e.c);
+      if (!at.length) throw new FeatureError('Feature.NoHolePoints');
+      const r = len(p.diameter) / 2;
+      if (!(r > 0)) throw new FeatureError('Feature.DiameterPositive');
+      const through = p.end === 'through';
+      const spec = { kind: p.kind || 'simple', r, through, depth: through ? extent() : len(p.depth), tipAngle: through ? 0 : ang(p.tipAngle || '118') };
+      if (spec.kind === 'cbore') { spec.cbR = len(p.cbDiameter) / 2; spec.cbDepth = len(p.cbDepth); }
+      if (spec.kind === 'csink') { spec.csR = len(p.csDiameter) / 2; spec.csAngle = ang(p.csAngle || '90'); }
+      if (!through && !(spec.depth > 0)) throw new FeatureError('Feature.DepthPositive');
+      const profile = holeProfile(spec);
+      // the faces of the hole: named after the piece of the profile they were turned from
+      const segName = (c) => {
+        const q = [Math.hypot(c[0], c[1]), c[2]];
+        let best = 0, bd = Infinity;
+        profile.forEach((a, k) => { const d = distToSegment(q, a, profile[(k + 1) % profile.length]); if (d < bd) { bd = d; best = k; } });
+        return `${f.id}:${best}`;
+      };
+      const tool = labelled(keep(new CrossSection([profile]).revolve(48, 360)), segName);
+      const fr = sketch.frame, s = p.flip ? -1 : 1;
+      const tools = at.map(q => {
+        const o = toWorld(fr, q[0], q[1]);
+        const x = v3.scale(fr.x, s), n = v3.scale(fr.n, s);
+        return keep(tool.transform([x[0], x[1], x[2], 0, fr.y[0], fr.y[1], fr.y[2], 0, n[0], n[1], n[2], 0, o[0], o[1], o[2], 1]));
+      });
+      apply(f.id, keep(Manifold.union(tools)), 'remove', p.scope);
+      // a tapped hole: the thread is cut into its wall (internal, 60°)
+      if (p.thread) {
+        const pitch = len(p.pitch);
+        if (!(pitch > 0)) throw new FeatureError('Feature.PitchPositive');
+        const reach = through ? extentOfParts(fr) : spec.depth;
+        const threads = at.map(q => {
+          const o = toWorld(fr, q[0], q[1]);
+          const axis = { o, a: v3.scale(fr.n, -s), u: fr.x, v: v3.scale(fr.y, s), r, outward: false };
+          return solidOf(threadTool(axis, { pitch, depth: 0.5413 * pitch, from: through ? -reach : 0, to: reach, left: false }), () => `${f.id}:thread`);
+        });
+        for (const part of (p.scope?.length ? findParts(p.scope) : ctx.parts)) {
+          const next = keep(part.manifold.subtract(keep(Manifold.union(threads))));
+          if (!next.isEmpty()) part.manifold = next;
+        }
+      }
+    },
+
+    shell(f) {
+      const p = f.params;
+      const t = len(p.thickness);
+      if (!(t > 0)) throw new FeatureError('Feature.ThicknessPositive');
+      const byPart = facesByPart(p.faces);
+      if (!byPart.size) throw new FeatureError('Feature.NoFaces');
+      for (const [part, open] of byPart) {
+        const topo = topology(part.manifold.getMesh());
+        const inner = offsetVertices(topo, face => (open.has(face) ? t : -t));
+        const ids = Uint32Array.from(topo.fid, n => faceNum(`${f.id}:in:${keyOf(n)}`));
+        const cavity = keep(new Manifold(new Mesh({ numProp: 3, vertProperties: inner, triVerts: topo.tv, faceID: ids })));
+        if (cavity.status() !== 'NoError' || cavity.isEmpty()) throw new FeatureError('Feature.ShellFailed');
+        const next = keep(part.manifold.subtract(cavity));
+        if (next.isEmpty()) throw new FeatureError('Feature.ShellFailed');
+        part.manifold = next;
+      }
+    },
+
+    rib(f) {
+      const p = f.params;
+      const sketch = ctx.sketches.get(p.sketch);
+      if (!sketch) throw new FeatureError(p.sketch ? 'Feature.MissingSketch' : 'Feature.NoSketch');
+      ctx.used.add(p.sketch);
+      const t = len(p.thickness);
+      if (!(t > 0)) throw new FeatureError('Feature.ThicknessPositive');
+      const targets = p.scope?.length ? findParts(p.scope) : ctx.parts.slice();
+      if (!targets.length) throw new FeatureError('Feature.NoParts');
+      // the region between the rib line and the parts: the side of the line towards the parts, in a slab as thick as the rib, within the hull of the parts
+      const hull = keep(Manifold.hull(targets.map(x => x.manifold)));
+      const L = extent();
+      const regions = [];
+      const slabOf = poly => keep(keep(keep(keep(new CrossSection([poly])).extrude(t)).translate([0, 0, -t / 2])).transform(frameMatrix(sketch.frame)));
+      const ccw = poly => { let s = 0; poly.forEach((q, k) => { const w = poly[(k + 1) % poly.length]; s += q[0] * w[1] - w[0] * q[1]; }); return s < 0 ? poly.reverse() : poly; };
+      const material = poly => { const m = keep(slabOf(ccw(poly.map(q => [...q]))).intersect(Manifold.union(targets.map(x => x.manifold)))); return m.volume(); };
+      for (const e of sketch.entities.filter(x => !x.cons && x.t !== 'point')) {
+        const pts = entityPolyline(e);
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (l < 1e-9) continue;
+          const d = [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+          const side = n => [[a[0] - d[0] * L, a[1] - d[1] * L], [b[0] + d[0] * L, b[1] + d[1] * L], [b[0] + d[0] * L + n[0] * L, b[1] + d[1] * L + n[1] * L], [a[0] - d[0] * L + n[0] * L, a[1] - d[1] * L + n[1] * L]];
+          const n = [-d[1], d[0]], m = [d[1], -d[0]];
+          let toward = material(side(n)) >= material(side(m)) ? n : m;
+          if (p.flip) toward = toward === n ? m : n;
+          regions.push(ccw(side(toward)));
+        }
+      }
+      if (!regions.length) throw new FeatureError('Feature.NoRibCurve');
+      let body = labelled(keep(Manifold.union(regions.map(slabOf))), () => `${f.id}:side`);
+      body = keep(body.intersect(hull));
+      apply(f.id, body, 'add', p.scope);
+    },
+
+    sweep(f) {
+      const p = f.params;
+      const { cs, sketch } = section(p.sketch, p.profiles);
+      const pathSketch = ctx.sketches.get(p.path);
+      if (!pathSketch) throw new FeatureError(p.path ? 'Feature.MissingSketch' : 'Feature.NoPath');
+      ctx.used.add(p.path);
+      const path = pathOf(pathSketch);
+      if (!path) throw new FeatureError('Feature.NoPath');
+      const frames = pathFrames(path.points, sketch.frame.x);
+      const f0 = frames[0];
+      const polygons = cs.toPolygons().map(l => l.map(q => [q[0], q[1]]));
+      const loops = polygons.map(l => l.map(q => { const w = v3.sub(toWorld(sketch.frame, q[0], q[1]), f0.p); return [v3.dot(w, f0.n), v3.dot(w, f0.b), v3.dot(w, f0.t)]; }));
+      const caps = path.closed ? null : kernel.triangulate(polygons, 1e-6).flat();
+      const mesh = sweepMesh(frames, loops, caps, path.closed);
+      const body = solidOf(mesh, (k, side) => `${f.id}:${side === -1 ? 'start' : side === -2 ? 'end' : 'side' + side}`);
+      apply(f.id, body, p.op || 'new', p.scope);
+    },
+
+    loft(f) {
+      const p = f.params;
+      const ids = (p.sketches || []).filter(id => ctx.sketches.has(id));
+      if (ids.length < 2) throw new FeatureError('Feature.LoftTwo');
+      const profiles = ids.map(id => {
+        ctx.used.add(id);
+        const s = ctx.sketches.get(id);
+        // the biggest closed profile of each sketch
+        const loop = [...s.loops].sort((a, b) => Math.abs(areaOf(b.points)) - Math.abs(areaOf(a.points)))[0];
+        if (!loop) throw new FeatureError('Feature.NoProfile');
+        return { frame: s.frame, pts: loop.points.map(q => toWorld(s.frame, q[0], q[1])) };
+      });
+      const n = Math.min(240, Math.max(64, ...profiles.map(x => x.pts.length)));
+      const rings = loftRings(profiles.map(x => x.pts), n);
+      const cap = (ring, frame) => kernel.triangulate([ring.map(q => toLocal(frame, q))], 1e-6).flat();
+      const mesh = loftMesh(rings, cap(rings[0], profiles[0].frame), cap(rings[rings.length - 1], profiles[profiles.length - 1].frame));
+      const body = solidOf(mesh, (k, side) => `${f.id}:${side === -1 ? 'start' : side === -2 ? 'end' : 'side'}`);
+      apply(f.id, body, p.op || 'new', p.scope);
+    },
+
+    draft(f) {
+      const p = f.params;
+      const byPart = facesByPart(p.faces);
+      if (!byPart.size) throw new FeatureError('Feature.NoFaces');
+      const neutral = plane(p.neutral);
+      const pull = p.flip ? v3.scale(neutral.n, -1) : neutral.n;
+      const k = Math.tan(ang(p.angle) * Math.PI / 180);
+      for (const [part, faces] of byPart) {
+        const topo = topology(part.manifold.getMesh());
+        // a face is turned about the line where it meets the neutral plane: its points move inwards by their height times the tangent of the angle
+        const moved = offsetVertices(topo, (face, q) => (faces.has(face) ? -v3.dot(v3.sub(q, neutral.o), pull) * k : 0));
+        const m = keep(new Manifold(new Mesh({ numProp: 3, vertProperties: moved, triVerts: topo.tv, faceID: topo.fid })));
+        if (m.status() !== 'NoError' || m.isEmpty()) throw new FeatureError('Feature.DraftFailed');
+        part.manifold = m;
+      }
+    },
+
+    thread(f) {
+      const p = f.params;
+      const byPart = facesByPart(p.faces);
+      if (!byPart.size) throw new FeatureError('Feature.NoFaces');
+      const pitch = len(p.pitch);
+      if (!(pitch > 0)) throw new FeatureError('Feature.PitchPositive');
+      for (const [part, faces] of byPart) {
+        const topo = topology(part.manifold.getMesh());
+        const tools = [];
+        for (const face of faces) {
+          const axis = axisOfFace(topo, face);
+          if (!axis || !(axis.r > 0)) throw new FeatureError('Feature.NotRound');
+          const depth = p.depth ? len(p.depth) : (axis.outward ? 0.6134 : 0.5413) * pitch;
+          const reach = p.length ? Math.min(len(p.length), axis.z1 - axis.z0) : axis.z1 - axis.z0;
+          const [from, to] = p.flip ? [axis.z1 - reach, axis.z1 + pitch] : [axis.z0 - pitch, axis.z0 + reach];
+          tools.push(solidOf(threadTool(axis, { pitch, depth, from, to, left: !!p.left }), () => `${f.id}:thread`));
+        }
+        const next = keep(part.manifold.subtract(keep(Manifold.union(tools))));
+        if (next.isEmpty()) throw new FeatureError('Feature.EmptyBody');
+        part.manifold = next;
+      }
+    },
     chamfer(f) { return blend(f); },
   };
 
@@ -473,6 +661,62 @@ export function regenerate(kernel, content, units = 'mm') {
     }
     if (missing) return { state: 'warn', key: 'Feature.EdgesMissing', args: [missing] };
   };
+
+  /** A solid from a mesh of solids.js; nameOf(triangle, side) names its faces. */
+  const solidOf = (mesh, nameOf) => {
+    const ids = new Uint32Array(mesh.triVerts.length / 3);
+    for (let t = 0; t < ids.length; t++) ids[t] = faceNum(nameOf(t, mesh.side?.[t]));
+    const m = keep(new Manifold(new Mesh({ numProp: 3, vertProperties: mesh.vertProperties, triVerts: mesh.triVerts, faceID: ids })));
+    if (m.status() !== 'NoError' || m.isEmpty()) throw new FeatureError('Feature.BodyFailed');
+    return m;
+  };
+
+  /** Face references ({ part, face } or { part }) as the parts with the numbers of those faces (an empty set: the part as a whole). */
+  const facesByPart = refs => {
+    const out = new Map();
+    for (const ref of Array.isArray(refs) ? refs : []) {
+      const part = ctx.parts.find(x => x.id === ref?.part) || (ref?.face ? ctx.parts.find(x => x.manifold && hasFace(x, ref.face)) : null);
+      if (!part) continue;
+      if (!out.has(part)) out.set(part, new Set());
+      if (ref.face && ctx.faceNums.has(ref.face)) out.get(part).add(ctx.faceNums.get(ref.face));
+    }
+    return out;
+  };
+  const hasFace = (part, name) => { const n = ctx.faceNums.get(name); return n !== undefined && part.manifold.getMesh().faceID?.includes(n); };
+
+  /** The reach of the parts along the normal of a frame, both ways from it (for threads through all). */
+  const extentOfParts = fr => {
+    let r = 1;
+    for (const x of ctx.parts) { const b = x.manifold.boundingBox(); for (let k = 0; k < 8; k++) { const c = [k & 1 ? b.max[0] : b.min[0], k & 2 ? b.max[1] : b.min[1], k & 4 ? b.max[2] : b.min[2]]; r = Math.max(r, Math.abs(v3.dot(v3.sub(c, fr.o), fr.n))); } }
+    return r;
+  };
+
+  /** The path of a sweep: the curves of a sketch joined end to end, in the world: { points, closed } or null. */
+  const pathOf = sketch => {
+    const pieces = sketch.entities.filter(e => !e.cons && ['line', 'arc', 'spline'].includes(e.t)).map(e => entityPolyline(e));
+    if (!pieces.length) return null;
+    const same = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
+    // start at a free end (if there is one)
+    const ends = pieces.flatMap(q => [q[0], q[q.length - 1]]);
+    let first = pieces.findIndex(q => ends.filter(e => same(e, q[0])).length === 1);
+    if (first < 0) first = 0;
+    const used = new Set([first]);
+    let pts = pieces[first].slice();
+    for (;;) {
+      const tail = pts[pts.length - 1];
+      const k = pieces.findIndex((q, i) => !used.has(i) && (same(q[0], tail) || same(q[q.length - 1], tail)));
+      if (k < 0) break;
+      used.add(k);
+      const q = same(pieces[k][0], tail) ? pieces[k] : pieces[k].slice().reverse();
+      pts = pts.concat(q.slice(1));
+    }
+    const closed = pts.length > 3 && same(pts[0], pts[pts.length - 1]);
+    if (closed) pts.pop();
+    const out = [];
+    for (const q of pts) if (!out.length || !same(out[out.length - 1], q)) out.push(q);
+    return out.length >= 2 ? { points: out.map(q => toWorld(sketch.frame, q[0], q[1])), closed } : null;
+  };
+  const areaOf = pts => pts.reduce((s, q, i) => { const w = pts[(i + 1) % pts.length]; return s + q[0] * w[1] - w[0] * q[1]; }, 0) / 2;
 
   /** The edges of a part a reference means (see FEATURES.fillet). */
   const edgesOf = (topo, ref, part) => {

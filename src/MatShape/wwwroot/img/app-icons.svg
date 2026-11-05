@@ -79,4 +79,13 @@
   <symbol id="mat-i-trim" viewBox="0 0 24 24"><path d='M3 12h6M15 12h6'/><path d='M9 12h6' stroke-dasharray='1.5 1.8'/><path d='M9 4v16M15 4v16'/></symbol>
   <symbol id="mat-i-offset" viewBox="0 0 24 24"><path d='M5 19V9a4 4 0 0 1 4-4h10'/><path d='M9 19v-8a2 2 0 0 1 2-2h8' stroke-dasharray='2 1.8'/></symbol>
   <symbol id="mat-i-symmetric" viewBox="0 0 24 24"><path d='M12 3v18' stroke-dasharray='2.4 1.8'/><circle cx='6' cy='12' r='2'/><circle cx='18' cy='12' r='2'/><path d='M8.5 12h1.5M14 12h1.5'/></symbol>
+  <symbol id="mat-i-sweep" viewBox="0 0 24 24"><path d='M4 19c0-7 5-10 12-10h4'/><ellipse cx='4' cy='19' rx='2.2' ry='1.2'/><path d='M18 6.5 20.5 9 18 11.5'/></symbol>
+  <symbol id="mat-i-loft" viewBox="0 0 24 24"><path d='M4 19h10l-3-14H7z'/><path d='M4 19 7 5M14 19 11 5' opacity='.5'/><ellipse cx='9' cy='5' rx='2' ry='.9'/></symbol>
+  <symbol id="mat-i-hole" viewBox="0 0 24 24"><path d='M3 8h18v11H3z'/><path d='M10 8v8l2 2 2-2V8' stroke-dasharray='2 1.6'/></symbol>
+  <symbol id="mat-i-hole-cbore" viewBox="0 0 24 24"><path d='M3 8h18v11H3z'/><path d='M8 8v3h2.5v7h3v-7H16V8' stroke-dasharray='2 1.6'/></symbol>
+  <symbol id="mat-i-hole-csink" viewBox="0 0 24 24"><path d='M3 8h18v11H3z'/><path d='M7 8l3.5 3.5V19h3v-7.5L17 8' stroke-dasharray='2 1.6'/></symbol>
+  <symbol id="mat-i-shell" viewBox="0 0 24 24"><path d='M3 7v12h18V7'/><path d='M6 7v9h12V7' opacity='.6'/></symbol>
+  <symbol id="mat-i-rib" viewBox="0 0 24 24"><path d='M4 4v16h16'/><path d='M7 4v13h13'/><path d='M7 9l8 8' stroke-width='3'/></symbol>
+  <symbol id="mat-i-draft" viewBox="0 0 24 24"><path d='M5 20 8 5h8l3 15z'/><path d='M8 5v15' stroke-dasharray='2 1.6' opacity='.6'/></symbol>
+  <symbol id="mat-i-thread" viewBox="0 0 24 24"><path d='M8 3v18M16 3v18'/><path d='M8 6l8-2M8 10l8-2M8 14l8-2M8 18l8-2'/></symbol>
 </svg>

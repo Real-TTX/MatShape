@@ -358,6 +358,16 @@ public static class ModelAssistant
                      that face; {"part": "<id>"} = every edge of the part. Faces are named after the feature that made them: "<extrude id>:start" (on the sketch plane),
                      "<extrude id>:end" (the far end), "<extrude id>:<entity id>" (the side made by that sketch entity; the sides of a rect are "<rect id>.0" .. ".3":
                      y = a.y, x = b.x, y = b.y, x = a.x), "<revolve id>:<entity id>". Example, the top edges of the plate ai_plate: {"part": "ai_plate", "face": "ai_plate:end"}.
+        - hole:      {"sketch": "<id>", "kind": "simple|cbore|csink", "diameter": "6", "end": "through|blind", "depth": "10", "cbDiameter": "11", "cbDepth": "6", "csDiameter": "12",
+                     "csAngle": "90", "tipAngle": "118", "flip": false, "thread": false, "pitch": "1", "scope": null}   a hole at every point and circle centre of the sketch,
+                     into the material against the normal of the sketch plane (put the sketch on the face plane). thread: an internal thread cut into the wall.
+        - shell:     {"faces": [{"part": "<id>", "face": "<face>"}], "thickness": "2"}   hollows the part, the faces given are opened ({"part": "<id>"} alone: closed hollow)
+        - rib:       {"sketch": "<id>", "thickness": "3", "flip": false, "scope": null}   a line in a sketch through the parts: fills between it and the parts, as thick as given
+        - sweep:     {"sketch": "<profile sketch>", "profiles": null, "path": "<sketch with the path>", "op": "new|add|remove|intersect", "scope": null}   the profile
+                     (drawn at the start of the path) moved along the chain of lines/arcs/splines of the path sketch
+        - loft:      {"sketches": ["<id>", "<id>", ...], "op": "new|add|remove|intersect", "scope": null}   a smooth body through the biggest profile of each sketch, in order
+        - draft:     {"faces": [face refs], "neutral": <plane ref>, "angle": "3", "flip": false}   tilts faces about where they meet the neutral plane
+        - thread:    {"faces": [face refs of round faces], "pitch": "1.5", "depth": "", "length": "", "left": false, "flip": false}   a 60° thread cut into a shaft or hole
 
         ## Part ids
         A part is named after the feature that made it: an extrude/revolve with op "new" that makes one body gives the part id = the feature id; several separate bodies give "<id>.0", "<id>.1" ...

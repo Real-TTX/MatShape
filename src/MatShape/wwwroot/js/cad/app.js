@@ -730,8 +730,9 @@ function start() {
       if ('parts' in params && !preset?.parts) params.parts = selected;
       if (type === 'boolean') { params.targets = selected.slice(0, 1); params.tools = selected.slice(1); }
     }
-    if ((type === 'fillet' || type === 'chamfer') && !state.result.parts.length) { toast(t('Studio.NeedPart'), 'warning'); return; }
-    if (type === 'extrude' || type === 'revolve') {
+    if (['fillet', 'chamfer', 'shell', 'draft', 'thread'].includes(type) && !state.result.parts.length) { toast(t('Studio.NeedPart'), 'warning'); return; }
+    if (['rib', 'hole'].includes(type) && !state.result.sketches.length) { toast(t('Studio.NeedSketchAny'), 'warning'); return; }
+    if (['extrude', 'revolve', 'sweep', 'loft'].includes(type)) {
       const sketches = state.result.sketches.filter(s => s.loops.length);
       if (!sketches.length) { toast(t('Studio.NeedSketch'), 'warning'); return; }
     }
@@ -761,7 +762,7 @@ function start() {
     state.mode = 'dialog';
     state.dialog = { feature, isNew, index, input, activeParts: null, activePlane: null, activeEdges: null };
     // a fillet or chamfer picks the edges of the parts before it, while the view shows its preview
-    if (feature.type === 'fillet' || feature.type === 'chamfer') viewport.setPickParts(input.parts);
+    if (['fillet', 'chamfer', 'shell', 'draft', 'thread'].includes(feature.type)) viewport.setPickParts(input.parts);
     ui.dialog.hidden = false;
     ui.empty.hidden = true;
     ui.dialogTitle.textContent = t('Feature.' + feature.type);
@@ -996,9 +997,9 @@ function start() {
 
   viewport.on('hover', e => {
     if (state.mode === 'sketch') return;
-    if (state.mode === 'dialog' && state.dialog.activeEdges) {
-      // an edge near the pointer, else the face under it (all its edges)
-      const edge = viewport.pickEdge(e.ndc);
+    if (state.mode === 'dialog' && state.dialog.activeEdges && !state.dialog.activePlane) {
+      // an edge near the pointer, else the face under it (all its edges); some features take faces only
+      const edge = state.dialog.activeEdges.facesOnly ? null : viewport.pickEdge(e.ndc);
       const face = edge ? null : viewport.pick(e.ndc);
       viewport.hover(face);
       markEdges(edge);
@@ -1041,7 +1042,7 @@ function start() {
     }
     if (state.mode === 'measure') { measureClick(pick); return; }
     if (state.mode === 'dialog' && state.dialog.activeEdges) {
-      const d = state.dialog, edge = viewport.pickEdge(e.ndc);
+      const d = state.dialog, edge = d.activeEdges.facesOnly ? null : viewport.pickEdge(e.ndc);
       const round = p => p.map(x => Math.round(x * 1e4) / 1e4);
       if (edge) d.activeEdges.toggle({ part: edge.partId, faces: [faceKey(d.input, edge.faces[0]), faceKey(d.input, edge.faces[1])].sort(), at: round(edge.point) });
       else if (pick) d.activeEdges.toggle({ part: pick.partId, face: faceKey(d.input, pick.faceId), at: round(pick.point) });
@@ -1061,7 +1062,7 @@ function start() {
   function markEdges(hover) {
     const d = state.dialog;
     if (!d?.activeEdges) { viewport.setEdgeMarks(null); return; }
-    const selected = (d.feature.params.edges || []).flatMap(ref => refPoints(ref, d.input));
+    const selected = (d.feature.params[d.activeEdges.key || 'edges'] || []).flatMap(ref => refPoints(ref, d.input));
     const part = hover && d.input.parts.find(p => p.id === hover.partId);
     viewport.setEdgeMarks({ selected, hover: part ? edgePoints(part, hover.segments) : [] });
   }

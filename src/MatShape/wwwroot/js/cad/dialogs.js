@@ -125,6 +125,84 @@ export function buildDialog(form, ctx) {
       add(el('p', { class: 'ms-dialog__text ms-muted' }, t('Dialog.Variable.Hint')));
       break;
 
+    case 'hole': {
+      add(sketchField(ctx, p));
+      let refresh = () => {};
+      add(segment(t('Dialog.HoleKind'), p.kind || 'simple', [['simple', t('Dialog.Hole.simple'), 'hole'], ['cbore', t('Dialog.Hole.cbore'), 'hole-cbore'], ['csink', t('Dialog.Hole.csink'), 'hole-csink']], v => { p.kind = v; refresh(); ctx.changed(); }));
+      add(expr(t('Dialog.Diameter'), p.diameter, 'length', ctx, v => { p.diameter = v; }));
+      add(choice(t('Dialog.End'), p.end || 'through', [['through', t('Dialog.End.through')], ['blind', t('Dialog.End.blind')]], v => { p.end = v; refresh(); ctx.changed(); }));
+      const depth = pair(expr(t('Dialog.Depth'), p.depth, 'length', ctx, v => { p.depth = v; }), expr(t('Dialog.TipAngle'), p.tipAngle, 'angle', ctx, v => { p.tipAngle = v; }));
+      const cb = pair(expr(t('Dialog.CbDiameter'), p.cbDiameter, 'length', ctx, v => { p.cbDiameter = v; }), expr(t('Dialog.CbDepth'), p.cbDepth, 'length', ctx, v => { p.cbDepth = v; }));
+      const cs = pair(expr(t('Dialog.CsDiameter'), p.csDiameter, 'length', ctx, v => { p.csDiameter = v; }), expr(t('Dialog.CsAngle'), p.csAngle, 'angle', ctx, v => { p.csAngle = v; }));
+      const pitch = expr(t('Dialog.Pitch'), p.pitch, 'length', ctx, v => { p.pitch = v; });
+      add(depth, cb, cs, check(t('Dialog.Flip'), p.flip, v => { p.flip = v; ctx.changed(); }, 'flip'), check(t('Dialog.Tapped'), p.thread, v => { p.thread = v; refresh(); ctx.changed(); }), pitch);
+      refresh = () => { depth.hidden = p.end !== 'blind'; cb.hidden = p.kind !== 'cbore'; cs.hidden = p.kind !== 'csink'; pitch.hidden = !p.thread; };
+      refresh();
+      const scope = partsField(ctx, p.scope || [], t('Dialog.Scope'), ids => { p.scope = ids.length ? ids : null; }, t('Dialog.Scope.Hint'));
+      add(scope.node, el('p', { class: 'mat-hint' }, t('Dialog.Hole.Hint')));
+      fields.parts.push(scope);
+      break;
+    }
+
+    case 'shell':
+      fields.edges = edgesField(ctx, p, { key: 'faces', facesOnly: true, caption: t('Dialog.FacesToRemove'), hint: t('Dialog.Shell.Hint'), wholePart: t('Dialog.ClosedHollow') });
+      add(fields.edges.node, expr(t('Dialog.Thickness'), p.thickness, 'length', ctx, v => { p.thickness = v; }));
+      break;
+
+    case 'rib': {
+      add(sketchField(ctx, p), expr(t('Dialog.Thickness'), p.thickness, 'length', ctx, v => { p.thickness = v; }), check(t('Dialog.Flip'), p.flip, v => { p.flip = v; ctx.changed(); }, 'flip'));
+      const scope = partsField(ctx, p.scope || [], t('Dialog.Scope'), ids => { p.scope = ids.length ? ids : null; }, t('Dialog.Scope.Hint'));
+      add(scope.node, el('p', { class: 'mat-hint' }, t('Dialog.Rib.Hint')));
+      fields.parts.push(scope);
+      break;
+    }
+
+    case 'sweep': {
+      add(sketchField(ctx, p, () => ctx.rebuild()), profilesField(ctx, p));
+      const others = ctx.input.sketches.filter(s => s.fid !== p.sketch);
+      if (!p.path && others.length) p.path = others[others.length - 1].fid;
+      add(choice(t('Dialog.Path'), p.path || '', others.length ? others.map(s => [s.fid, ctx.featureName(s.fid)]) : [['', t('Dialog.NoSketches')]], v => { p.path = v || null; ctx.changed(); }));
+      add(segment(t('Dialog.Operation'), p.op, OPS, v => { p.op = v; scope.node.hidden = v === 'new'; ctx.changed(); }));
+      const scope = partsField(ctx, p.scope || [], t('Dialog.Scope'), ids => { p.scope = ids.length ? ids : null; }, t('Dialog.Scope.Hint'));
+      scope.node.hidden = p.op === 'new';
+      add(scope.node, el('p', { class: 'mat-hint' }, t('Dialog.Sweep.Hint')));
+      fields.parts.push(scope);
+      break;
+    }
+
+    case 'loft': {
+      const list = el('div', { class: 'ms-checklist' });
+      if (!Array.isArray(p.sketches)) p.sketches = [];
+      const sketches = ctx.input.sketches.filter(s => s.loops.length);
+      if (!p.sketches.length && sketches.length >= 2) p.sketches = sketches.slice(-2).map(s => s.fid);
+      for (const s of sketches) {
+        const input = el('input', { type: 'checkbox', checked: p.sketches.includes(s.fid) });
+        input.addEventListener('change', () => { p.sketches = sketches.filter((x, i) => list.querySelectorAll('input')[i].checked).map(x => x.fid); ctx.changed(); });
+        list.append(el('label', { class: 'mat-check ms-check' }, input, el('span', { class: 'mat-check__text' }, ctx.featureName(s.fid))));
+      }
+      if (!sketches.length) list.append(el('p', { class: 'ms-expr-out is-error' }, t('Dialog.NoProfiles')));
+      add(el('fieldset', { class: 'mat-field ms-field-sm ms-fieldset' }, el('legend', { class: 'mat-label' }, t('Dialog.LoftProfiles')), list, el('p', { class: 'mat-hint' }, t('Dialog.Loft.Hint'))));
+      add(segment(t('Dialog.Operation'), p.op, OPS, v => { p.op = v; scope.node.hidden = v === 'new'; ctx.changed(); }));
+      const scope = partsField(ctx, p.scope || [], t('Dialog.Scope'), ids => { p.scope = ids.length ? ids : null; }, t('Dialog.Scope.Hint'));
+      scope.node.hidden = p.op === 'new';
+      add(scope.node);
+      fields.parts.push(scope);
+      break;
+    }
+
+    case 'draft':
+      fields.edges = edgesField(ctx, p, { key: 'faces', facesOnly: true, caption: t('Dialog.FacesToDraft'), hint: t('Dialog.Draft.Hint') });
+      add(fields.edges.node, planeField(ctx, p.neutral, t('Dialog.NeutralPlane'), ref => { p.neutral = ref; }, fields));
+      add(expr(t('Dialog.Angle'), p.angle, 'angle', ctx, v => { p.angle = v; }), check(t('Dialog.Flip'), p.flip, v => { p.flip = v; ctx.changed(); }, 'flip'));
+      break;
+
+    case 'thread':
+      fields.edges = edgesField(ctx, p, { key: 'faces', facesOnly: true, caption: t('Dialog.RoundFaces'), hint: t('Dialog.Thread.Hint') });
+      add(fields.edges.node, pair(expr(t('Dialog.Pitch'), p.pitch, 'length', ctx, v => { p.pitch = v; }), expr(t('Dialog.ThreadDepth'), p.depth, 'length?', ctx, v => { p.depth = v; })));
+      add(expr(t('Dialog.ThreadLength'), p.length, 'length?', ctx, v => { p.length = v; }));
+      add(check(t('Dialog.LeftHand'), p.left, v => { p.left = v; ctx.changed(); }), check(t('Dialog.ThreadFromEnd'), p.flip, v => { p.flip = v; ctx.changed(); }, 'flip'));
+      break;
+
     case 'fillet':
     case 'chamfer': {
       fields.edges = edgesField(ctx, p);
@@ -158,18 +236,22 @@ export function sameRef(a, b) {
 }
 
 /** The edges of a fillet or chamfer: picked in the view (an edge, or a face for all its edges), or every edge of a part from the list. */
-function edgesField(ctx, p) {
-  if (!Array.isArray(p.edges)) p.edges = [];
+function edgesField(ctx, p, options = {}) {
+  const key = options.key || 'edges';
+  if (!Array.isArray(p[key])) p[key] = [];
+  const refs = () => p[key];
   const list = el('ul', { class: 'ms-edgelist' });
   const parts = el('select', { class: 'mat-select mat-select--sm mat-input--sm', 'aria-label': t('Dialog.WholePart') });
-  const addPart = el('button', { type: 'button', class: 'mat-btn mat-btn--secondary mat-btn--sm' }, icon('plus'), el('span', null, t('Dialog.WholePart')));
-  const node = el('fieldset', { class: 'mat-field ms-field-sm ms-fieldset ms-partsfield' }, el('legend', { class: 'mat-label' }, t('Dialog.Edges')), list,
-    el('p', { class: 'mat-hint' }, t('Dialog.Edges.Hint')), el('div', { class: 'ms-dialog__pickrow' }, parts, addPart));
+  const addPart = el('button', { type: 'button', class: 'mat-btn mat-btn--secondary mat-btn--sm' }, icon('plus'), el('span', null, options.wholePart || t('Dialog.WholePart')));
+  const node = el('fieldset', { class: 'mat-field ms-field-sm ms-fieldset ms-partsfield' }, el('legend', { class: 'mat-label' }, options.caption || t('Dialog.Edges')), list,
+    el('p', { class: 'mat-hint' }, options.hint || t('Dialog.Edges.Hint')), el('div', { class: 'ms-dialog__pickrow' }, parts, addPart));
   const field = {
     node,
+    key,
+    facesOnly: !!options.facesOnly,
     toggle(ref) {
-      const i = p.edges.findIndex(r => sameRef(r, ref));
-      if (i >= 0) p.edges.splice(i, 1); else p.edges.push(ref);
+      const i = refs().findIndex(r => sameRef(r, ref));
+      if (i >= 0) refs().splice(i, 1); else refs().push(ref);
       render();
       ctx.changed();
       ctx.edgesChanged?.();
@@ -179,11 +261,11 @@ function edgesField(ctx, p) {
   const render = () => {
     list.replaceChildren();
     const count = { edge: 0, face: 0 };
-    if (!p.edges.length) list.append(el('li', { class: 'ms-edgelist__empty ms-muted' }, t('Dialog.NoEdges')));
-    p.edges.forEach(ref => {
+    if (!refs().length) list.append(el('li', { class: 'ms-edgelist__empty ms-muted' }, t(options.facesOnly ? 'Dialog.NoFaces' : 'Dialog.NoEdges')));
+    refs().forEach(ref => {
       const kind = ref.faces ? 'edge' : ref.face ? 'face' : 'part';
       const part = ctx.input.parts.find(x => x.id === ref.part);
-      const name = kind === 'part' ? t('Dialog.AllEdgesOf', part ? ctx.partName(part) : ref.part) : t(kind === 'edge' ? 'Dialog.Edge' : 'Dialog.Face', ++count[kind]);
+      const name = kind === 'part' ? t(options.facesOnly ? 'Dialog.WholePartFaces' : 'Dialog.AllEdgesOf', part ? ctx.partName(part) : ref.part) : t(kind === 'edge' ? 'Dialog.Edge' : options.facesOnly ? 'Dialog.FaceOnly' : 'Dialog.Face', ++count[kind]);
       const remove = el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm', 'aria-label': t('Dialog.RemoveEdge', name), 'data-tip': t('Dialog.RemoveEdge', name) }, icon('x'));
       remove.addEventListener('click', () => field.toggle(ref));
       list.append(el('li', { class: 'ms-edgelist__item' }, icon(kind === 'edge' ? 'edge' : kind === 'face' ? 'face' : 'part'), el('span', null, name), remove));
@@ -191,7 +273,7 @@ function edgesField(ctx, p) {
   };
   for (const part of ctx.input.parts) parts.append(el('option', { value: part.id }, ctx.partName(part)));
   parts.disabled = addPart.disabled = !ctx.input.parts.length;
-  addPart.addEventListener('click', () => { if (parts.value && !p.edges.some(r => sameRef(r, { part: parts.value }))) field.toggle({ part: parts.value }); });
+  addPart.addEventListener('click', () => { if (parts.value && !refs().some(r => sameRef(r, { part: parts.value }))) field.toggle({ part: parts.value }); });
   render();
   node.addEventListener('focusin', () => ctx.activateEdges(field));
   return field;
@@ -226,8 +308,10 @@ function expr(caption, value, kind, ctx, apply) {
   const show = () => {
     try {
       const v = input.value;
+      // an optional value may stay empty (the feature takes its default)
+      if (kind.endsWith('?') && !v.trim()) { out.textContent = ''; out.classList.remove('is-error'); node.classList.remove('is-invalid'); return true; }
       let shown;
-      if (kind === 'length') shown = fmtLen(evalLength(v, ctx.input.variables, ctx.unit), ctx);
+      if (kind === 'length' || kind === 'length?') shown = fmtLen(evalLength(v, ctx.input.variables, ctx.unit), ctx);
       else if (kind === 'angle') shown = round(evalAngle(v, ctx.input.variables)) + '°';
       else if (kind === 'count') shown = String(Math.round(evalNumber(v, ctx.input.variables)));
       else shown = '';

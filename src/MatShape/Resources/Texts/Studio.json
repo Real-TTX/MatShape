@@ -111,6 +111,13 @@
   "Feature.variable": { "en": "Variable", "de": "Variable" },
   "Feature.fillet": { "en": "Fillet", "de": "Verrundung" },
   "Feature.chamfer": { "en": "Chamfer", "de": "Fase" },
+  "Feature.hole": { "en": "Hole", "de": "Bohrung" },
+  "Feature.shell": { "en": "Shell", "de": "Schale" },
+  "Feature.rib": { "en": "Rib", "de": "Rippe" },
+  "Feature.sweep": { "en": "Sweep", "de": "Austragung" },
+  "Feature.loft": { "en": "Loft", "de": "Übergang" },
+  "Feature.draft": { "en": "Draft", "de": "Formschräge" },
+  "Feature.thread": { "en": "Thread", "de": "Gewinde" },
 
   "Sketch.Tools": { "en": "Sketch tools", "de": "Skizzenwerkzeuge" },
   "Sketch.Select": { "en": "Select", "de": "Auswählen" },

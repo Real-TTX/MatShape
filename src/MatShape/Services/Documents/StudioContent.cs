@@ -23,7 +23,7 @@ public static class StudioContent
     /// <summary>The kinds of features the editor knows.</summary>
     public static readonly IReadOnlySet<string> FeatureTypes = new HashSet<string>(StringComparer.Ordinal)
     {
-        "sketch", "plane", "extrude", "revolve", "boolean", "transform", "mirror", "lpattern", "cpattern", "split", "deletepart", "variable", "fillet", "chamfer",
+        "sketch", "plane", "extrude", "revolve", "boolean", "transform", "mirror", "lpattern", "cpattern", "split", "deletepart", "variable", "fillet", "chamfer", "hole", "shell", "rib", "sweep", "loft", "draft", "thread",
     };
 
     /// <summary>Checks a content; <c>null</c> when it is fine, else what is wrong (for the log and the answer of the API; the editor never sends such a thing).</summary>

@@ -22,6 +22,15 @@ public sealed class StudioContentTests
     }
 
     [Fact]
+    public void Drawings_and_assemblies_are_tabs_of_their_own()
+    {
+        Assert.Null(StudioContent.Validate(StudioContent.ForKind("drawing")));
+        Assert.Null(StudioContent.Validate(StudioContent.ForKind("assembly")));
+        Assert.Null(StudioContent.ForKind(null));
+        Assert.NotNull(StudioContent.Validate("""{"features":[],"drawing":[]}"""));
+    }
+
+    [Fact]
     public void Fillets_and_chamfers_are_known()
     {
         const string json = """

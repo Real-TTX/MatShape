@@ -73,7 +73,7 @@ public static class DocumentEndpoints
         }).AddEndpointFilter(Antiforgery);
 
         live.MapPost("/documents/{id:long}/studios", async (long id, NameRequest body, HttpContext http, AppDbContext db, CurrentUser me) =>
-            Answer(await StudioService.AddAsync(db, me.RequiredId, id, body.Name, ct: http.RequestAborted))).AddEndpointFilter(Antiforgery);
+            Answer(await StudioService.AddAsync(db, me.RequiredId, id, body.Name, StudioContent.ForKind(body.Kind), http.RequestAborted))).AddEndpointFilter(Antiforgery);
 
         live.MapPost("/studios/{id:long}/duplicate", async (long id, HttpContext http, AppDbContext db, CurrentUser me) =>
             Answer(await StudioService.DuplicateAsync(db, me.RequiredId, id, Text.T("Documents.CopyWord"), http.RequestAborted))).AddEndpointFilter(Antiforgery);
@@ -188,7 +188,8 @@ public static class DocumentEndpoints
 
     public sealed record SaveRequest(long Revision, JsonElement Content);
 
-    public sealed record NameRequest(string? Name);
+    /// <summary>A name; when a tab is added also its kind: null (a Part Studio), "drawing" or "assembly".</summary>
+    public sealed record NameRequest(string? Name, string? Kind = null);
 
     public sealed record MoveRequest(int Step);
 

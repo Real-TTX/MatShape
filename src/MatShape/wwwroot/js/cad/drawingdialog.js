@@ -24,6 +24,12 @@ export class DrawingDialog {
     dialog.querySelectorAll('[data-draw-sheet], [data-draw-scale]').forEach(x => x.addEventListener('change', layout));
     this.$('[data-draw-name]').addEventListener('input', layout);
     dialog.querySelectorAll('[data-draw-save]').forEach(b => b.addEventListener('click', () => this.save(b.dataset.drawSave)));
+    this.$('[data-draw-tab]')?.addEventListener('click', () => {
+      const o = this.options(), value = this.$('[data-draw-scale]').value;
+      window.MatUi?.dialog?.close?.(this.dialog.id);
+      if (this.dialog.open) this.dialog.close();
+      this.host.asTab?.({ sheet: this.$('[data-draw-sheet]').value, scale: value, views: o.views, section: o.section, hidden: o.hidden, dims: o.dims, centres: true, title: this.$('[data-draw-name]').value.trim(), notes: [], moved: {} });
+    });
   }
 
   open() {
@@ -93,7 +99,7 @@ export class DrawingDialog {
     this.preview.hidden = !svg;
     if (svg) this.preview.src = this.url;
     else this.preview.removeAttribute('src');
-    this.dialog.querySelectorAll('[data-draw-save]').forEach(b => { b.disabled = !svg; });
+    this.dialog.querySelectorAll('[data-draw-save], [data-draw-tab]').forEach(b => { b.disabled = !svg; });
   }
 
   save(kind) {

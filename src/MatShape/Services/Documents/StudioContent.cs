@@ -15,6 +15,15 @@ public static class StudioContent
 {
     public const string Empty = """{"features":[],"parts":{},"rollback":null}""";
 
+    /// <summary>A drawing tab: no features of its own, the drawing of a Part Studio (its settings, the dimensions and details put on it).</summary>
+    public const string DrawingEmpty = """{"features":[],"parts":{},"rollback":null,"drawing":{}}""";
+
+    /// <summary>An assembly tab: instances of parts of the Part Studios, placed by mates.</summary>
+    public const string AssemblyEmpty = """{"features":[],"parts":{},"rollback":null,"assembly":{"instances":[],"mates":[]}}""";
+
+    /// <summary>The first content of a new tab of a kind (null: an empty Part Studio).</summary>
+    public static string? ForKind(string? kind) => kind switch { "drawing" => DrawingEmpty, "assembly" => AssemblyEmpty, _ => null };
+
     /// <summary>The largest content of one Part Studio (a long history of big sketches stays far below).</summary>
     public const int MaxBytes = 2_000_000;
 
@@ -75,6 +84,14 @@ public static class StudioContent
             if (root.TryGetProperty("rollback", out var rollback) && rollback.ValueKind is not (JsonValueKind.Number or JsonValueKind.Null))
             {
                 return "rollback is not a number";
+            }
+
+            foreach (var kind in new[] { "drawing", "assembly" })
+            {
+                if (root.TryGetProperty(kind, out var tab) && tab.ValueKind != JsonValueKind.Object)
+                {
+                    return $"{kind} is not an object";
+                }
             }
 
             return null;

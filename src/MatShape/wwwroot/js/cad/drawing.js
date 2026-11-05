@@ -291,9 +291,20 @@ export function layoutDrawing(spec) {
   titleBlock(titleRect, spec.title, scale, spec.sheet, line, text, rect);
 
   const { k, cells } = chosen;
+  const placed = [];
   for (const c of cells) {
     const v = c.v, bx = (v.box.minX + v.box.maxX) / 2, by = (v.box.minY + v.box.maxY) / 2;
+    // a view moved by hand (in the drawing tab) keeps its offset
+    const mv = spec.moved?.[v.key];
+    if (mv) { c.cx += mv[0]; c.cy += mv[1]; }
     const P = p => [c.cx + (p[0] - bx) * k, c.cy - (p[1] - by) * k];
+    placed.push({ key: v.key, cx: c.cx, cy: c.cy, k, bx, by, w: (v.box.maxX - v.box.minX) * k, h: (v.box.maxY - v.box.minY) * k });
+    // centre marks of circles (holes, shafts seen along their axis)
+    if (spec.centres && v.key !== 'iso') for (const ci of v.circles || []) {
+      const C = P(ci.c), R = ci.r * k + 2;
+      line([C[0] - R, C[1]], [C[0] + R, C[1]], 'center');
+      line([C[0], C[1] - R], [C[0], C[1] + R], 'center');
+    }
     for (const l of v.lines) line(P(l.a), P(l.b), l.hidden ? 'hidden' : l.tangent ? 'thin' : 'visible');
     if (v.cut) {
       // the cut faces: hatched at 45°, every part the other way (2.5 mm on the sheet)
@@ -321,7 +332,136 @@ export function layoutDrawing(spec) {
       }
     }
   }
-  return { width, height, scale, prims };
+  return { width, height, scale, prims, placed };
+}
+
+/** The points of the views one can dimension to (ends of visible lines) and the circles in them (closed chains that are round): v.snaps, v.circles. */
+export function viewGeometry(views) {
+  for (const v of views) {
+    const key = p => `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)}`;
+    const snaps = new Map(), at = new Map();
+    const lines = v.lines.filter(l => !l.hidden);
+    lines.forEach((l, i) => {
+      for (const p of [l.a, l.b]) {
+        const k = key(p);
+        snaps.set(k, p);
+        if (!at.has(k)) at.set(k, []);
+        at.get(k).push(i);
+      }
+    });
+    // closed chains with many short pieces on one circle
+    const used = new Set(), circles = [];
+    lines.forEach((l, i) => {
+      if (used.has(i)) return;
+      const chain = [l.a];
+      let cur = i, end = key(l.b), from = key(l.a);
+      used.add(i);
+      chain.push(l.b);
+      for (let n = 0; n < 2000; n++) {
+        const next = (at.get(end) || []).find(j => !used.has(j));
+        if (next === undefined) break;
+        used.add(next);
+        const m = lines[next], other = key(m.a) === end ? m.b : m.a;
+        chain.push(other);
+        end = key(other);
+        cur = next;
+        if (end === from) break;
+      }
+      if (end !== from || chain.length < 9) return;
+      const pts = chain.slice(0, -1);
+      const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+      const r = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
+      if (r > 0 && pts.every(p => Math.abs(Math.hypot(p[0] - cx, p[1] - cy) - r) < Math.max(1e-3, r * 0.01))) circles.push({ c: [cx, cy], r });
+    });
+    v.circles = circles;
+    v.snaps = [...snaps.values(), ...circles.map(c => c.c)];
+  }
+  return views;
+}
+
+/**
+ * Notes put on a laid-out drawing by hand: linear dimensions between two points of a view ({ kind: 'h' | 'v' | 'a', view, a, b, off }), diameters of circles
+ * ({ kind: 'dia', view, c, r, angle }), and detail views ({ kind: 'detail', view, c, r, factor, at: [x, y] on the sheet, letter }). Adds to d.prims.
+ */
+export function annotate(d, views, notes, format) {
+  const prims = d.prims;
+  const line = (a, b, style) => prims.push({ k: 'line', a, b, style });
+  const text = (p, s, size, anchor = 'middle', extra = {}) => prims.push({ k: 'text', p, text: s, size, anchor, ...extra });
+  const tri = pts => prims.push({ k: 'tri', pts });
+  for (const n of notes || []) {
+    const pl = d.placed.find(x => x.key === n.view), v = views.find(x => x.key === n.view);
+    if (!pl || !v) continue;
+    const P = p => [pl.cx + (p[0] - pl.bx) * pl.k, pl.cy - (p[1] - pl.by) * pl.k];
+    if (n.kind === 'dia') {
+      const C = P(n.c), R = n.r * pl.k, a = n.angle ?? -Math.PI / 4;
+      const u = [Math.cos(a), Math.sin(a)], E1 = [C[0] + u[0] * R, C[1] + u[1] * R], E2 = [C[0] - u[0] * R, C[1] - u[1] * R];
+      const out = [C[0] + u[0] * (R + 8), C[1] + u[1] * (R + 8)];
+      line(E2, out, 'thin');
+      arrowAt(tri, E1, [-u[0], -u[1]]); arrowAt(tri, E2, u);
+      const right = u[0] >= 0;
+      line(out, [out[0] + (right ? 10 : -10), out[1]], 'thin');
+      text([out[0] + (right ? 1 : -1), out[1] - 1], 'Ø' + format(2 * n.r), 3.5, right ? 'start' : 'end');
+      continue;
+    }
+    if (n.kind === 'detail') {
+      const C = P(n.c), R = n.r * pl.k, f = n.factor || 2, K = pl.k * f;
+      circle(C, R, (a, b) => line(a, b, 'thin'));
+      text([C[0] + R * 0.75 + 1.5, C[1] - R * 0.75 - 1], n.letter || 'Z', 3.5, 'start', { bold: true });
+      const at = n.at || [C[0] + R * f * 2 + 10, C[1]];
+      const Q = p => [at[0] + (p[0] - n.c[0]) * K, at[1] - (p[1] - n.c[1]) * K];
+      for (const l of v.lines) {
+        const piece = clipToCircle(l.a, l.b, n.c, n.r);
+        if (piece) line(Q(piece[0]), Q(piece[1]), l.hidden ? 'hidden' : l.tangent ? 'thin' : 'visible');
+      }
+      circle(at, n.r * K, (a, b) => line(a, b, 'thin'));
+      const [sa, sb] = d.scale, num = sa * f, g = gcd(num, sb);
+      text([at[0], at[1] + n.r * K + 6], `${n.letter || 'Z'} (${num / g} : ${sb / g})`, 3.5, 'middle', { bold: true });
+      continue;
+    }
+    // linear: across (h), upright (v) or along the two points (a)
+    const A = P(n.a), B = P(n.b);
+    let u = n.kind === 'h' ? [1, 0] : n.kind === 'v' ? [0, 1] : norm2([B[0] - A[0], B[1] - A[1]]);
+    if (Math.hypot(...u) < 1e-9) continue;
+    const nrm = [-u[1], u[0]];
+    const mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+    const level = mid[0] * nrm[0] + mid[1] * nrm[1] + (n.off ?? 10);
+    const onLine = X => { const t = level - (X[0] * nrm[0] + X[1] * nrm[1]); return [X[0] + nrm[0] * t, X[1] + nrm[1] * t]; };
+    const A2 = onLine(A), B2 = onLine(B);
+    for (const [X, X2] of [[A, A2], [B, B2]]) {
+      const dx = [X2[0] - X[0], X2[1] - X[1]], l = Math.hypot(...dx);
+      if (l > 1.5) { const w = [dx[0] / l, dx[1] / l]; line([X[0] + w[0] * 1.5, X[1] + w[1] * 1.5], [X2[0] + w[0] * 2, X2[1] + w[1] * 2], 'thin'); }
+    }
+    line(A2, B2, 'thin');
+    const along = norm2([B2[0] - A2[0], B2[1] - A2[1]]);
+    arrowAt(tri, A2, along); arrowAt(tri, B2, [-along[0], -along[1]]);
+    const value = n.kind === 'h' ? Math.abs(n.b[0] - n.a[0]) : n.kind === 'v' ? Math.abs(n.b[1] - n.a[1]) : Math.hypot(n.b[0] - n.a[0], n.b[1] - n.a[1]);
+    // the value above the dimension line, readable from below or from the right
+    let ang = Math.atan2(-along[1], along[0]) * 180 / Math.PI;
+    if (ang > 90.01) ang -= 180; if (ang < -89.99) ang += 180;
+    const up = [Math.sin(ang * Math.PI / 180) * -1, -Math.cos(ang * Math.PI / 180)];
+    const M = [(A2[0] + B2[0]) / 2 + up[0] * 1.2, (A2[1] + B2[1]) / 2 + up[1] * 1.2];
+    text(M, format(value), 3.5, 'middle', Math.abs(ang) > 0.01 ? { rot: ang } : {});
+  }
+  return d;
+}
+
+function arrowAt(tri, tip, dir) {
+  const L = 2.8, W = 0.9, n = [-dir[1], dir[0]];
+  tri([tip, [tip[0] + dir[0] * L + n[0] * W, tip[1] + dir[1] * L + n[1] * W], [tip[0] + dir[0] * L - n[0] * W, tip[1] + dir[1] * L - n[1] * W]]);
+}
+
+function gcd(a, b) { a = Math.round(a * 1000); b = Math.round(b * 1000); while (b) [a, b] = [b, a % b]; return a / 1000 || 1; }
+
+/** The part of a segment inside a circle, or null. */
+function clipToCircle(a, b, c, r) {
+  const d = [b[0] - a[0], b[1] - a[1]], w = [a[0] - c[0], a[1] - c[1]];
+  const A = d[0] * d[0] + d[1] * d[1], B = 2 * (w[0] * d[0] + w[1] * d[1]), C = w[0] * w[0] + w[1] * w[1] - r * r;
+  if (A < 1e-18) return C <= 0 ? [a, b] : null;
+  const D = B * B - 4 * A * C;
+  if (D <= 0) return null;
+  const s = Math.sqrt(D), t0 = Math.max(0, (-B - s) / (2 * A)), t1 = Math.min(1, (-B + s) / (2 * A));
+  if (t1 <= t0) return null;
+  return [[a[0] + d[0] * t0, a[1] + d[1] * t0], [a[0] + d[0] * t1, a[1] + d[1] * t1]];
 }
 
 const norm2 = v => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
@@ -478,7 +618,10 @@ export function toPdf(d) {
     const size = p.size * k, w = widthOf(p.text, size, p.bold);
     const shift = p.anchor === 'middle' ? -w / 2 : p.anchor === 'end' ? -w : 0;
     const grey = p.muted ? '0.33 g' : '0 g';
-    if (p.rot === 90) ops.push(`BT ${grey} /${p.bold ? 'F2' : 'F1'} ${size.toFixed(2)} Tf 0 1 -1 0 ${X(p.p[0])} ${(Number(Y(p.p[1])) + shift).toFixed(2)} Tm (${pdfText(p.text)}) Tj ET`);
+    if (p.rot) {
+      const a = p.rot * Math.PI / 180, c = Math.cos(a), si = Math.sin(a), x = Number(X(p.p[0])) + c * shift, y = Number(Y(p.p[1])) + si * shift;
+      ops.push(`BT ${grey} /${p.bold ? 'F2' : 'F1'} ${size.toFixed(2)} Tf ${c.toFixed(4)} ${si.toFixed(4)} ${(-si).toFixed(4)} ${c.toFixed(4)} ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfText(p.text)}) Tj ET`);
+    }
     else ops.push(`BT ${grey} /${p.bold ? 'F2' : 'F1'} ${size.toFixed(2)} Tf ${(Number(X(p.p[0])) + shift).toFixed(2)} ${Y(p.p[1])} Td (${pdfText(p.text)}) Tj ET`);
   }
   const content = ops.join('\n');

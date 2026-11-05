@@ -417,6 +417,16 @@ dialog.ms-imgdlg { width: min(1100px, calc(100vw - 2 * var(--mat-space-4))); }
 .ms-imgdlg__colour.is-off { opacity: .55; }
 .ms-imgdlg__height { width: 64px; }
 .ms-imgdlg__share { min-width: 42px; text-align: right; color: var(--mat-text-muted); }
+/* a drawing tab: the sheet over the view (white like paper), scrolled and zoomed; the settings in the side bar */
+.ms-sheet { position: absolute; inset: 0; z-index: 3; overflow: auto; background: var(--mat-surface-3); touch-action: none; }
+.ms-sheet[hidden] { display: none; }
+.ms-sheet__svg { display: block; margin: 16px auto; background: #ffffff; box-shadow: var(--mat-shadow-2); user-select: none; }
+.ms-sheet[data-tool="dim"], .ms-sheet[data-tool="dia"], .ms-sheet[data-tool="detail"] { cursor: crosshair; }
+.ms-sheet__empty { margin: var(--mat-space-8) auto; max-width: 30rem; text-align: center; }
+.ms-drawpanel { display: flex; flex-direction: column; gap: var(--mat-space-2); padding: 0 var(--mat-space-3) var(--mat-space-3); }
+.ms-drawpanel .mat-field { margin: 0; }
+.is-drawing .ms-viewtools, .is-drawing .ms-cube, .is-drawing .ms-triad, .is-drawing .ms-section { display: none; }
+
 /* the drawing: the sheet on the left (white like paper, also in dark mode), the settings on the right */
 dialog.ms-drawdlg { width: min(1180px, calc(100vw - 2 * var(--mat-space-4))); }
 .ms-drawdlg__body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: var(--mat-space-4); align-items: start; }

@@ -8,6 +8,7 @@ import { ViewCube } from './viewcube.js';
 import { Assistant } from './assistant.js';
 import { ImageDialog } from './imagedialog.js';
 import { DrawingDialog } from './drawingdialog.js';
+import { DrawingEditor } from './drawingeditor.js';
 import { loadKernel, regenerate, dispose, FEATURES, TANGENT, faceKey, outlineOf, properties, sectionOf } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { distToSegment3 } from './topo.js';
@@ -140,7 +141,35 @@ function start() {
     units: () => state.doc.units,
     unit: () => unit(),
     person: () => root.dataset.person || '',
+    asTab: drawing => addStudio('drawing', { ...drawing, source: state.studio.id }),
   }) : null;
+
+  // ---- a drawing tab (drawingeditor.js): the sheet of a Part Studio, dimensions, details ---------------------------------------
+  const drawingEditor = new DrawingEditor({ sheet: $('[data-sheet]'), panel: $('[data-drawing-panel]'), toolbar: $('[data-toolbar="drawing"]') }, {
+    kernel: () => state.kernel,
+    studios: () => state.doc.studios,
+    units: () => state.doc.units,
+    unit: () => unit(),
+    person: () => root.dataset.person || '',
+    docName: () => state.doc.name,
+    name: () => state.studio?.name || '',
+    canEdit: () => canEdit(),
+    status: text => setStatus(text),
+    change: fn => change(c => { c.drawing ||= {}; fn(c.drawing); }),
+  });
+  /** What a tab holds: a Part Studio, a drawing or an assembly. */
+  const kindOf = content => (content?.drawing ? 'drawing' : content?.assembly ? 'assembly' : 'studio');
+  function showKind(kind) {
+    root.classList.toggle('is-drawing', kind === 'drawing');
+    root.classList.toggle('is-assembly', kind === 'assembly');
+    ui.tools.hidden = kind !== 'studio';
+    $('[data-toolbar="drawing"]').hidden = kind !== 'drawing';
+    $('[data-sheet]').hidden = kind !== 'drawing';
+    $('[data-drawing-panel]').hidden = kind !== 'drawing';
+    ui.tree.closest('.ms-side__part').hidden = kind !== 'studio';
+    $('[data-parts-section]').hidden = kind === 'drawing';
+    if (kind !== 'drawing') drawingEditor.close();
+  }
   const openDrawing = () => { if (!drawingDialog || !state.result) return; if (state.mode === 'dialog' || state.mode === 'sketch') closeModes(); drawingDialog.open(); };
   const openImage = file => { if (canEdit() && imageDialog && state.mode !== 'sketch') imageDialog.open(file); };
   // a picture dropped on the view or pasted (outside of fields) opens the editor with it
@@ -237,6 +266,8 @@ function start() {
       }
     }
     renderTabs();
+    state.kind = kindOf(state.content);
+    showKind(state.kind);
     regen();
     updateUndo();
   }
@@ -279,6 +310,7 @@ function start() {
     // the first part of a Part Studio: show it whole
     if (!hadParts && next.parts.length && state.mode !== 'sketch') setTimeout(() => viewport.fit(true), 320);
     if (state.section) updateSection();
+    if (state.kind === 'drawing') drawingEditor.open(content.drawing);
   }
 
   function sketchVisible(s, content) {
@@ -1220,8 +1252,9 @@ function start() {
     ui.tabs.replaceChildren();
     for (const s of state.doc.studios) {
       const active = state.studio?.id === s.id;
+      const kind = kindOf(s.id === state.studio?.id ? state.content : s.content);
       const tab = el('div', { class: 'ms-tab' + (active ? ' is-active' : '') },
-        el('button', { type: 'button', class: 'ms-tab__btn', role: 'tab', 'aria-selected': active ? 'true' : 'false' }, icon('studio'), el('span', null, s.name)));
+        el('button', { type: 'button', class: 'ms-tab__btn', role: 'tab', 'aria-selected': active ? 'true' : 'false' }, icon(kind === 'drawing' ? 'drawing' : kind === 'assembly' ? 'assembly' : 'studio'), el('span', null, s.name)));
       tab.firstChild.addEventListener('click', () => { if (!active) openStudio(s.id); });
       tab.firstChild.addEventListener('dblclick', () => { if (canEdit()) renameStudio(s); });
       if (active && canEdit()) {
@@ -1269,15 +1302,26 @@ function start() {
     } catch { toast(t('Tabs.Failed'), 'danger'); }
   }
 
-  async function addStudio() {
+  /** A new tab: a Part Studio, a drawing (of the open Part Studio, or with the settings given) or an assembly. */
+  async function addStudio(kind = 'studio', drawing = null) {
     try {
       await flushSave();
-      const studio = await request('POST', `/live/documents/${docId}/studios`, {});
+      const count = state.doc.studios.filter(s => kindOf(s.content) === kind).length + 1;
+      const name = kind === 'drawing' ? t('Tabs.DrawingName', count) : kind === 'assembly' ? t('Tabs.AssemblyName', count) : undefined;
+      const source = state.kind === 'studio' ? state.studio?.id : state.doc.studios.find(s => kindOf(s.content) === 'studio')?.id;
+      const studio = await request('POST', `/live/documents/${docId}/studios`, { name, kind: kind === 'studio' ? null : kind });
+      if (kind === 'drawing') {
+        const content = { ...studio.content, drawing: drawing || { source } };
+        const answer = await request('PUT', `/live/studios/${studio.id}`, { revision: studio.revision, content });
+        studio.revision = answer.revision;
+        studio.content = content;
+      }
       state.doc.studios.push(studio);
       await openStudio(studio.id);
-      viewport.fit(true);
+      if (kind === 'studio') viewport.fit(true);
     } catch { toast(t('Tabs.Failed'), 'danger'); }
   }
+  menu('ms-add-menu', [['studio', 'studio', t('Tabs.NewStudio')], ['drawing', 'drawing', t('Tabs.NewDrawing')], ['assembly', 'assembly', t('Tabs.NewAssembly')]], kind => addStudio(kind));
 
   // ---- versions, export ----------------------------------------------------------------------------------------------------
 
@@ -1417,7 +1461,7 @@ function start() {
       if (e.key === 'Enter') { finishSketch(); return; }
     }
     if (state.mode === 'dialog' && e.key === 'Enter') { acceptDialog(); return; }
-    if (ctrl || e.altKey) return;
+    if (ctrl || e.altKey || state.kind === 'drawing') return;
     if (key === 'f' && !e.shiftKey) viewport.fit();
     else if (key === 'p' && !e.shiftKey) togglePlanes();
     else if (key === 'm' && !e.shiftKey && state.mode !== 'sketch') toggleMeasure();

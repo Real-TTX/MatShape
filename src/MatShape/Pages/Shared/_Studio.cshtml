@@ -160,21 +160,39 @@
         <button type="button" class="ms-tool ms-tool--accept" data-sketch-action="finish" data-tip="@L["Sketch.Finish"] (Enter)">@Ui.Icon("check")<span>@L["Sketch.Finish"]</span></button>
     </div>
 
+    @* the tools of a drawing tab *@
+    <div class="ms-tools ms-tools--drawing" role="toolbar" aria-label="@L["Drawing.Tools"]" data-toolbar="drawing" hidden>
+        <button type="button" class="ms-tool" data-draw-tool="select" aria-pressed="true" data-tip="@L["Drawing.Tool.Select"]">@Ui.Icon("cursor")<span>@L["Drawing.Tool.Select"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-draw-tool="dim" aria-pressed="false" data-tip="@L["Drawing.Tool.Dim"]">@Ui.Icon("dimension")<span>@L["Drawing.Tool.Dim"]</span></button>
+        <button type="button" class="ms-tool" data-draw-tool="dia" aria-pressed="false" data-tip="@L["Drawing.Tool.Dia"]">@Ui.Icon("circle-tool")<span>@L["Drawing.Tool.Dia"]</span></button>
+        <button type="button" class="ms-tool" data-draw-tool="detail" aria-pressed="false" data-tip="@L["Drawing.Tool.Detail"]">@Ui.Icon("search")<span>@L["Drawing.Tool.Detail"]</span></button>
+        <button type="button" class="ms-tool" data-draw-action="delete" data-tip="@L["Drawing.Tool.Delete"] (Del)">@Ui.Icon("trash")<span>@L["Drawing.Tool.Delete"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-draw-action="fit" data-tip="@L["View.Fit"]">@Ui.Icon("zoom-fit")<span>@L["View.Fit"]</span></button>
+        <span class="ms-tools__grow" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-draw-action="pdf" data-tip="PDF">@Ui.Icon("download")<span>PDF</span></button>
+        <button type="button" class="ms-tool" data-draw-action="svg" data-tip="SVG">@Ui.Icon("download")<span>SVG</span></button>
+        <button type="button" class="ms-tool" data-draw-action="dxf" data-tip="DXF">@Ui.Icon("download")<span>DXF</span></button>
+    </div>
+
     <div class="ms-work">
         <aside class="ms-side" id="ms-side" aria-label="@L["Studio.FeatureList"]">
             <section class="ms-side__part">
                 <h2 class="ms-side__head">@Ui.Icon("list")<span>@L["Studio.Features"]</span><span class="ms-side__count" data-feature-count></span></h2>
                 <ol class="ms-tree" data-feature-list aria-label="@L["Studio.FeatureList"]"></ol>
             </section>
-            <section class="ms-side__part">
+            <section class="ms-side__part" data-parts-section>
                 <h2 class="ms-side__head">@Ui.Icon("part")<span>@L["Studio.Parts"]</span><span class="ms-side__count" data-part-count></span></h2>
                 <ul class="ms-parts" data-part-list aria-label="@L["Studio.Parts"]"></ul>
             </section>
+            <section class="ms-side__part" data-drawing-panel hidden></section>
         </aside>
         <button type="button" class="ms-side-toggle mat-btn mat-btn--secondary mat-btn--icon" data-action="side" aria-controls="ms-side" aria-expanded="true" aria-label="@L["Studio.FeatureList"]">@Ui.Icon("sidebar")</button>
 
         <div class="ms-view" data-view>
             <canvas class="ms-canvas" data-canvas tabindex="0" aria-label="@L["Studio.Viewport"]"></canvas>
+            <div class="ms-sheet" data-sheet hidden></div>
 
             @* the view cube (OnShape-like): turns with the view; a click on a face, an edge or a corner turns the view there, a drag turns the model *@
             <div class="ms-cube">
@@ -294,7 +312,7 @@
         <div class="ms-tabsbar__list" role="tablist" data-studio-tabs></div>
         @if (canEdit)
         {
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-action="add-studio" aria-label="@L["Studio.AddStudio"]" data-tip="@L["Studio.AddStudio"]">@Ui.Icon("plus")</button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-menu-toggle="ms-add-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["Studio.AddStudio"]" data-tip="@L["Studio.AddStudio"]">@Ui.Icon("plus")</button>
         }
         <span class="ms-tabsbar__grow"></span>
         <span class="ms-tabsbar__status mat-mono" data-status></span>
@@ -472,6 +490,10 @@
                 <button type="button" class="mat-btn mat-btn--primary" data-draw-save="pdf" disabled>@Ui.Icon("download")<span>PDF</span></button>
                 <button type="button" class="mat-btn mat-btn--secondary" data-draw-save="svg" disabled>@Ui.Icon("download")<span>SVG</span></button>
                 <button type="button" class="mat-btn mat-btn--secondary" data-draw-save="dxf" disabled>@Ui.Icon("download")<span>DXF</span></button>
+                @if (canEdit)
+                {
+                    <button type="button" class="mat-btn mat-btn--secondary" data-draw-tab disabled>@Ui.Icon("drawing")<span>@L["Drawing.AsTab"]</span></button>
+                }
                 <button type="button" class="mat-btn mat-btn--ghost" data-dialog-close>@L["Common.Dialog.Close"]</button>
             </div>
         </div>

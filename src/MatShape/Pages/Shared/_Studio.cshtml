@@ -176,6 +176,21 @@
         <button type="button" class="ms-tool" data-draw-action="dxf" data-tip="DXF">@Ui.Icon("download")<span>DXF</span></button>
     </div>
 
+    @* the tools of an assembly tab *@
+    <div class="ms-tools ms-tools--assembly" role="toolbar" aria-label="@L["Asm.Tools"]" data-toolbar="assembly" hidden>
+        <button type="button" class="ms-tool" data-asm-action="insert" data-tip="@L["Asm.Insert.Tip"]">@Ui.Icon("plus")<span>@L["Asm.Insert"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-asm-mate="fastened" aria-pressed="false" data-tip="@L["Asm.Mate.Fastened.Tip"]">@Ui.Icon("mate-fastened")<span>@L["Asm.Mate.Fastened"]</span></button>
+        <button type="button" class="ms-tool" data-asm-mate="revolute" aria-pressed="false" data-tip="@L["Asm.Mate.Revolute.Tip"]">@Ui.Icon("mate-revolute")<span>@L["Asm.Mate.Revolute"]</span></button>
+        <button type="button" class="ms-tool" data-asm-mate="slider" aria-pressed="false" data-tip="@L["Asm.Mate.Slider.Tip"]">@Ui.Icon("mate-slider")<span>@L["Asm.Mate.Slider"]</span></button>
+        <button type="button" class="ms-tool" data-asm-mate="cylindrical" aria-pressed="false" data-tip="@L["Asm.Mate.Cylindrical.Tip"]">@Ui.Icon("mate-cylindrical")<span>@L["Asm.Mate.Cylindrical"]</span></button>
+        <button type="button" class="ms-tool" data-asm-mate="planar" aria-pressed="false" data-tip="@L["Asm.Mate.Planar.Tip"]">@Ui.Icon("mate-planar")<span>@L["Asm.Mate.Planar"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <label class="ms-tool ms-tool--range" data-tip="@L["Asm.Explode.Tip"]">@Ui.Icon("assembly")<span>@L["Asm.Explode"]</span><input type="range" min="0" max="100" value="0" data-asm-explode aria-label="@L["Asm.Explode"]"></label>
+        <button type="button" class="ms-tool" data-asm-action="interference" data-tip="@L["Asm.Interference.Tip"]">@Ui.Icon("alert")<span>@L["Asm.Interference"]</span></button>
+        <button type="button" class="ms-tool" data-asm-action="bom" data-tip="@L["Asm.Bom.Tip"]">@Ui.Icon("list")<span>@L["Asm.Bom"]</span></button>
+    </div>
+
     <div class="ms-work">
         <aside class="ms-side" id="ms-side" aria-label="@L["Studio.FeatureList"]">
             <section class="ms-side__part">
@@ -187,6 +202,7 @@
                 <ul class="ms-parts" data-part-list aria-label="@L["Studio.Parts"]"></ul>
             </section>
             <section class="ms-side__part" data-drawing-panel hidden></section>
+            <section class="ms-side__part ms-asmpanel" data-assembly-panel hidden></section>
         </aside>
         <button type="button" class="ms-side-toggle mat-btn mat-btn--secondary mat-btn--icon" data-action="side" aria-controls="ms-side" aria-expanded="true" aria-label="@L["Studio.FeatureList"]">@Ui.Icon("sidebar")</button>
 
@@ -497,6 +513,15 @@
                 <button type="button" class="mat-btn mat-btn--ghost" data-dialog-close>@L["Common.Dialog.Close"]</button>
             </div>
         </div>
+    </div>
+</dialog>
+
+@* inserting a part into an assembly: the parts of the Part Studios *@
+<dialog class="mat-dialog" id="ms-insert" aria-labelledby="ms-insert-title">
+    <div class="mat-dialog__form">
+        <div class="mat-dialog__head">@Ui.Icon("plus")<h2 class="mat-dialog__title" id="ms-insert-title">@L["Asm.Insert"]</h2>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-dialog__close" data-dialog-close aria-label="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button></div>
+        <div class="mat-dialog__body"><ul class="ms-asminsert" data-asm-insert-list></ul></div>
     </div>
 </dialog>
 

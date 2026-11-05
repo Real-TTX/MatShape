@@ -9,6 +9,7 @@ import { Assistant } from './assistant.js';
 import { ImageDialog } from './imagedialog.js';
 import { DrawingDialog } from './drawingdialog.js';
 import { DrawingEditor } from './drawingeditor.js';
+import { AssemblyEditor } from './assembly.js';
 import { loadKernel, regenerate, dispose, FEATURES, TANGENT, faceKey, outlineOf, properties, sectionOf } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { distToSegment3 } from './topo.js';
@@ -157,6 +158,19 @@ function start() {
     status: text => setStatus(text),
     change: fn => change(c => { c.drawing ||= {}; fn(c.drawing); }),
   });
+  // ---- an assembly tab (assembly.js): instances of parts, mates -------------------------------------------------------------
+  const assemblyEditor = new AssemblyEditor({ panel: $('[data-assembly-panel]'), toolbar: $('[data-toolbar="assembly"]'), insert: document.getElementById('ms-insert') }, {
+    kernel: () => state.kernel,
+    studios: () => state.doc.studios,
+    units: () => state.doc.units,
+    unit: () => unit(),
+    viewport,
+    canEdit: () => canEdit(),
+    status: text => setStatus(text),
+    partName: part => partName(part),
+    change: fn => change(c => { c.assembly ||= { instances: [], mates: [] }; fn(c.assembly); }),
+  });
+
   /** What a tab holds: a Part Studio, a drawing or an assembly. */
   const kindOf = content => (content?.drawing ? 'drawing' : content?.assembly ? 'assembly' : 'studio');
   function showKind(kind) {
@@ -167,8 +181,11 @@ function start() {
     $('[data-sheet]').hidden = kind !== 'drawing';
     $('[data-drawing-panel]').hidden = kind !== 'drawing';
     ui.tree.closest('.ms-side__part').hidden = kind !== 'studio';
-    $('[data-parts-section]').hidden = kind === 'drawing';
+    $('[data-parts-section]').hidden = kind !== 'studio';
+    $('[data-toolbar="assembly"]').hidden = kind !== 'assembly';
+    $('[data-assembly-panel]').hidden = kind !== 'assembly';
     if (kind !== 'drawing') drawingEditor.close();
+    if (kind !== 'assembly') assemblyEditor.close();
   }
   const openDrawing = () => { if (!drawingDialog || !state.result) return; if (state.mode === 'dialog' || state.mode === 'sketch') closeModes(); drawingDialog.open(); };
   const openImage = file => { if (canEdit() && imageDialog && state.mode !== 'sketch') imageDialog.open(file); };
@@ -298,7 +315,7 @@ function start() {
     if (!options.keepTree) renderTree(content);
     renderParts();
     const empty = !content.features.length;
-    ui.empty.hidden = !empty || state.mode !== 'idle';
+    ui.empty.hidden = !empty || state.mode !== 'idle' || (state.kind && state.kind !== 'studio');
     if (empty) {
       $('[data-empty-title]').textContent = t(canEdit() ? 'Studio.Empty.Title' : 'Studio.Empty.ViewTitle');
       $('[data-empty-text]').textContent = t(canEdit() ? 'Studio.Empty.Text' : 'Studio.Empty.ViewText');
@@ -311,6 +328,7 @@ function start() {
     if (!hadParts && next.parts.length && state.mode !== 'sketch') setTimeout(() => viewport.fit(true), 320);
     if (state.section) updateSection();
     if (state.kind === 'drawing') drawingEditor.open(content.drawing);
+    if (state.kind === 'assembly') assemblyEditor.open(content.assembly);
   }
 
   function sketchVisible(s, content) {
@@ -1073,6 +1091,7 @@ function start() {
       return;
     }
     if (state.mode === 'measure') { measureClick(pick); return; }
+    if (state.kind === 'assembly' && state.mode === 'idle') { assemblyEditor.click(pick); return; }
     if (state.mode === 'dialog' && state.dialog.activeEdges) {
       const d = state.dialog, edge = d.activeEdges.facesOnly ? null : viewport.pickEdge(e.ndc);
       const round = p => p.map(x => Math.round(x * 1e4) / 1e4);
@@ -1341,6 +1360,14 @@ function start() {
     if (kind === 'json') { download(fileName(name, 'matshape.json'), JSON.stringify({ format: 'MatShape Part Studio 1', units: state.doc.units, content: state.content }, null, 2), 'application/json'); return; }
     if (kind === 'png') { const png = await viewport.image(); if (png) download(fileName(name, 'png'), png); return; }
     if (kind === 'drawing') { openDrawing(); return; }
+    if (state.kind === 'assembly' && ['stl', 'obj', '3mf'].includes(kind)) {
+      const all = assemblyEditor.parts();
+      if (!all.length) { toast(t('Export.Empty'), 'warning'); return; }
+      if (kind === 'stl') download(fileName(name, 'stl'), toStl(all, name));
+      else if (kind === 'obj') download(fileName(name, 'obj'), toObj(all, all.map(p => p.name)));
+      else download(fileName(name, '3mf'), toThreeMf(all, all.map(p => p.name), name));
+      return;
+    }
     if (!parts.length) { toast(t('Export.Empty'), 'warning'); return; }
     if (kind === 'stl') download(fileName(name, 'stl'), toStl(parts, name));
     else if (kind === 'obj') download(fileName(name, 'obj'), toObj(parts, parts.map(partName)));
@@ -1462,6 +1489,7 @@ function start() {
     }
     if (state.mode === 'dialog' && e.key === 'Enter') { acceptDialog(); return; }
     if (ctrl || e.altKey || state.kind === 'drawing') return;
+    if (state.kind === 'assembly' && e.shiftKey) return;
     if (key === 'f' && !e.shiftKey) viewport.fit();
     else if (key === 'p' && !e.shiftKey) togglePlanes();
     else if (key === 'm' && !e.shiftKey && state.mode !== 'sketch') toggleMeasure();

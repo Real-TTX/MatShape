@@ -89,4 +89,9 @@
   <symbol id="mat-i-draft" viewBox="0 0 24 24"><path d='M5 20 8 5h8l3 15z'/><path d='M8 5v15' stroke-dasharray='2 1.6' opacity='.6'/></symbol>
   <symbol id="mat-i-thread" viewBox="0 0 24 24"><path d='M8 3v18M16 3v18'/><path d='M8 6l8-2M8 10l8-2M8 14l8-2M8 18l8-2'/></symbol>
   <symbol id="mat-i-assembly" viewBox="0 0 24 24"><path d='M7 3.5 11.5 6v5L7 13.5 2.5 11V6z'/><path d='M17 10.5 21.5 13v5L17 20.5 12.5 18v-5z'/><path d='M11.5 8.5 14 10' stroke-dasharray='1.6 1.4'/></symbol>
+  <symbol id="mat-i-mate-fastened" viewBox="0 0 24 24"><path d='M4 10h7v10H4zM13 4h7v10h-7z'/><path d='M11 12h2'/></symbol>
+  <symbol id="mat-i-mate-revolute" viewBox="0 0 24 24"><circle cx='12' cy='12' r='3'/><path d='M12 4a8 8 0 1 1-7.4 5'/><path d='M3 5l1.6 4L8.5 8'/></symbol>
+  <symbol id="mat-i-mate-slider" viewBox="0 0 24 24"><path d='M3 15h18'/><path d='M8 9h8v6H8z'/><path d='M4 12l-2 3 2 3M20 12l2 3-2 3'/></symbol>
+  <symbol id="mat-i-mate-cylindrical" viewBox="0 0 24 24"><ellipse cx='12' cy='6' rx='5' ry='2'/><path d='M7 6v12M17 6v12'/><path d='M7 18a5 2 0 0 0 10 0'/><path d='M12 2v20' stroke-dasharray='2 1.6'/></symbol>
+  <symbol id="mat-i-mate-planar" viewBox="0 0 24 24"><path d='M2 17l6-6h14l-6 6z'/><path d='M9 9h6v4H9z'/></symbol>
 </svg>

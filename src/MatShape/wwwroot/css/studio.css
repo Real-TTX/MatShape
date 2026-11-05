@@ -417,6 +417,27 @@ dialog.ms-imgdlg { width: min(1100px, calc(100vw - 2 * var(--mat-space-4))); }
 .ms-imgdlg__colour.is-off { opacity: .55; }
 .ms-imgdlg__height { width: 64px; }
 .ms-imgdlg__share { min-width: 42px; text-align: right; color: var(--mat-text-muted); }
+/* an assembly tab: instances and mates in the side bar, the values of the mates with sliders */
+.ms-asmpanel { overflow: auto; }
+.ms-asmlist { list-style: none; margin: 0; padding: 0 var(--mat-space-2) var(--mat-space-2); display: flex; flex-direction: column; gap: 2px; font-size: var(--mat-fs-sm); }
+.ms-asmlist > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 2px 0; border-bottom: 1px solid var(--mat-border); }
+.ms-asmlist__name { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--mat-space-2); border: 0; background: none; padding: 4px; border-radius: var(--mat-radius-sm); color: inherit; text-align: left; cursor: pointer; }
+.ms-asmlist__name.is-selected { background: var(--mat-accent-soft); }
+.ms-asmlist__dot { width: 10px; height: 10px; border-radius: 3px; flex: none; border: 1px solid var(--mat-border); }
+.ms-asmlist__mate { display: flex; align-items: center; gap: var(--mat-space-1); width: 100%; }
+.ms-asmlist__mate > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-asmlist__mate .mat-icon { width: 16px; height: 16px; }
+.ms-asmlist__mate.is-conflict { color: var(--mat-danger-text); }
+.ms-asmlist__value { display: grid; grid-template-columns: 4.5rem 5rem minmax(0, 1fr); align-items: center; gap: var(--mat-space-1); width: 100%; font-size: var(--mat-fs-xs); color: var(--mat-text-muted); padding-left: 20px; }
+.ms-asmlist__range { width: 100%; accent-color: var(--mat-accent); }
+.ms-asmplace { display: flex; flex-direction: column; gap: var(--mat-space-2); padding: var(--mat-space-2) var(--mat-space-3); }
+.ms-asminsert { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 18rem; }
+.ms-asminsert__studio { display: flex; align-items: center; gap: var(--mat-space-2); font-weight: 650; margin-top: var(--mat-space-2); }
+.ms-asminsert__part { display: flex; align-items: center; gap: var(--mat-space-2); width: 100%; padding: 6px var(--mat-space-2); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-sm); background: var(--mat-surface); color: inherit; cursor: pointer; text-align: left; }
+.ms-asminsert__part:hover { border-color: var(--mat-accent); }
+.ms-tool--range { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
+.ms-tool--range input { width: 90px; accent-color: var(--mat-accent); }
+
 /* a drawing tab: the sheet over the view (white like paper), scrolled and zoomed; the settings in the side bar */
 .ms-sheet { position: absolute; inset: 0; z-index: 3; overflow: auto; background: var(--mat-surface-3); touch-action: none; }
 .ms-sheet[hidden] { display: none; }

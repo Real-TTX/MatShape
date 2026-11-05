@@ -8,6 +8,7 @@ import { UNITS } from './util.js';
 import { CONSTRAINTS, constraintsOf, solveSketch } from './sketchsolve.js';
 import { distToSegment3, topology } from './topo.js';
 import { blendTools } from './blend.js';
+import { unpackArray } from './step.js';
 import { axisOfFace, holeProfile, loftMesh, loftRings, offsetVertices, pathFrames, sweepMesh, threadTool } from './solids.js';
 
 /** The face numbers the model gives (every triangle carries one); smaller numbers are ones the kernel made itself. */
@@ -58,6 +59,8 @@ export const FEATURES = {
   loft: { icon: 'loft', params: () => ({ sketches: [], op: 'new', scope: null }) },
   draft: { icon: 'draft', params: () => ({ faces: [], neutral: { kind: 'std', name: 'top' }, angle: '3', flip: false }) },
   thread: { icon: 'thread', params: () => ({ faces: [], pitch: '1.5', depth: '', length: '', flip: false, left: false }) },
+  // import: bodies of a STEP, IGES, BREP or STL file, kept as meshes (base64 of the arrays: p positions, i indices, f the face of the source per triangle)
+  import: { icon: 'upload', params: () => ({ file: '', bodies: [] }) },
 };
 
 class FeatureError extends Error {
@@ -418,6 +421,47 @@ export function regenerate(kernel, content, units = 'mm') {
     },
 
     fillet(f) { return blend(f); },
+
+    import(f) {
+      const bodies = Array.isArray(f.params.bodies) ? f.params.bodies : [];
+      if (!bodies.length) throw new FeatureError('Feature.ImportEmpty');
+      let made = 0, failed = 0;
+      bodies.forEach((b, k) => {
+        const mesh = new Mesh({ numProp: 3, vertProperties: unpackArray(b.p, Float32Array), triVerts: unpackArray(b.i, Uint32Array) });
+        const faces = b.f ? unpackArray(b.f, Int32Array) : null;
+        mesh.faceID = Uint32Array.from({ length: mesh.triVerts.length / 3 }, (_, t) => faceNum(`${f.id}:${k}.${faces ? faces[t] : 0}`));
+        // the corners of the faces of the file are welded into one closed body
+        mesh.merge();
+        let m = keep(new Manifold(mesh));
+        if (m.status() !== 'NoError' || m.isEmpty()) { failed++; return; }
+        // a file without faces (STL): the faces are the regions between sharp edges (more than 20°), so that edges can be picked and rounded
+        if (!faces || new Set(faces).size < 2) {
+          const topo = topology(m.getMesh()), group = new Int32Array(topo.numTri).fill(-1), limit = Math.cos(20 * Math.PI / 180);
+          let groups = 0;
+          for (let s = 0; s < topo.numTri; s++) {
+            if (group[s] >= 0) continue;
+            group[s] = groups;
+            const stack = [s];
+            while (stack.length) {
+              const t = stack.pop(), n = topo.normal(t);
+              for (let c = 0; c < 3; c++) {
+                const u = topo.half.get(topo.tv[t * 3 + (c + 1) % 3] * topo.numVert + topo.tv[t * 3 + c]);
+                if (u === undefined || group[u] >= 0 || v3.dot(n, topo.normal(u)) < limit) continue;
+                group[u] = groups;
+                stack.push(u);
+              }
+            }
+            groups++;
+          }
+          const ids = Uint32Array.from(group, g => faceNum(`${f.id}:${k}.${g}`));
+          m = keep(new Manifold(new Mesh({ numProp: 3, vertProperties: topo.vp, triVerts: topo.tv, faceID: ids })));
+        }
+        newPart(bodies.length > 1 ? `${f.id}.${k}` : f.id, m);
+        made++;
+      });
+      if (!made) throw new FeatureError('Feature.ImportNotSolid');
+      if (failed) return { state: 'warn', key: 'Feature.ImportSomeOpen', args: [failed] };
+    },
 
     hole(f) {
       const p = f.params;

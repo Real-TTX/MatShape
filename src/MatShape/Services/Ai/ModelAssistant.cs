@@ -367,6 +367,7 @@ public static class ModelAssistant
                      (drawn at the start of the path) moved along the chain of lines/arcs/splines of the path sketch
         - loft:      {"sketches": ["<id>", "<id>", ...], "op": "new|add|remove|intersect", "scope": null}   a smooth body through the biggest profile of each sketch, in order
         - draft:     {"faces": [face refs], "neutral": <plane ref>, "angle": "3", "flip": false}   tilts faces about where they meet the neutral plane
+        - import:    a CAD file the person imported (its bodies are not shown to you); its parts can be used like others. Never write one.
         - thread:    {"faces": [face refs of round faces], "pitch": "1.5", "depth": "", "length": "", "left": false, "flip": false}   a 60° thread cut into a shaft or hole
 
         ## Part ids

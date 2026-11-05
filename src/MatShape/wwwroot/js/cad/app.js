@@ -16,6 +16,7 @@ import { distToSegment3 } from './topo.js';
 import { Sketcher } from './sketcher.js';
 import { renameProfiles } from './sketchsolve.js';
 import { toObj, toStl, toThreeMf } from './export.js';
+import { packArray, readCad, toStep } from './step.js';
 import { STANDARD_PLANES, curvesFromPoints, frameFromNormal, offsetFrame, v3 } from './geom.js';
 import { clone, debounce, download, el, fileName, fmt, icon, length, request, swatch, t, toast, uid, UNITS } from './util.js';
 
@@ -86,7 +87,7 @@ function start() {
   const assistant = aiPanel ? new Assistant(aiPanel, {
     studioId: () => state.studio.id,
     // the pictures behind sketches stay here (they are big and say nothing about the model)
-    content: () => ({ ...state.content, features: state.content.features.map(f => (f.params?.image ? { ...f, params: { ...f.params, image: undefined } } : f)) }),
+    content: () => ({ ...state.content, features: state.content.features.map(f => (f.params?.image ? { ...f, params: { ...f.params, image: undefined } } : f.type === 'import' ? { ...f, params: { file: f.params?.file, bodies: [] } } : f)) }),
     // the answer of the AI is one change: it can be undone like every other
     apply: content => {
       closeModes();
@@ -94,6 +95,9 @@ function start() {
       // the pictures behind sketches were not sent: they come back from here
       const images = new Map(state.content.features.filter(f => f.params?.image).map(f => [f.id, f.params.image]));
       for (const f of content.features || []) if (images.has(f.id) && f.params && !f.params.image) f.params.image = images.get(f.id);
+      // the bodies of imported files were not sent either
+      const imports = new Map(state.content.features.filter(f => f.type === 'import').map(f => [f.id, f.params.bodies]));
+      for (const f of content.features || []) if (f.type === 'import' && imports.has(f.id) && !f.params?.bodies?.length) f.params = { ...f.params, bodies: imports.get(f.id) };
       state.content = normalize(clone(content));
       commit(before);
       return before;
@@ -158,6 +162,34 @@ function start() {
     status: text => setStatus(text),
     change: fn => change(c => { c.drawing ||= {}; fn(c.drawing); }),
   });
+  // ---- importing a CAD file (STEP, IGES, BREP through OpenCascade; STL): a feature "import" with the bodies --------------------------
+  const importInput = el('input', { type: 'file', accept: '.step,.stp,.iges,.igs,.brep,.brp,.stl', class: 'mat-sr-only', tabindex: '-1', 'aria-hidden': 'true' });
+  root.append(importInput);
+  importInput.addEventListener('change', async () => {
+    const file = importInput.files[0];
+    importInput.value = '';
+    if (!file || !canEdit() || state.kind !== 'studio') return;
+    const ext = file.name.toLowerCase().split('.').pop();
+    const kind = ext === 'stp' || ext === 'step' ? 'step' : ext === 'igs' || ext === 'iges' ? 'iges' : ext === 'brep' || ext === 'brp' ? 'brep' : 'stl';
+    toast(t('Import.Reading', file.name), 'info');
+    try {
+      closeModes();
+      const bodies = await readCad(new Uint8Array(await file.arrayBuffer()), kind);
+      const id = uid('f');
+      const feature = { id, type: 'import', name: file.name.replace(/\.[^.]+$/, '').slice(0, 120), params: { file: file.name, bodies: bodies.map(b => ({ name: b.name, p: packArray(b.positions), i: packArray(b.indices), f: packArray(b.faces) })) } };
+      const before = JSON.stringify(state.content);
+      const content = clone(state.content);
+      const at = Number.isInteger(content.rollback) ? content.rollback : content.features.length;
+      content.features.splice(at, 0, feature);
+      if (Number.isInteger(content.rollback)) content.rollback++;
+      bodies.forEach((b, k) => { if (b.color || bodies.length > 1) content.parts[bodies.length > 1 ? `${id}.${k}` : id] = { name: b.name, ...(b.color ? { color: b.color } : {}) }; });
+      state.content = normalize(content);
+      commit(before);
+      setTimeout(() => viewport.fit(), 50);
+      toast(t('Import.Done', bodies.length), 'success');
+    } catch (e) { console.warn('MatShape: import failed', e); toast(t(kind === 'stl' ? 'Import.Failed' : 'Import.NeedsWorker'), 'danger'); }
+  });
+
   // ---- an assembly tab (assembly.js): instances of parts, mates -------------------------------------------------------------
   const assemblyEditor = new AssemblyEditor({ panel: $('[data-assembly-panel]'), toolbar: $('[data-toolbar="assembly"]'), insert: document.getElementById('ms-insert') }, {
     kernel: () => state.kernel,
@@ -1360,6 +1392,12 @@ function start() {
     if (kind === 'json') { download(fileName(name, 'matshape.json'), JSON.stringify({ format: 'MatShape Part Studio 1', units: state.doc.units, content: state.content }, null, 2), 'application/json'); return; }
     if (kind === 'png') { const png = await viewport.image(); if (png) download(fileName(name, 'png'), png); return; }
     if (kind === 'drawing') { openDrawing(); return; }
+    if (kind === 'step') {
+      const all = state.kind === 'assembly' ? assemblyEditor.parts().map(p => ({ mesh: { vertProperties: p.mesh.positions, triVerts: Uint32Array.from({ length: p.mesh.positions.length / 3 }, (_, i) => i), numProp: 3, faceID: p.mesh.faceIds }, name: p.name, color: p.color })) : parts.map(p => ({ manifold: p.manifold, name: partName(p), color: p.color }));
+      if (!all.length) { toast(t('Export.Empty'), 'warning'); return; }
+      download(fileName(name, 'step'), toStep(all, name), 'application/step');
+      return;
+    }
     if (state.kind === 'assembly' && ['stl', 'obj', '3mf'].includes(kind)) {
       const all = assemblyEditor.parts();
       if (!all.length) { toast(t('Export.Empty'), 'warning'); return; }
@@ -1416,6 +1454,7 @@ function start() {
     else if (action === 'side') toggleSide();
     else if (action === 'ai') assistant?.open();
     else if (action === 'image') openImage();
+    else if (action === 'import') importInput.click();
     else if (action === 'drawing') openDrawing();
     else if (action === 'keys') openKeys();
   });

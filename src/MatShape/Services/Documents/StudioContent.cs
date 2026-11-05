@@ -24,15 +24,15 @@ public static class StudioContent
     /// <summary>The first content of a new tab of a kind (null: an empty Part Studio).</summary>
     public static string? ForKind(string? kind) => kind switch { "drawing" => DrawingEmpty, "assembly" => AssemblyEmpty, _ => null };
 
-    /// <summary>The largest content of one Part Studio (a long history of big sketches stays far below).</summary>
-    public const int MaxBytes = 2_000_000;
+    /// <summary>The largest content of one Part Studio (a long history of big sketches stays far below; imported STEP bodies are the big ones).</summary>
+    public const int MaxBytes = 12_000_000;
 
     public const int MaxFeatures = 1000;
 
     /// <summary>The kinds of features the editor knows.</summary>
     public static readonly IReadOnlySet<string> FeatureTypes = new HashSet<string>(StringComparer.Ordinal)
     {
-        "sketch", "plane", "extrude", "revolve", "boolean", "transform", "mirror", "lpattern", "cpattern", "split", "deletepart", "variable", "fillet", "chamfer", "hole", "shell", "rib", "sweep", "loft", "draft", "thread",
+        "sketch", "plane", "extrude", "revolve", "boolean", "transform", "mirror", "lpattern", "cpattern", "split", "deletepart", "variable", "fillet", "chamfer", "hole", "shell", "rib", "sweep", "loft", "draft", "thread", "import",
     };
 
     /// <summary>Checks a content; <c>null</c> when it is fine, else what is wrong (for the log and the answer of the API; the editor never sends such a thing).</summary>

@@ -4,7 +4,7 @@
    finite differences, dense normal equations – a sketch has tens to a few hundred unknowns). The analysis then tells, from the rank of the equations,
    which numbers are still free (blue), which are fully defined (black) and which constraints contradict the others or are redundant (red).
 
-   A constraint: { id, type, refs: [ref, ref], value?, at?, off? }. A ref to a point: { e: entityId, k: 'a'|'b'|'c'|'s'|'e'|'p' } (s / e: start / end of an arc;
+   A constraint: { id, type, refs: [ref, ref], value?, at?, off?, driven? } (driven: a dimension that only shows the value, like OnShape's driven dimensions). A ref to a point: { e: entityId, k: 'a'|'b'|'c'|'s'|'e'|'p' } (s / e: start / end of an arc;
    { e: 'origin', k: 'p' } is the origin of the sketch); a ref to a curve: { e: entityId }. value is an expression (dimensions). */
 
 export const ORIGIN = 'origin';
@@ -29,6 +29,7 @@ export const CONSTRAINTS = {
   radius: { dimension: true },
   diameter: { dimension: true },
   angle: { dimension: true, angle: true },
+  arclength: { dimension: true },
   width: { dimension: true },
   height: { dimension: true },
 };
@@ -224,6 +225,15 @@ function equations(sys, c, value) {
         const u = unit(sub(sys.line(x, e1.id).b, sys.line(x, e1.id).a)), v = unit(sub(sys.line(x, e2.id).b, sys.line(x, e2.id).a));
         return Math.atan2(Math.abs(cross(u, v)), c.flip ? -dot(u, v) : dot(u, v)) - value * Math.PI / 180;
       });
+    case 'arclength':
+      if (e1?.t !== 'arc') return { error: 'kind' };
+      return rows(cv(r1), x => {
+        const k = sys.round(x, e1.id);
+        let sweep = x[sys.s(e1.id, 'a1')] - x[sys.s(e1.id, 'a0')];
+        while (sweep <= 0) sweep += 2 * Math.PI;
+        while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI;
+        return k.r * sweep - value;
+      });
     case 'width':
     case 'height': {
       if (e1?.t !== 'rect') return { error: 'kind' };
@@ -313,6 +323,8 @@ export function solveSketch(entities, constraints, evaluate, options = {}) {
   const errors = [];
   const rowsOf = new Map();
   for (const c of constraints || []) {
+    // a driven dimension shows what the geometry measures; it holds nothing
+    if (c.driven) continue;
     let value;
     if (CONSTRAINTS[c.type]?.dimension) {
       try { value = evaluate(c); } catch (error) { errors.push({ id: c.id, reason: 'value', error }); continue; }
@@ -414,7 +426,7 @@ function analyse(sys, x, rows, found, errors, constraints) {
       point.set(e.id + '.' + k, inConflict.has(e.id) ? 'conflict' : pvars.every(v => defined[v]) ? 'defined' : 'free');
     }
   }
-  for (const c of constraints || []) constraint.set(c.id, errors.some(e => e.id === c.id) ? 'error' : conflict.has(c.id) ? 'conflict' : 'ok');
+  for (const c of constraints || []) constraint.set(c.id, c.driven ? 'driven' : errors.some(e => e.id === c.id) ? 'error' : conflict.has(c.id) ? 'conflict' : 'ok');
   return { dof: n - sys.fixed.size - basis.length, entity, point, constraint, errors, conflicts: [...conflict] };
 }
 

@@ -440,4 +440,8 @@ dialog.ms-imgdlg.is-dropping .ms-imgdlg__view { outline: 2px dashed var(--mat-ac
 .ms-selbox { position: absolute; pointer-events: none; border: 1.5px solid #2563eb; background: rgba(37, 99, 235, .08); }
 .ms-selbox.is-crossing { border-style: dashed; border-color: #16a34a; background: rgba(22, 163, 74, .08); }
 .ms-dim.is-preview { pointer-events: none; border-color: var(--mat-accent); }
+/* a driven dimension (OnShape): grey, it only shows what the geometry measures */
+.ms-dim.is-driven { color: var(--mat-text-muted); border-style: dashed; }
+.ms-dimedit.is-driven input { color: var(--mat-text-muted); }
+.ms-dimedit .mat-btn[aria-pressed="true"] { color: var(--mat-accent-text); background: var(--mat-accent-soft); }
 .ms-dims.is-busy .ms-dim, .ms-dims.is-busy .ms-glyph { pointer-events: none; }

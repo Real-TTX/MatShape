@@ -660,7 +660,7 @@ export class Viewport {
     // dimensions: extension and dimension lines with arrows, leaders, angle arcs (thin, in the colour of their state)
     for (const a of state.annotations || []) {
       if (!a.segs.length) continue;
-      const colour = a.state === 'conflict' ? palette.conflict : a.state === 'selected' ? palette.select : a.state === 'preview' ? palette.hover : palette.dim;
+      const colour = a.state === 'conflict' ? palette.conflict : a.state === 'selected' ? palette.select : a.state === 'preview' ? palette.hover : a.state === 'driven' ? palette.cons : palette.dim;
       group.add(fatLines(a.segs.flatMap(([p, q]) => [toWorld(f, p[0], p[1]), toWorld(f, q[0], q[1])]), colour, 1.3, { depthTest: false, renderOrder: 8 }));
     }
     // the guides of snapping: dashed lines to the point a new point lines up with

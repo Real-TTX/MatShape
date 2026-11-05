@@ -82,6 +82,7 @@ export class Sketcher {
   setTool(tool) {
     if (this.tool === 'use' && tool !== 'use') { this.useEdge = null; this.vp.setEdgeMarks(null); }
     this.tool = tool;
+    this.pressed = null;
     this.points = [];
     this.picks = [];
     this.placing = null;
@@ -268,9 +269,14 @@ export class Sketcher {
     vp.on('hover', e => this.active && this.move(e));
     vp.on('drag', e => this.active && this.dragMove(e));
     vp.on('down', e => this.active && this.down(e));
-    vp.on('dragend', () => this.active && this.dragEnd());
+    vp.on('dragend', e => this.active && this.dragEnd(e));
     vp.on('click', e => this.active && this.click(e));
-    vp.on('cancel', () => { if (this.active) this.dragging = null; });
+    vp.on('cancel', () => {
+      if (!this.active) return;
+      this.dragging = null;
+      // a second finger (pinch) while a point was pressed: that point is not meant
+      if (this.pressed) { this.points.pop(); this.pressed = null; this.draw(); }
+    });
   }
 
   move(e) {
@@ -285,10 +291,16 @@ export class Sketcher {
       return;
     }
     if (this.placing) {
-      // the dimension follows the pointer until it is placed
+      // the dimension follows the pointer until it is placed: dragged straight up or down it measures across (horizontal), left or right
+      // upright (vertical), at a slant the direct distance; an angle measures the quadrant it is dragged into
       const p = this.local(e);
+      if (p && this.placing.c.linear) linearKind(this.entities, this.placing.c, p);
       const shape = p && dimensionShape(this.entities, this.placing.c, this.vp.mmPerPixel);
       if (shape) this.placing.c.off = [p[0] - shape.anchor[0], p[1] - shape.anchor[1]];
+      if (shape && this.placing.c.type === 'angle') {
+        const again = dimensionShape(this.entities, this.placing.c, this.vp.mmPerPixel);
+        if (again?.flip !== undefined) this.placing.c.flip = again.flip;
+      }
       if (this.placing.final) { this.draw(); return; }
     }
     if (!DRAW_TOOLS.includes(this.tool)) {
@@ -316,6 +328,15 @@ export class Sketcher {
    * in empty space a selection box is drawn (to the right: what lies wholly inside; to the left: what it touches), like OnShape.
    */
   down(e) {
+    if (DRAW_TOOLS.includes(this.tool)) {
+      // like OnShape: press – drag – release draws as well as click – click; the press sets the first point
+      if (!this.points.length && this.tool !== 'point') {
+        const [from, prev] = this.drawContext();
+        const located = this.locate(e, from, prev);
+        if (located) { this.points.push(located); this.pressed = { x: e.clientX, y: e.clientY }; this.located = null; this.draw(); }
+      }
+      return;
+    }
     if (this.tool !== 'select') return;
     const p = this.local(e);
     if (!p) return;
@@ -331,6 +352,8 @@ export class Sketcher {
   }
 
   dragMove(e) {
+    // drawing with the button held: the preview follows like on hover
+    if (DRAW_TOOLS.includes(this.tool)) { this.move(e); return; }
     const p = this.local(e);
     if (!p) return;
     if (this.box) {
@@ -346,7 +369,17 @@ export class Sketcher {
     this.cb.changed?.();
   }
 
-  dragEnd() {
+  dragEnd(e) {
+    if (DRAW_TOOLS.includes(this.tool)) {
+      const pressed = this.pressed;
+      this.pressed = null;
+      // let go where it was pressed: the first point stays, a click sets the next one
+      if (pressed && Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y) < 6) return;
+      // a drag that set no point (Esc while pressing, or nothing to snap to) draws nothing
+      if (!pressed && !this.points.length) return;
+      this.place(e, !!pressed);
+      return;
+    }
     if (this.box) {
       const crossing = this.box.ex < this.box.sx;
       this.boxSelect(this.box.a, this.box.b, crossing);
@@ -412,11 +445,20 @@ export class Sketcher {
     if (this.tool === 'use') return this.useClick(e);
     if (this.tool === 'dimension') return this.dimensionClick(e);
     if (this.tool.startsWith('constraint:')) return this.constraintClick(e);
+    // the press set this point already
+    if (this.pressed) { this.pressed = null; this.located = null; this.draw(); return; }
+    this.place(e);
+  }
+
+  /** A point of a drawing tool where the pointer is (snapped); dragged: the shape was drawn by press – drag – release. */
+  place(e, dragged = false) {
     const [from, prev] = this.drawContext();
     const located = this.locate(e, from, prev);
     if (!located) return;
     this.points.push(located);
     this.tryComplete();
+    // a line drawn by dragging is one line (like OnShape); clicks make a chain
+    if (dragged && this.tool === 'line') this.points = [];
     this.located = null;
     this.draw();
   }
@@ -673,6 +715,15 @@ export class Sketcher {
     }
     this.picks.push(hit);
     const c = this.dimensionFor(this.picks);
+    // the two ends of an arc: the chord follows the pointer, a click on the arc makes it the length along the arc (like OnShape)
+    const [p1, p2] = this.picks;
+    if (this.picks.length === 2 && p1.kind === 'point' && p2.kind === 'point' && p1.ref.e === p2.ref.e && ['s', 'e'].includes(p1.ref.k) && ['s', 'e'].includes(p2.ref.k) && p1.ref.k !== p2.ref.k) {
+      this.placing = c ? { c, final: false } : null;
+      this.cb.status(t('Sketch.Hint.dimensionArc'));
+      if (this.placing) { const shape = dimensionShape(this.entities, c, this.vp.mmPerPixel); if (shape) c.off = [p[0] - shape.anchor[0], p[1] - shape.anchor[1]]; }
+      this.draw();
+      return;
+    }
     if (this.picks.length === 1) {
       this.placing = c ? { c, final: false } : null;
       this.cb.status(t(c ? 'Sketch.Hint.dimensionOne' : 'Sketch.Hint.dimension2'));
@@ -691,15 +742,20 @@ export class Sketcher {
 
   /** The dimension the picks ask for: { type, refs } or null. */
   dimensionFor(picks) {
-    const [a, b] = picks;
+    const [a, b, third] = picks;
+    if (third) return third.kind === 'curve' && third.entity?.t === 'arc' && third.ref.e === a.ref.e ? { type: 'arclength', refs: [third.ref] } : null;
     if (picks.length === 1 || (b && a.kind === 'curve' && b.kind === 'curve' && a.ref.e === b.ref.e)) {
       const x = a.entity;
-      if (x?.t === 'line') return { type: 'length', refs: [a.ref] };
+      if (x?.t === 'line') {
+        // a slanted line: its length, or what it measures across or upright, depending on where the dimension is dragged
+        const slanted = Math.abs(x.a[0] - x.b[0]) > 1e-9 && Math.abs(x.a[1] - x.b[1]) > 1e-9;
+        return { type: 'length', refs: [a.ref], ...(slanted ? { linear: { line: a.ref.e } } : {}) };
+      }
       if (x?.t === 'circle') return { type: 'diameter', refs: [a.ref] };
       if (x?.t === 'arc' || x?.t === 'polygon') return { type: 'radius', refs: [a.ref] };
       return null;
     }
-    if (a.kind === 'point' && b.kind === 'point') return { type: 'distance', refs: [a.ref, b.ref] };
+    if (a.kind === 'point' && b.kind === 'point') return { type: 'distance', refs: [a.ref, b.ref], linear: { points: [a.ref, b.ref] } };
     if (a.kind === 'point' || b.kind === 'point') {
       const point = a.kind === 'point' ? a : b, curve = a.kind === 'point' ? b : a;
       return curve.entity?.t === 'line' ? { type: 'distance', refs: [point.ref, curve.ref] } : curve.entity?.c ? { type: 'distance', refs: [point.ref, { e: curve.ref.e, k: 'c' }] } : null;
@@ -726,8 +782,18 @@ export class Sketcher {
     const value = measure(this.entities, c);
     if (value === null) { this.cb.status(t('Sketch.DimensionNoFit')); this.draw(); return; }
     const shown = CONSTRAINTS[c.type].angle ? value : value / this.unit;
-    const dim = { id: uid('k'), type: c.type, refs: c.refs, value: fmt(shown, 3).replace(',', '.'), off: c.off };
+    const dim = { id: uid('k'), type: c.type, refs: c.refs, value: fmt(shown, 3).replace(',', '.'), off: c.off, ...(c.flip ? { flip: true } : {}) };
     this.change(() => { this.cons.push(dim); });
+    if (this.analysis?.conflicts?.includes(dim.id)) {
+      // it would over-define the sketch: like OnShape it becomes a driven dimension (grey, it only shows the value)
+      dim.driven = true;
+      this.solve();
+      this.renderPanel();
+      this.draw();
+      this.cb.changed?.();
+      this.cb.status(t('Sketch.DimensionDriven'));
+      return;
+    }
     this.editDimension(dim, e.clientX, e.clientY);
   }
 
@@ -736,25 +802,39 @@ export class Sketcher {
     this.closeEditor();
     const host = this.vp.canvas.parentElement;
     const box = host.getBoundingClientRect();
-    const input = el('input', { class: 'mat-input mat-input--sm mat-mono', value: d.value, autocomplete: 'off', spellcheck: 'false', 'aria-label': t('Sketch.DimensionValue') });
+    const measured = measure(this.entities, d);
+    const now = measured === null ? '' : fmt(CONSTRAINTS[d.type].angle ? measured : measured / this.unit, 3).replace(',', '.');
+    const input = el('input', { class: 'mat-input mat-input--sm mat-mono', value: d.driven ? now : d.value, autocomplete: 'off', spellcheck: 'false', 'aria-label': t('Sketch.DimensionValue') });
+    input.disabled = !!d.driven;
     const remove = el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm', 'aria-label': t('Sketch.DimensionDelete'), 'data-tip': t('Sketch.DimensionDelete') }, icon('trash'));
-    const editor = el('div', { class: 'ms-dimedit' }, input, remove);
+    const drive = el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm', 'aria-pressed': d.driven ? 'true' : 'false', 'aria-label': t(d.driven ? 'Sketch.MakeDriving' : 'Sketch.MakeDriven'), 'data-tip': t(d.driven ? 'Sketch.MakeDriving' : 'Sketch.MakeDriven') }, icon('link'));
+    const editor = el('div', { class: 'ms-dimedit' + (d.driven ? ' is-driven' : '') }, input, drive, remove);
     editor.style.left = Math.max(4, Math.min(box.width - 190, clientX - box.left - 60)) + 'px';
     editor.style.top = Math.max(4, Math.min(box.height - 44, clientY - box.top + 14)) + 'px';
     host.append(editor);
     this.editor = editor;
     const apply = () => {
-      const text = input.value.trim();
+      if (d.driven) { this.closeEditor(); return; }
+      let text = input.value.trim();
+      let v;
       try {
-        const v = this.evaluate({ ...d, value: text });
-        if (!(v > 0)) throw new Error('positive');
+        v = this.evaluate({ ...d, value: text });
+        // like OnShape: a negative distance puts the second thing on the other side
+        if (v < 0 && FLIPPABLE.includes(d.type) && d.refs.every(r => r?.k)) text = /^-\s*[\d.,]+$/.test(text) ? text.replace(/^-\s*/, '') : `-(${text})`;
+        else if (!(v > 0)) throw new Error('positive');
       } catch {
         input.setAttribute('aria-invalid', 'true');
         return;
       }
       this.closeEditor();
+      if (v < 0) { this.change(() => { d.value = text; this.flipSide(d); }); return; }
       if (text !== d.value) this.change(() => { d.value = text; });
     };
+    drive.addEventListener('click', () => {
+      this.closeEditor();
+      // driven -> driving takes the value it measures now; driving -> driven keeps the geometry as it is
+      this.change(() => { if (d.driven) { delete d.driven; d.value = now || d.value; } else d.driven = true; });
+    });
     input.addEventListener('keydown', ev => {
       ev.stopPropagation();
       if (ev.key === 'Enter') { ev.preventDefault(); apply(); }
@@ -764,6 +844,15 @@ export class Sketcher {
     this.editorApply = apply;
     this.focusEditor();
     setTimeout(() => this.focusEditor(), 40);
+  }
+
+  /** A negative distance: the second point (or line) goes over to the other side of the first, the solver then holds the distance there. */
+  flipSide(d) {
+    const [r1, r2] = d.refs;
+    const a = pointOfRef(this.entities, r1), b = pointOfRef(this.entities, r2);
+    if (!a || !b) return;
+    const to = d.type === 'hdistance' ? [2 * a[0] - b[0], b[1]] : d.type === 'vdistance' ? [b[0], 2 * a[1] - b[1]] : [2 * a[0] - b[0], 2 * a[1] - b[1]];
+    this.solve({ drag: [{ ref: r2, to }], analyse: false, iterations: 40 });
   }
 
   /** Puts the focus into the value field (the view takes it on pointerdown, so this runs once more a moment later). */
@@ -783,6 +872,7 @@ export class Sketcher {
   /** Esc: first the field, then the picks or clicks of the tool, then the tool, then the selection. */
   escape() {
     if (this.editor) { this.closeEditor(); return; }
+    this.pressed = null;
     if (this.placing || this.points.length || this.picks.length) { this.placing = null; this.points = []; this.picks = []; this.located = null; this.draw(); return; }
     if (this.tool !== 'select') { this.setTool('select'); return; }
     this.selection.clear();
@@ -797,6 +887,8 @@ export class Sketcher {
     const preview = this.preview();
     this.cb.hud('');   // the length and angle of what is drawn stand at the pointer (pointerDecor)
     const picked = new Set(this.picks.map(p => (p.kind === 'point' ? 'p:' + p.ref.e + '.' + p.ref.k : 'e:' + p.ref.e)));
+    for (const r of this.placing?.c.refs || []) if (r?.e && r.e !== ORIGIN) picked.add(r.k ? 'p:' + r.e + '.' + r.k : 'e:' + r.e);
+    if (this.placing?.c.linear?.line) picked.add('e:' + this.placing.c.linear.line);
     const mm = this.vp.mmPerPixel;
     // the dimensions as drawings: extension lines, dimension lines with arrows, leaders, arcs
     const annotations = [];
@@ -805,7 +897,7 @@ export class Sketcher {
       const shape = dimensionShape(this.entities, c, mm);
       if (!shape) continue;
       const state = this.analysis?.constraint.get(c.id) || 'ok';
-      annotations.push({ segs: shape.segs, state: state !== 'ok' ? 'conflict' : this.selection.has('c:' + c.id) ? 'selected' : 'ok' });
+      annotations.push({ segs: shape.segs, state: this.selection.has('c:' + c.id) ? 'selected' : state === 'driven' ? 'driven' : state !== 'ok' ? 'conflict' : 'ok' });
     }
     if (this.placing) {
       const shape = dimensionShape(this.entities, this.placing.c, mm);
@@ -883,19 +975,21 @@ export class Sketcher {
       if (!node) {
         node = el('button', { type: 'button', class: kind.dimension ? 'ms-dim' : 'ms-glyph', dataset: { id: c.id } });
         node.addEventListener('pointerdown', ev => this.labelDown(ev, node));
+        node.addEventListener('contextmenu', ev => ev.preventDefault());
         this.labels.append(node);
       }
       if (kind.dimension) {
         const value = measure(this.entities, c);
         const shown = value === null ? '' : kind.angle ? fmt(value, 2) + '°' : fmt(value / this.unit, 3);
-        const plain = c.value === undefined || /^[-+]?\d*[.,]?\d+$/.test(String(c.value).trim());
-        const prefix = { diameter: 'Ø ', radius: 'R ' }[c.type] || '';
+        const plain = c.value === undefined || c.driven || /^[-+]?\d*[.,]?\d+$/.test(String(c.value).trim());
+        const prefix = { diameter: 'Ø ', radius: 'R ', arclength: '⌒ ' }[c.type] || '';
         node.textContent = prefix + (plain ? shown : `${c.value} = ${shown}`);
+        node.classList.toggle('is-driven', !!c.driven);
       } else {
         node.textContent = kind.glyph;
       }
-      node.title = t('Sketch.Constraint.' + c.type) + (state !== 'ok' ? ' – ' + t('Sketch.ConflictTitle') : '');
-      node.classList.toggle('is-conflict', state !== 'ok');
+      node.title = t('Sketch.Constraint.' + c.type) + (state === 'driven' ? ' – ' + t('Sketch.DrivenTitle') : state !== 'ok' ? ' – ' + t('Sketch.ConflictTitle') : '');
+      node.classList.toggle('is-conflict', state !== 'ok' && state !== 'driven');
       node.classList.toggle('is-selected', this.selection.has('c:' + c.id));
       node.classList.toggle('is-dot', dot);
       node.classList.toggle('is-preview', c.id === '__placing');
@@ -951,16 +1045,37 @@ export class Sketcher {
       const p = this.local({ ndc: this.vp.ndc(e.clientX, e.clientY) });
       const shape = p && dimensionShape(this.entities, c, this.vp.mmPerPixel);
       if (shape) c.off = [p[0] - shape.anchor[0], p[1] - shape.anchor[1]];
+      if (c.type === 'angle') {
+        const again = dimensionShape(this.entities, c, this.vp.mmPerPixel);
+        if (again && again.flip !== !!c.flip) {
+          // the other quadrant: the angle there is 180° minus this one, the geometry stays
+          const plain = /^[-+]?\d*[.,]?\d+$/.test(String(c.value).trim());
+          if (c.driven || plain) {
+            if (!c.driven) c.value = fmt(180 - Number(String(c.value).replace(',', '.')), 4).replace(',', '.');
+            if (again.flip) c.flip = true; else delete c.flip;
+            this.solve();
+          }
+        }
+      }
       this.draw();
     };
     const onUp = e => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      if (moved) return;
-      this.selection = new Set(['c:' + c.id]);
+      if (moved) { this.cb.changed?.(); return; }
+      const key = 'c:' + c.id;
+      const double = this.lastLabel && this.lastLabel.id === c.id && performance.now() - this.lastLabel.at < 450;
+      this.lastLabel = { id: c.id, at: performance.now() };
+      if (double || e.button === 2) {
+        this.selection = new Set([key]);
+        this.renderPanel();
+        this.draw();
+        if (CONSTRAINTS[c.type].dimension) this.editDimension(c, e.clientX, e.clientY);
+        return;
+      }
+      if (this.selection.has(key)) this.selection.delete(key); else this.selection.add(key);
       this.renderPanel();
       this.draw();
-      if (CONSTRAINTS[c.type].dimension) this.editDimension(c, e.clientX, e.clientY);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -974,7 +1089,7 @@ export class Sketcher {
     body.replaceChildren();
     this.panel.title.textContent = this.name;
     const a = this.analysis;
-    const conflicts = a ? this.cons.filter(c => (a.constraint.get(c.id) || 'ok') !== 'ok') : [];
+    const conflicts = a ? this.cons.filter(c => !['ok', 'driven'].includes(a.constraint.get(c.id) || 'ok')) : [];
     const summary = this.panel.summary;
     summary.classList.remove('is-ok', 'is-free', 'is-conflict');
     if (conflicts.length) { summary.textContent = t('Sketch.State.Conflicts', conflicts.length); summary.classList.add('is-conflict'); }
@@ -1007,8 +1122,8 @@ export class Sketcher {
     for (const c of list) {
       const kind = CONSTRAINTS[c.type];
       const state = this.analysis?.constraint.get(c.id) || 'ok';
-      const value = kind.dimension ? ` ${c.value}${kind.angle ? '°' : ''}` : '';
-      const select = el('button', { type: 'button', class: 'ms-conslist__name' + (state !== 'ok' ? ' is-conflict' : '') },
+      const value = kind.dimension ? ` ${c.value}${kind.angle ? '°' : ''}${c.driven ? ' (' + t('Sketch.Driven') + ')' : ''}` : '';
+      const select = el('button', { type: 'button', class: 'ms-conslist__name' + (state !== 'ok' && state !== 'driven' ? ' is-conflict' : '') },
         el('span', { class: 'ms-conslist__glyph' }, kind.glyph || '↔'), el('span', null, t('Sketch.Constraint.' + c.type) + value));
       select.addEventListener('click', () => { this.selection = new Set(['c:' + c.id]); this.renderPanel(); this.draw(); });
       const remove = el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm', 'aria-label': t('Sketch.ConstraintDelete'), 'data-tip': t('Sketch.ConstraintDelete') }, icon('trash'));
@@ -1070,6 +1185,28 @@ export function dimensionShape(entities, c, mm) {
   const s = 9 * mm, gap = 3 * mm, ext = 6 * mm;
   const E = r => entities.find(e => e.id === r?.e);
   const off = c.off && V.len(c.off) > 1e-9 ? c.off : null;
+  if (c.type === 'arclength') {
+    // an arc beside the arc, with arrows at its ends and lines out from the ends of the arc
+    const e = E(c.refs?.[0]);
+    if (e?.t !== 'arc') return null;
+    let sweep = e.a1 - e.a0;
+    while (sweep <= 0) sweep += 2 * Math.PI;
+    const mid = e.a0 + sweep / 2;
+    const anchor = V.add(e.c, V.mul([Math.cos(mid), Math.sin(mid)], e.r));
+    const label = off ? V.add(anchor, off) : V.add(e.c, V.mul([Math.cos(mid), Math.sin(mid)], e.r + 16 * mm));
+    const R = Math.max(e.r * 0.2, V.len(V.sub(label, e.c)));
+    const at = k => V.add(e.c, V.mul([Math.cos(e.a0 + sweep * k), Math.sin(e.a0 + sweep * k)], R));
+    const segs = [];
+    for (let i = 0; i < 32; i++) segs.push([at(i / 32), at((i + 1) / 32)]);
+    const tangent = k => [-Math.sin(e.a0 + sweep * k), Math.cos(e.a0 + sweep * k)];
+    const radial = k => [Math.cos(e.a0 + sweep * k), Math.sin(e.a0 + sweep * k)];
+    segs.push(...arrow(at(0), tangent(0), radial(0), s), ...arrow(at(1), V.mul(tangent(1), -1), radial(1), s));
+    for (const k of [0, 1]) {
+      const from = V.add(e.c, V.mul(radial(k), e.r)), sg = Math.sign(R - e.r) || 1;
+      if (Math.abs(R - e.r) > gap) segs.push([V.add(from, V.mul(radial(k), sg * gap)), V.add(at(k), V.mul(radial(k), sg * ext))]);
+    }
+    return { segs, label, anchor };
+  }
   if (c.type === 'radius' || c.type === 'diameter') {
     const e = E(c.refs?.[0]);
     if (!e?.c) return null;
@@ -1116,7 +1253,9 @@ export function dimensionShape(entities, c, mm) {
       if (reach < R) segs.push([V.add(O, V.mul(dir, Math.max(0, reach) + gap)), V.add(O, V.mul(dir, R + ext))]);
     }
     const label = off ? V.add(O, off) : V.add(O, V.mul(V.unit(V.add(d1, d2)), R + 12 * mm));
-    return { segs, label, anchor: O };
+    // the angle shown is between d1 and d2; the constraint measures between the directions of the lines (flip: the other one)
+    const flip = Math.sign(V.dot(d1, d2)) !== Math.sign(V.dot(u, v)) && Math.abs(V.dot(u, v)) > 1e-9;
+    return { segs, label, anchor: O, flip };
   }
   const ends = linearEnds(entities, c);
   if (!ends) return null;
@@ -1231,4 +1370,21 @@ function chainOf(part, indices) {
   for (const [v, list] of at) if (list.length !== 2 && list.some(i => !used.has(i))) walk(v);
   for (const [v, list] of at) if (list.some(i => !used.has(i))) walk(v);
   return out;
+}
+
+const FLIPPABLE = ['distance', 'hdistance', 'vdistance'];
+
+/**
+ * Two points, or a slanted line, measured the way the dimension is dragged (like OnShape): beside the span of the points across and outside it upright: horizontal;
+ * the other way round: vertical; elsewhere (at a slant, or between them): the direct distance (the length of the line).
+ */
+function linearKind(entities, c, p) {
+  const ends = c.linear.line ? [pointOfRef(entities, { e: c.linear.line, k: 'a' }), pointOfRef(entities, { e: c.linear.line, k: 'b' })] : c.linear.points.map(r => pointOfRef(entities, r));
+  if (!ends[0] || !ends[1]) return;
+  const [A, B] = ends;
+  const inX = p[0] > Math.min(A[0], B[0]) && p[0] < Math.max(A[0], B[0]), inY = p[1] > Math.min(A[1], B[1]) && p[1] < Math.max(A[1], B[1]);
+  const kind = inX && !inY ? 'hdistance' : inY && !inX ? 'vdistance' : 'aligned';
+  const refs = c.linear.line ? [{ e: c.linear.line, k: 'a' }, { e: c.linear.line, k: 'b' }] : c.linear.points;
+  if (kind === 'aligned') { c.type = c.linear.line ? 'length' : 'distance'; c.refs = c.linear.line ? [{ e: c.linear.line }] : refs; }
+  else { c.type = kind; c.refs = refs; }
 }

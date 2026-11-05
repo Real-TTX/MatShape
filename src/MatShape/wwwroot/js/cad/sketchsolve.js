@@ -22,6 +22,7 @@ export const CONSTRAINTS = {
   concentric: { glyph: '◎' },
   midpoint: { glyph: 'M' },
   fix: { glyph: '⚓' },
+  symmetric: { glyph: '⇆' },
   distance: { dimension: true },
   hdistance: { dimension: true },
   vdistance: { dimension: true },
@@ -41,6 +42,8 @@ export function pointKeys(e) {
     case 'circle': case 'polygon': return ['c'];
     case 'arc': return ['c', 's', 'e'];
     case 'point': return ['p'];
+    case 'spline': return ['a', 'b'];
+    case 'ellipse': return ['c'];
     default: return [];
   }
 }
@@ -66,6 +69,8 @@ class System {
       else if (e.t === 'arc') { add(e, 'cx', e.c[0]); add(e, 'cy', e.c[1]); add(e, 'r', e.r); add(e, 'a0', e.a0); add(e, 'a1', e.a1); }
       else if (e.t === 'polygon') { add(e, 'cx', e.c[0]); add(e, 'cy', e.c[1]); add(e, 'r', e.r); add(e, 'rot', (e.rot || 0) * Math.PI / 180); }
       else if (e.t === 'point') { add(e, 'px', e.p[0]); add(e, 'py', e.p[1]); }
+      else if (e.t === 'spline') e.pts.forEach((p, i) => { add(e, 'p' + i + 'x', p[0]); add(e, 'p' + i + 'y', p[1]); });
+      else if (e.t === 'ellipse') { add(e, 'cx', e.c[0]); add(e, 'cy', e.c[1]); add(e, 'rx', e.rx); add(e, 'ry', e.ry); add(e, 'rot', e.rot || 0); }
     }
   }
 
@@ -76,6 +81,7 @@ class System {
     if (!ref || ref.e === ORIGIN) return [];
     const e = this.byId.get(ref.e);
     if (!e) return null;
+    if (e.t === 'spline') { const i = ref.k === 'a' ? 0 : ref.k === 'b' ? e.pts.length - 1 : -1; return i < 0 ? null : [this.s(e.id, 'p' + i + 'x'), this.s(e.id, 'p' + i + 'y')]; }
     switch (ref.k) {
       case 'a': return [this.s(e.id, 'ax'), this.s(e.id, 'ay')];
       case 'b': return [this.s(e.id, 'bx'), this.s(e.id, 'by')];
@@ -96,6 +102,7 @@ class System {
   point(x, ref) {
     if (ref.e === ORIGIN) return [0, 0];
     const e = this.byId.get(ref.e), v = n => x[this.s(e.id, n)];
+    if (e.t === 'spline') { const i = ref.k === 'a' ? 0 : e.pts.length - 1; return [v('p' + i + 'x'), v('p' + i + 'y')]; }
     switch (ref.k) {
       case 'a': return [v('ax'), v('ay')];
       case 'b': return [v('bx'), v('by')];
@@ -121,6 +128,8 @@ class System {
         case 'arc': return { ...e, c: [v('cx'), v('cy')], r: Math.abs(v('r')), a0: v('a0'), a1: v('a1') };
         case 'polygon': return { ...e, c: [v('cx'), v('cy')], r: Math.abs(v('r')), rot: v('rot') * 180 / Math.PI };
         case 'point': return { ...e, p: [v('px'), v('py')] };
+        case 'spline': return { ...e, pts: e.pts.map((_, i) => [v('p' + i + 'x'), v('p' + i + 'y')]) };
+        case 'ellipse': return { ...e, c: [v('cx'), v('cy')], rx: Math.abs(v('rx')), ry: Math.abs(v('ry')), rot: v('rot') };
         default: return e;
       }
     });
@@ -140,7 +149,7 @@ const distPointLine = (p, l) => cross(sub(l.b, l.a), sub(p, l.a)) / (len(sub(l.b
  * The equations of a constraint: [{ f(x), vars }], or { error } when a reference is gone or the kind does not fit.
  * value: the evaluated value of a dimension (mm, or degrees for an angle).
  */
-function equations(sys, c, value) {
+function equations(sys, c, value, joins = null) {
   const [r1, r2] = c.refs || [];
   const e1 = sys.byId.get(r1?.e), e2 = sys.byId.get(r2?.e);
   const P = (x, r) => sys.point(x, r);
@@ -177,6 +186,17 @@ function equations(sys, c, value) {
       return rows(both(cv(r1), cv(r2)), x => sys.round(x, e1.id).c[0] - sys.round(x, e2.id).c[0], x => sys.round(x, e1.id).c[1] - sys.round(x, e2.id).c[1]);
     case 'tangent': {
       const line = isLine(e1) ? e1 : isLine(e2) ? e2 : null, round = isRound(e1) ? e1 : isRound(e2) ? e2 : null;
+      // where the two are joined at an end (a fillet, a slot): at that point the line runs across the radius, and two arcs have their centres in one row.
+      // (The distance form is flat there to first order, so the analysis would call it redundant.)
+      const shared = (p, q, kp, kq) => kp.flatMap(a => kq.filter(b => joins?.has(p.id + '.' + a + '|' + q.id + '.' + b)).map(b => [a, b]))[0];
+      if (line && round) {
+        const at = round.t === 'arc' && shared(line, round, ['a', 'b'], ['s', 'e']);
+        if (at) return rows(both(cv({ e: line.id }), cv({ e: round.id })), x => { const l = sys.line(x, line.id), k = sys.round(x, round.id); return dot(unit(sub(l.b, l.a)), unit(sub(at[0] === 'a' ? l.a : l.b, k.c))); });
+      }
+      if (round && e1?.t === 'arc' && e2?.t === 'arc') {
+        const at = shared(e1, e2, ['s', 'e'], ['s', 'e']);
+        if (at) return rows(both(cv(r1), cv(r2)), x => { const p = P(x, { e: e1.id, k: at[0] }); return cross(unit(sub(p, sys.round(x, e1.id).c)), unit(sub(p, sys.round(x, e2.id).c))); });
+      }
       if (line && round) return rows(both(cv({ e: line.id }), cv({ e: round.id })), x => { const k = sys.round(x, round.id); return Math.abs(distPointLine(k.c, sys.line(x, line.id))) - k.r; });
       if (isRound(e1) && isRound(e2)) {
         return rows(both(cv(r1), cv(r2)), x => {
@@ -225,6 +245,14 @@ function equations(sys, c, value) {
         const u = unit(sub(sys.line(x, e1.id).b, sys.line(x, e1.id).a)), v = unit(sub(sys.line(x, e2.id).b, sys.line(x, e2.id).a));
         return Math.atan2(Math.abs(cross(u, v)), c.flip ? -dot(u, v) : dot(u, v)) - value * Math.PI / 180;
       });
+    case 'symmetric': {
+      // two points mirrored about a line: their middle on the line, their join across it
+      const r3 = c.refs?.[2], e3 = sys.byId.get(r3?.e);
+      if (!r1?.k || !r2?.k || !isLine(e3)) return { error: 'kind' };
+      return rows(both(both(pv(r1), pv(r2)), cv(r3)),
+        x => { const l = sys.line(x, e3.id), p = P(x, r1), q = P(x, r2); return distPointLine([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], l); },
+        x => { const l = sys.line(x, e3.id); return dot(sub(P(x, r2), P(x, r1)), unit(sub(l.b, l.a))); });
+    }
     case 'arclength':
       if (e1?.t !== 'arc') return { error: 'kind' };
       return rows(cv(r1), x => {
@@ -322,6 +350,13 @@ export function solveSketch(entities, constraints, evaluate, options = {}) {
   const rows = [];
   const errors = [];
   const rowsOf = new Map();
+  // the ends joined by coincident constraints (both ways), for the tangents at a joint
+  const joins = new Set();
+  for (const c of constraints || []) {
+    if (c.type !== 'coincident' || c.driven) continue;
+    const [p, q] = c.refs || [];
+    if (p?.k && q?.k) { joins.add(p.e + '.' + p.k + '|' + q.e + '.' + q.k); joins.add(q.e + '.' + q.k + '|' + p.e + '.' + p.k); }
+  }
   for (const c of constraints || []) {
     // a driven dimension shows what the geometry measures; it holds nothing
     if (c.driven) continue;
@@ -330,7 +365,7 @@ export function solveSketch(entities, constraints, evaluate, options = {}) {
       try { value = evaluate(c); } catch (error) { errors.push({ id: c.id, reason: 'value', error }); continue; }
       if (!(value > 0) && !(CONSTRAINTS[c.type].angle && value === 0)) { errors.push({ id: c.id, reason: 'value' }); continue; }
     }
-    let eq = equations(sys, c, value);
+    let eq = equations(sys, c, value, joins);
     if (eq.error) { errors.push({ id: c.id, reason: eq.error }); continue; }
     if (sys.fixed.size) {
       // the fixed numbers are no unknowns; an equation between fixed things alone is met or a conflict

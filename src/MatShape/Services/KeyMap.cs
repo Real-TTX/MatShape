@@ -26,7 +26,7 @@ public static class KeyMap
         ]),
         new("Sketching",
         [
-            new("L", "Line"), new("G", "Rect"), new("C", "Circle"), new("A", "Arc"), new("D", "Dimension"), new("U", "Use"), new("Q", "Construction"), new("I", "Coincident"), new("H", "Horizontal"), new("V", "Vertical"),
+            new("L", "Line"), new("G", "Rect"), new("C", "Circle"), new("A", "Arc"), new("D", "Dimension"), new("U", "Use"), new("M", "Trim"), new("O", "Offset"), new("T", "TangentArc"), new("Q", "Construction"), new("I", "Coincident"), new("H", "Horizontal"), new("V", "Vertical"),
             new("Ctrl+A", "SelectAll"), new("Del", "Delete"), new("Esc", "SketchEscape"), new("Enter", "FinishSketch"),
         ]),
         new("General", [new("?", "Help")]),

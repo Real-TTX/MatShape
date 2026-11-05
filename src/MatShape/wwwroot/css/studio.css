@@ -35,6 +35,12 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 }
 .ms-tools[hidden] { display: none; }
 .ms-tools--sketch { background: var(--mat-accent-soft); }
+/* the sketch toolbar shows icons only, like OnShape: there are many tools; the names and keys stand in the tips */
+.ms-tools--icons .ms-tool { min-width: 36px; padding-inline: 6px; }
+.ms-tools--icons .ms-tool > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ms-dimedit__label { font-size: var(--mat-fs-xs); color: var(--mat-text-muted); white-space: nowrap; padding-inline: 4px 2px; }
+.ms-dimedit__small { width: 5.5rem; }
+.ms-imgfields { display: flex; flex-direction: column; gap: var(--mat-space-2); padding-top: var(--mat-space-2); border-top: 1px solid var(--mat-border); }
 .ms-tools__sep { flex: none; width: 1px; margin: var(--mat-space-1) var(--mat-space-1); background: var(--mat-border); }
 .ms-tools__grow { flex: 1 1 auto; }
 .ms-tool {

@@ -71,4 +71,12 @@
   <symbol id="mat-i-use-edge" viewBox="0 0 24 24"><path d='M6 4.5h12' stroke-width='2.8'/><path d='M12 8v7m-3-3 3 3 3-3'/><path d='M4 19.5h16' stroke-dasharray='2.5 2'/></symbol>
   <symbol id="mat-i-outline" viewBox="0 0 24 24"><path d='M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z' stroke-dasharray='2.6 2'/><path d='M8.5 10.5h7v4h-7z' opacity='.5'/></symbol>
   <symbol id="mat-i-slice" viewBox="0 0 24 24"><path d='M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z' opacity='.45'/><path d='M4 12l8-4.6 8 4.6-8 4.6z' fill='currentColor' fill-opacity='.35'/></symbol>
+  <symbol id="mat-i-spline" viewBox="0 0 24 24"><path d='M3 18c3-9 6-9 9-4s6 5 9-6'/><circle cx='3' cy='18' r='1.4'/><circle cx='12' cy='14' r='1.4'/><circle cx='21' cy='8' r='1.4'/></symbol>
+  <symbol id="mat-i-ellipse" viewBox="0 0 24 24"><ellipse cx='12' cy='12' rx='9' ry='5.5' transform='rotate(-20 12 12)'/><circle cx='12' cy='12' r='.9'/></symbol>
+  <symbol id="mat-i-tangent-arc" viewBox="0 0 24 24"><path d='M3 17h8'/><path d='M11 17a6 6 0 0 0 6-6V6'/><circle cx='11' cy='17' r='1.4'/></symbol>
+  <symbol id="mat-i-slot" viewBox="0 0 24 24"><path d='M8 7.5h8a4.5 4.5 0 0 1 0 9H8a4.5 4.5 0 0 1 0-9z'/><path d='M8 12h8' stroke-dasharray='1.6 1.6'/></symbol>
+  <symbol id="mat-i-text" viewBox="0 0 24 24"><path d='M5 6V4.5h14V6M12 4.5v15M9 19.5h6'/></symbol>
+  <symbol id="mat-i-trim" viewBox="0 0 24 24"><path d='M3 12h6M15 12h6'/><path d='M9 12h6' stroke-dasharray='1.5 1.8'/><path d='M9 4v16M15 4v16'/></symbol>
+  <symbol id="mat-i-offset" viewBox="0 0 24 24"><path d='M5 19V9a4 4 0 0 1 4-4h10'/><path d='M9 19v-8a2 2 0 0 1 2-2h8' stroke-dasharray='2 1.8'/></symbol>
+  <symbol id="mat-i-symmetric" viewBox="0 0 24 24"><path d='M12 3v18' stroke-dasharray='2.4 1.8'/><circle cx='6' cy='12' r='2'/><circle cx='18' cy='12' r='2'/><path d='M8.5 12h1.5M14 12h1.5'/></symbol>
 </svg>

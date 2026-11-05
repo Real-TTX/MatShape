@@ -8,9 +8,13 @@ import { arcThrough, curvesFromPoints, distToEntity, entityPolyline, sketchLoops
 import { CONSTRAINTS, ORIGIN, adoptSketch, constraintsOf, measure, pointKeys, pointOfRef, solveSketch } from './sketchsolve.js';
 import { evalAngle, evalLength, evalNumber } from './expr.js';
 import { clone, el, fmt, icon, t, uid, UNITS } from './util.js';
+import { filletCorner, mirror, offset as offsetChain, slot, tangentArc, trim } from './sketchtools.js';
+import { simplify as simplifyLoop, traceMask } from './imagetrace.js';
 
 const SNAP_PX = 12;                       // how close (px) the pointer must be to a point; to a curve 10 px
-const DRAW_TOOLS = ['line', 'rect', 'crect', 'circle', 'arc', 'polygon', 'point'];
+const DRAW_TOOLS = ['line', 'rect', 'crect', 'circle', 'arc', 'tarc', 'polygon', 'slot', 'spline', 'ellipse', 'point', 'text'];
+/** Tools that are clicked point by point only (no press – drag – release). */
+const CLICK_ONLY = ['point', 'text', 'spline'];
 
 export class Sketcher {
   constructor(viewport, panel, toolbar, callbacks) {
@@ -23,8 +27,10 @@ export class Sketcher {
     viewport.on('render', () => this.placeLabels());
   }
 
-  start({ name, frame, entities, cons, dims, units, variables, polygonSides }) {
+  start({ name, frame, entities, cons, dims, units, variables, polygonSides, image }) {
     this.active = true;
+    this.image = image ? { ...image } : null;
+    this.mirrorLine = null;
     this.name = name;
     this.frame = frame;
     // rectangles and polygons of older sketches (or of the AI) become lines; a sketch without any constraints gets the obvious ones (joined ends, level lines)
@@ -81,6 +87,7 @@ export class Sketcher {
 
   setTool(tool) {
     if (this.tool === 'use' && tool !== 'use') { this.useEdge = null; this.vp.setEdgeMarks(null); }
+    this.mirrorLine = null;
     this.tool = tool;
     this.pressed = null;
     this.points = [];
@@ -96,7 +103,7 @@ export class Sketcher {
     this.draw();
   }
 
-  snapshot() { return { entities: clone(this.entities), cons: clone(this.cons) }; }
+  snapshot() { return { entities: clone(this.entities), cons: clone(this.cons), image: this.image ? { ...this.image } : null }; }
 
   remember() {
     this.history.push(this.snapshot());
@@ -107,6 +114,7 @@ export class Sketcher {
   restore(s) {
     this.entities = s.entities;
     this.cons = s.cons;
+    if ('image' in s) this.image = s.image;
     this.selection.clear();
     this.solve();
     this.renderPanel();
@@ -328,9 +336,11 @@ export class Sketcher {
    * in empty space a selection box is drawn (to the right: what lies wholly inside; to the left: what it touches), like OnShape.
    */
   down(e) {
+    // trim like OnShape: press and drag across the pieces that should go
+    if (this.tool === 'trim') { this.trimming = new Set(); this.vp.navigationOnly = true; return; }
     if (DRAW_TOOLS.includes(this.tool)) {
       // like OnShape: press – drag – release draws as well as click – click; the press sets the first point
-      if (!this.points.length && this.tool !== 'point') {
+      if (!this.points.length && !CLICK_ONLY.includes(this.tool)) {
         const [from, prev] = this.drawContext();
         const located = this.locate(e, from, prev);
         if (located) { this.points.push(located); this.pressed = { x: e.clientX, y: e.clientY }; this.located = null; this.draw(); }
@@ -352,6 +362,11 @@ export class Sketcher {
   }
 
   dragMove(e) {
+    if (this.trimming) {
+      const p = this.local(e), hit = p && this.curveAt(p);
+      if (hit && !this.trimming.has(hit.id)) { this.trimming.add(hit.id); this.trimAt(p, this.trimming.size > 1); }
+      return;
+    }
     // drawing with the button held: the preview follows like on hover
     if (DRAW_TOOLS.includes(this.tool)) { this.move(e); return; }
     const p = this.local(e);
@@ -370,6 +385,7 @@ export class Sketcher {
   }
 
   dragEnd(e) {
+    if (this.trimming) { this.trimming = null; this.vp.navigationOnly = false; return; }
     if (DRAW_TOOLS.includes(this.tool)) {
       const pressed = this.pressed;
       this.pressed = null;
@@ -439,10 +455,15 @@ export class Sketcher {
   }
 
   click(e) {
+    if (this.trimming) { this.trimming = null; this.vp.navigationOnly = false; }
     if (this.dragging) { this.dragging = null; this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool); }
     if (this.box) { this.box = null; this.drawBox(); this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool); }
     if (this.tool === 'select') return this.selectClick(e);
     if (this.tool === 'use') return this.useClick(e);
+    if (this.tool === 'trim') return this.trimAt(this.local(e));
+    if (this.tool === 'offset') return this.offsetClick(e);
+    if (this.tool === 'sfillet') return this.filletClick(e);
+    if (this.tool === 'mirror') return this.mirrorClick(e);
     if (this.tool === 'dimension') return this.dimensionClick(e);
     if (this.tool.startsWith('constraint:')) return this.constraintClick(e);
     // the press set this point already
@@ -473,6 +494,190 @@ export class Sketcher {
     else this.selection.add(key);
     this.renderPanel();
     this.draw();
+  }
+
+  // ---- editing tools: trim, offset, fillet, mirror (sketchtools.js does the geometry) -----------------------------------------
+
+  /** The curve under the pointer (not its points): for trim, offset, mirror. */
+  curveAt(p) {
+    let best = null, bestD = 10 * this.vp.mmPerPixel;
+    for (const e of this.entities) {
+      if (e.t === 'point') continue;
+      const d = distToEntity(p, e);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    return best;
+  }
+
+  /** Trim (M): the piece of the curve under the pointer up to its crossings goes; within one drag the steps are one undo step. */
+  trimAt(p, sameStep = false) {
+    const e = p && this.curveAt(p);
+    if (!e) return;
+    const res = trim(this.entities, this.cons, e.id, p, () => uid('e'));
+    if (!res) { this.cb.status(t('Sketch.TrimNothing')); return; }
+    if (!sameStep) this.remember();
+    this.entities = res.entities;
+    this.cons = res.cons;
+    this.selection.clear();
+    this.solve();
+    this.renderPanel();
+    this.draw();
+    this.cb.changed?.();
+  }
+
+  /** Offset (O): a click on a curve takes its chain; the copy goes to the side the click was on, at the distance typed. */
+  offsetClick(e) {
+    const p = this.local(e), c = p && this.curveAt(p);
+    if (!c) return;
+    const size = (() => { const pts = entityPolyline(c); const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)); })();
+    this.askValue(e.clientX, e.clientY, t('Sketch.OffsetDistance'), niceValue(size / 10 / this.unit), mm => {
+      const res = offsetChain(this.entities, c.id, mm, p, () => uid('e'));
+      if (!res) { this.cb.status(t('Sketch.OffsetFailed')); return; }
+      const d = res.cons.find(k => k.type === 'distance');
+      if (d) d.value = fmt(mm / this.unit, 4).replace(',', '.');
+      this.addAll(res.entities, res.cons);
+    });
+  }
+
+  /** Sketch fillet: a click on the corner of two lines, then the radius. */
+  filletClick(e) {
+    const p = this.local(e), hit = p && this.pickAt(p);
+    if (hit?.kind !== 'point' || hit.ref.e === ORIGIN) { this.cb.status(t('Sketch.Hint.sfillet')); return; }
+    const corner = hit.p;
+    const lines = this.entities.filter(x => x.t === 'line' && !x.cons && [x.a, x.b].some(q => Math.hypot(q[0] - corner[0], q[1] - corner[1]) < 1e-6));
+    if (lines.length !== 2) { this.cb.status(t('Sketch.FilletNoCorner')); return; }
+    const shortest = Math.min(...lines.map(l => Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1])));
+    this.askValue(e.clientX, e.clientY, t('Sketch.FilletRadius'), niceValue(shortest / 4 / this.unit), mm => {
+      const res = filletCorner(this.entities, this.cons, hit.ref, mm, () => uid('e'));
+      if (!res) { this.cb.status(t('Sketch.FilletTooBig')); return; }
+      const r = res.cons.find(k => k.id === res.radiusId);
+      if (r) r.value = fmt(mm / this.unit, 4).replace(',', '.');
+      this.change(() => { this.entities = res.entities; this.cons = res.cons; });
+    });
+  }
+
+  /** Mirror: first the line to mirror about, then what is mirrored (or what was selected before). The copies are held symmetric. */
+  mirrorClick(e) {
+    const p = this.local(e), c = p && this.curveAt(p);
+    if (!c) return;
+    if (!this.mirrorLine) {
+      if (c.t !== 'line') { this.cb.status(t('Sketch.Hint.mirror')); return; }
+      this.mirrorLine = c.id;
+      const chosen = [...this.selection].filter(k => k.startsWith('e:')).map(k => k.slice(2)).filter(id => id !== c.id);
+      if (chosen.length) { this.mirrorIds(chosen); this.selection.clear(); }
+      this.cb.status(t('Sketch.Hint.mirror2'));
+      this.draw();
+      return;
+    }
+    if (c.id === this.mirrorLine) return;
+    this.mirrorIds([c.id]);
+  }
+
+  mirrorIds(ids) {
+    const res = mirror(this.entities, ids, this.mirrorLine, () => uid('e'));
+    if (res) this.addAll(res.entities, res.cons);
+  }
+
+  /** Where a tangent arc starts: the end of a line or arc, and the direction the curve goes on in there. */
+  tangentStart(a) {
+    const r = a?.ref;
+    const e = r && this.entities.find(x => x.id === r.e);
+    if (!e) return null;
+    if (e.t === 'line' && (r.k === 'a' || r.k === 'b')) return { ref: r, curve: e.id, dir: r.k === 'b' ? [e.b[0] - e.a[0], e.b[1] - e.a[1]] : [e.a[0] - e.b[0], e.a[1] - e.b[1]] };
+    if (e.t === 'arc' && (r.k === 's' || r.k === 'e')) return { ref: r, curve: e.id, dir: r.k === 'e' ? [-Math.sin(e.a1), Math.cos(e.a1)] : [Math.sin(e.a0), -Math.cos(e.a0)] };
+    return null;
+  }
+
+  finishSpline() {
+    const pts = this.points;
+    if (pts.length >= 2) {
+      const sp = { id: uid('e'), t: 'spline', pts: pts.map(x => x.p) };
+      this.addAll([sp], [...this.tie({ e: sp.id, k: 'a' }, pts[0]), ...this.tie({ e: sp.id, k: 'b' }, pts[pts.length - 1])]);
+    }
+    this.points = [];
+  }
+
+  /** A small field over the view for a length (offset, fillet radius): Enter applies it (in mm), Esc closes. */
+  askValue(clientX, clientY, label, initial, apply) {
+    this.closeEditor();
+    const host = this.vp.canvas.parentElement, box = host.getBoundingClientRect();
+    const input = el('input', { class: 'mat-input mat-input--sm mat-mono', value: initial, autocomplete: 'off', spellcheck: 'false', 'aria-label': label, title: label });
+    const editor = el('div', { class: 'ms-dimedit' }, el('span', { class: 'ms-dimedit__label' }, label), input);
+    editor.style.left = Math.max(4, Math.min(box.width - 240, clientX - box.left - 60)) + 'px';
+    editor.style.top = Math.max(4, Math.min(box.height - 44, clientY - box.top + 14)) + 'px';
+    host.append(editor);
+    this.editor = editor;
+    const go = () => {
+      let mm;
+      try { mm = this.evaluate({ type: 'length', value: input.value.trim() }); if (!(mm > 0)) throw new Error('positive'); } catch { input.setAttribute('aria-invalid', 'true'); return; }
+      this.closeEditor();
+      apply(mm);
+    };
+    input.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); go(); } if (ev.key === 'Escape') { ev.preventDefault(); this.closeEditor(); } });
+    this.editorApply = go;
+    this.focusEditor();
+    setTimeout(() => this.focusEditor(), 40);
+  }
+
+  /** Text: what to write and how high; the letters become fixed curves of the sketch (their outlines, traced from the font of the browser). */
+  askText(at) {
+    this.closeEditor();
+    const host = this.vp.canvas.parentElement, box = host.getBoundingClientRect();
+    const s0 = this.vp.project(toWorld(this.frame, at[0], at[1]));
+    const text = el('input', { class: 'mat-input mat-input--sm', value: '', autocomplete: 'off', placeholder: t('Sketch.TextValue'), 'aria-label': t('Sketch.TextValue') });
+    const height = el('input', { class: 'mat-input mat-input--sm mat-mono ms-dimedit__small', value: niceValue(this.vp.viewHeight / 12 / this.unit), autocomplete: 'off', 'aria-label': t('Sketch.TextHeight'), title: t('Sketch.TextHeight') });
+    const editor = el('div', { class: 'ms-dimedit' }, text, height);
+    editor.style.left = Math.max(4, Math.min(box.width - 300, s0.x - 20)) + 'px';
+    editor.style.top = Math.max(4, Math.min(box.height - 44, s0.y + 14)) + 'px';
+    host.append(editor);
+    this.editor = editor;
+    const go = () => {
+      let mm;
+      try { mm = this.evaluate({ type: 'length', value: height.value.trim() }); if (!(mm > 0)) throw new Error('positive'); } catch { height.setAttribute('aria-invalid', 'true'); return; }
+      const value = text.value.trim();
+      this.closeEditor();
+      if (!value) return;
+      const curves = textCurves(value, mm, at);
+      if (curves.length) this.addUsed(curves);
+    };
+    for (const input of [text, height]) input.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); go(); } if (ev.key === 'Escape') { ev.preventDefault(); this.closeEditor(); } });
+    this.editorApply = go;
+    setTimeout(() => text.focus({ preventScroll: true }), 40);
+  }
+
+  // ---- a picture behind the sketch (to trace) ---------------------------------------------------------------------------------
+
+  /** Puts a picture into the plane of the sketch, centred on the origin, 100 mm wide (made smaller in the browser, kept with the sketch). */
+  async setImage(file) {
+    const url = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const png = /png|gif|svg/.test(file.type);
+    const src = png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85);
+    this.remember();
+    this.image = { src: src.length < 1200000 ? src : c.toDataURL('image/jpeg', 0.7), aspect: c.height / c.width, width: 100, x: 0, y: 0, opacity: 0.6 };
+    this.renderPanel();
+    this.draw();
+    this.cb.changed?.();
+  }
+
+  imageFields() {
+    const img = this.image;
+    const box = el('div', { class: 'ms-imgfields' }, el('p', { class: 'ms-dialog__text ms-muted' }, icon('image'), ' ', t('Sketch.Image.Title')));
+    const field = (label, key, step) => {
+      const input = el('input', { class: 'mat-input mat-input--sm mat-mono', type: 'number', step, value: String(Math.round(img[key] / (key === 'opacity' ? 1 : this.unit) * 1000) / 1000), 'aria-label': label });
+      input.addEventListener('change', () => { const v = Number(input.value); if (Number.isFinite(v) && (key !== 'width' || v > 0)) { img[key] = key === 'opacity' ? Math.min(1, Math.max(0.05, v)) : v * this.unit; this.draw(); this.cb.changed?.(); } });
+      return el('label', { class: 'mat-field ms-field-sm' }, el('span', { class: 'mat-label' }, label), input);
+    };
+    box.append(el('div', { class: 'ms-dialog__pair' }, field(t('Sketch.Image.Width'), 'width', 'any'), field(t('Sketch.Image.Opacity'), 'opacity', '0.1')));
+    box.append(el('div', { class: 'ms-dialog__pair' }, field('X', 'x', 'any'), field('Y', 'y', 'any')));
+    box.append(el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--sm', onclick: () => { this.remember(); this.image = null; this.renderPanel(); this.draw(); this.cb.changed?.(); } }, icon('trash'), el('span', null, t('Sketch.Image.Remove'))));
+    return box;
   }
 
   // ---- geometry from the model (Use, section, outline) ----------------------------------------------------------------------
@@ -584,6 +789,51 @@ export class Sketcher {
         this.points = [];
         break;
       }
+      case 'slot': {
+        // the centre of one end, the centre of the other, then how wide
+        if (pts.length < 3) break;
+        const [p1, p2, p3] = pts, d = [p2.p[0] - p1.p[0], p2.p[1] - p1.p[1]], l = Math.hypot(d[0], d[1]);
+        const r = l > 1e-9 ? Math.abs(((p3.p[0] - p1.p[0]) * d[1] - (p3.p[1] - p1.p[1]) * d[0]) / l) : 0;
+        const made = slot(p1.p, p2.p, r, id);
+        if (made) { const axis = made.entities[4]; this.addAll(made.entities, [...made.cons, ...this.tie({ e: axis.id, k: 'a' }, p1), ...this.tie({ e: axis.id, k: 'b' }, p2)]); }
+        this.points = [];
+        break;
+      }
+      case 'tarc': {
+        // from the end of a line or arc, on in its direction, to the next point; the next one goes on from there
+        if (pts.length < 2) break;
+        const [a, b] = pts, from = this.tangentStart(a);
+        if (!from) { this.points = []; this.cb.status(t('Sketch.Hint.tarcStart')); break; }
+        const g = tangentArc(a.p, from.dir, b.p);
+        if (!g) { this.points = [a]; break; }
+        const arc = { id: id(), t: 'arc', c: g.c, r: g.r, a0: g.a0, a1: g.a1 };
+        const k0 = g.startIsA0 ? 's' : 'e', k1 = g.startIsA0 ? 'e' : 's';
+        this.addAll([arc], [{ type: 'coincident', refs: [{ e: arc.id, k: k0 }, from.ref] }, { type: 'tangent', refs: [{ e: from.curve }, { e: arc.id }] }, ...this.tie({ e: arc.id, k: k1 }, b)]);
+        this.points = b.ref ? [] : [{ p: b.p, ref: { e: arc.id, k: k1 } }];
+        break;
+      }
+      case 'spline': {
+        // a click on the last point again (a double click) ends it; so does Esc
+        const n = pts.length, mm = this.vp.mmPerPixel;
+        if (n >= 2 && Math.hypot(pts[n - 1].p[0] - pts[n - 2].p[0], pts[n - 1].p[1] - pts[n - 2].p[1]) < 4 * mm) { pts.pop(); this.finishSpline(); }
+        break;
+      }
+      case 'ellipse': {
+        // the centre, the end of the long axis, then a point for the short one
+        if (pts.length < 3) break;
+        const [c0, a, b] = pts, rx = Math.hypot(a.p[0] - c0.p[0], a.p[1] - c0.p[1]);
+        if (rx > 1e-9) {
+          const u = [(a.p[0] - c0.p[0]) / rx, (a.p[1] - c0.p[1]) / rx], ry = Math.abs(u[0] * (b.p[1] - c0.p[1]) - u[1] * (b.p[0] - c0.p[0]));
+          if (ry > 1e-9) { const el2 = { id: id(), t: 'ellipse', c: c0.p, rx, ry, rot: Math.atan2(u[1], u[0]) }; this.addAll([el2], this.tie({ e: el2.id, k: 'c' }, c0)); }
+        }
+        this.points = [];
+        break;
+      }
+      case 'text': {
+        this.askText(pts[0].p);
+        this.points = [];
+        break;
+      }
       case 'arc': {
         // start, end, then a point the arc passes through
         if (pts.length < 3) break;
@@ -610,6 +860,24 @@ export class Sketcher {
       case 'crect': { const dx = Math.abs(c[0] - pts[0][0]), dy = Math.abs(c[1] - pts[0][1]); return [{ id: 'p', t: 'rect', a: [pts[0][0] - dx, pts[0][1] - dy], b: [pts[0][0] + dx, pts[0][1] + dy] }]; }
       case 'circle': return [{ id: 'p', t: 'circle', c: pts[0], r: Math.hypot(c[0] - pts[0][0], c[1] - pts[0][1]) }];
       case 'polygon': return [{ id: 'p', t: 'polygon', c: pts[0], r: Math.hypot(c[0] - pts[0][0], c[1] - pts[0][1]), n: this.polygonSides, rot: Math.atan2(c[1] - pts[0][1], c[0] - pts[0][0]) * 180 / Math.PI }];
+      case 'slot': {
+        if (pts.length === 1) return [{ id: 'p', t: 'line', a: pts[0], b: c, cons: true }];
+        const d = [pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]], l = Math.hypot(d[0], d[1]);
+        const made = l > 1e-9 && slot(pts[0], pts[1], Math.abs(((c[0] - pts[0][0]) * d[1] - (c[1] - pts[0][1]) * d[0]) / l), () => 'p');
+        return made ? made.entities : [{ id: 'p', t: 'line', a: pts[0], b: pts[1], cons: true }];
+      }
+      case 'tarc': {
+        const from = this.tangentStart(this.points[0]), g = from && tangentArc(pts[0], from.dir, c);
+        return g ? [{ id: 'p', t: 'arc', c: g.c, r: g.r, a0: g.a0, a1: g.a1 }] : [{ id: 'p', t: 'line', a: pts[0], b: c, cons: true }];
+      }
+      case 'spline': return [{ id: 'p', t: 'spline', pts: [...pts, c] }];
+      case 'ellipse': {
+        if (pts.length === 1) return [{ id: 'p', t: 'line', a: pts[0], b: c, cons: true }];
+        const rx = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]);
+        if (rx < 1e-9) return [];
+        const u = [(pts[1][0] - pts[0][0]) / rx, (pts[1][1] - pts[0][1]) / rx], ry = Math.abs(u[0] * (c[1] - pts[0][1]) - u[1] * (c[0] - pts[0][0]));
+        return [{ id: 'p', t: 'ellipse', c: pts[0], rx, ry: Math.max(ry, rx * 0.02), rot: Math.atan2(u[1], u[0]) }];
+      }
       case 'arc': {
         if (pts.length === 1) return [{ id: 'p', t: 'line', a: pts[0], b: c, cons: true }];
         const arc = arcThrough(pts[0], c, pts[1]);
@@ -641,7 +909,7 @@ export class Sketcher {
     if (!hit) return;
     this.picks.push(hit);
     const type = this.tool.slice('constraint:'.length);
-    const enough = type === 'fix' || (['horizontal', 'vertical'].includes(type) && hit.kind === 'curve' && this.picks.length === 1) || this.picks.length >= 2;
+    const enough = type === 'fix' || (['horizontal', 'vertical'].includes(type) && hit.kind === 'curve' && this.picks.length === 1) || this.picks.length >= (type === 'symmetric' ? 3 : 2);
     if (enough) {
       if (!this.makeConstraint(type, this.picks)) this.cb.status(t('Sketch.ConstraintNoFit'));
       else this.cb.status(t('Sketch.Hint.constraint'));
@@ -685,6 +953,17 @@ export class Sketcher {
       case 'midpoint':
         if (points.length === 1 && lines.length === 1) out.push({ type, refs: [points[0].ref, lines[0].ref] });
         break;
+      case 'symmetric': {
+        // the last line picked is the axis
+        const axis = [...items].reverse().find(i => i.kind === 'curve' && i.entity?.t === 'line');
+        const rest = items.filter(i => i !== axis);
+        if (axis && rest.length === 2 && rest.every(i => i.kind === 'point')) out.push({ type, refs: [rest[0].ref, rest[1].ref, axis.ref] });
+        else if (axis && rest.length === 2 && rest.every(i => i.entity?.c)) {
+          out.push({ type, refs: [{ e: rest[0].ref.e, k: 'c' }, { e: rest[1].ref.e, k: 'c' }, axis.ref] });
+          if (rest.every(i => ['circle', 'arc'].includes(i.entity.t))) out.push({ type: 'equal', refs: [rest[0].ref, rest[1].ref] });
+        }
+        break;
+      }
       case 'fix':
         points.filter(p => p.ref.e !== ORIGIN).forEach(p => out.push({ type, refs: [p.ref], at: pointOfRef(this.entities, p.ref) }));
         curves.forEach(c => out.push({ type, refs: [c.ref], at: valuesOf(c.entity) }));
@@ -873,6 +1152,8 @@ export class Sketcher {
   escape() {
     if (this.editor) { this.closeEditor(); return; }
     this.pressed = null;
+    if (this.tool === 'spline' && this.points.length >= 2) { this.finishSpline(); this.draw(); return; }
+    if (this.tool === 'mirror' && this.mirrorLine) { this.mirrorLine = null; this.cb.status(t('Sketch.Hint.mirror')); this.draw(); return; }
     if (this.placing || this.points.length || this.picks.length) { this.placing = null; this.points = []; this.picks = []; this.located = null; this.draw(); return; }
     if (this.tool !== 'select') { this.setTool('select'); return; }
     this.selection.clear();
@@ -918,6 +1199,7 @@ export class Sketcher {
       origin: true,
       snap: drawing ? this.located?.snap : null,
       loops: sketchLoops(this.entities),
+      image: this.image,
       grid: this.gridStep(),
       gridExtent: Math.max(200, this.vp.viewHeight * 2),
     });
@@ -943,6 +1225,7 @@ export class Sketcher {
     if (p.t === 'circle') return `⌀ ${L(p.r * 2)}`;
     if (p.t === 'polygon') return `R ${L(p.r)} · ${p.n}`;
     if (p.t === 'arc') return `R ${L(p.r)}`;
+    if (p.t === 'ellipse') return `${L(p.rx * 2)} × ${L(p.ry * 2)}`;
     return '';
   }
 
@@ -1114,6 +1397,7 @@ export class Sketcher {
     } else if (this.tool === 'polygon') {
       body.append(this.sidesField());
     }
+    if (this.image) body.append(this.imageFields());
     this.panel.root.classList.toggle('is-empty', !body.childElementCount);
   }
 
@@ -1387,4 +1671,29 @@ function linearKind(entities, c, p) {
   const refs = c.linear.line ? [{ e: c.linear.line, k: 'a' }, { e: c.linear.line, k: 'b' }] : c.linear.points;
   if (kind === 'aligned') { c.type = c.linear.line ? 'length' : 'distance'; c.refs = c.linear.line ? [{ e: c.linear.line }] : refs; }
   else { c.type = kind; c.refs = refs; }
+}
+
+/** A round number near a value (1, 2, 5 × 10^n) for the first value of a field. */
+function niceValue(v) {
+  if (!(v > 0)) return '1';
+  const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+  return String(+((n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p).toPrecision(3));
+}
+
+/** The outlines of a text in the font of the browser, as curves at a point of the sketch (baseline, left), the capitals as high as asked. */
+function textCurves(text, height, at) {
+  const px = 360, pad = 30, font = `600 ${px}px "Segoe UI", Roboto, Arial, sans-serif`;
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  g.font = font;
+  const w = Math.ceil(g.measureText(text).width) + 2 * pad, h = Math.ceil(px * 1.45);
+  c.width = w; c.height = h;
+  const g2 = c.getContext('2d');
+  g2.font = font; g2.fillStyle = '#000'; g2.textBaseline = 'alphabetic';
+  const base = Math.round(px * 1.1);
+  g2.fillText(text, pad, base);
+  const data = g2.getImageData(0, 0, w, h).data, mask = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) mask[i] = data[i * 4 + 3] > 127 ? 1 : 0;
+  const k = height / (px * 0.71);
+  const to = q => [at[0] + (q[0] - pad) * k, at[1] + (base - q[1]) * k];
+  return traceMask(mask, w, h).map(l => simplifyLoop(l, 1.4)).filter(l => l.length >= 3).flatMap(l => curvesFromPoints(l.map(to), true));
 }

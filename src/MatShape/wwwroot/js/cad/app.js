@@ -83,11 +83,15 @@ function start() {
   const aiPanel = $('[data-ai-panel]');
   const assistant = aiPanel ? new Assistant(aiPanel, {
     studioId: () => state.studio.id,
-    content: () => state.content,
+    // the pictures behind sketches stay here (they are big and say nothing about the model)
+    content: () => ({ ...state.content, features: state.content.features.map(f => (f.params?.image ? { ...f, params: { ...f.params, image: undefined } } : f)) }),
     // the answer of the AI is one change: it can be undone like every other
     apply: content => {
       closeModes();
       const before = JSON.stringify(state.content);
+      // the pictures behind sketches were not sent: they come back from here
+      const images = new Map(state.content.features.filter(f => f.params?.image).map(f => [f.id, f.params.image]));
+      for (const f of content.features || []) if (images.has(f.id) && f.params && !f.params.image) f.params.image = images.get(f.id);
       state.content = normalize(clone(content));
       commit(before);
       return before;
@@ -168,6 +172,7 @@ function start() {
       state.dialog.feature.params.entities = sketcher.entities;
       state.dialog.feature.params.cons = sketcher.cons;
       delete state.dialog.feature.params.dims;
+      if (sketcher.image) state.dialog.feature.params.image = sketcher.image; else delete state.dialog.feature.params.image;
       regen(withDialogFeature(), { keepTree: true });
     }, 40);
   }
@@ -893,7 +898,7 @@ function start() {
     regen(withDialogFeature());
     // "Use" takes edges of the parts before the sketch (the view shows the whole model, which follows the sketch live)
     viewport.setPickParts(input.parts.filter(p => !state.hidden.has(p.id)));
-    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, cons: feature.params.cons, dims: feature.params.dims, units: state.doc.units, variables: input.variables });
+    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, cons: feature.params.cons, dims: feature.params.dims, units: state.doc.units, variables: input.variables, image: feature.params.image });
     updateUndo();
   }
 
@@ -904,6 +909,7 @@ function start() {
     // always a list (also empty): a sketch with a list is not given the obvious constraints again when it is opened
     d.feature.params.cons = sketcher.cons;
     delete d.feature.params.dims;
+    if (sketcher.image) d.feature.params.image = sketcher.image; else delete d.feature.params.image;
     const before = JSON.stringify(state.content);
     const content = normalize(withDialogFeature());
     // rectangles and polygons that became lines: the features that chose their profiles keep them under the new names
@@ -965,6 +971,16 @@ function start() {
     else if (name === 'construction') sketcher.toggleConstruction();
     else if (name === 'normal') viewport.normalTo(sketcher.frame);
     else if (name === 'slice' || name === 'outline') useModel(name);
+    else if (name === 'image') sketchImageInput.click();
+  });
+
+  // a picture behind the sketch, to trace it
+  const sketchImageInput = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif,image/svg+xml', class: 'mat-sr-only', tabindex: '-1', 'aria-hidden': 'true' });
+  root.append(sketchImageInput);
+  sketchImageInput.addEventListener('change', async () => {
+    const file = sketchImageInput.files[0];
+    sketchImageInput.value = '';
+    if (file && state.mode === 'sketch') { try { await sketcher.setImage(file); } catch (e) { console.warn('MatShape: picture failed', e); toast(t('Sketch.Image.Failed'), 'danger'); } }
   });
 
   /** The cut of the parts (before the sketch) by the plane of the sketch, or their outline seen along its normal, as fixed curves of the sketch. */
@@ -1355,7 +1371,7 @@ function start() {
 
   // ---- keyboard: the shortcuts of OnShape (the list: Services/KeyMap.cs, the dialog "?") -----------------------------------
   const NAMED_VIEWS = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
-  const SKETCH_TOOLS = { l: 'line', g: 'rect', c: 'circle', a: 'arc', d: 'dimension', u: 'use' };
+  const SKETCH_TOOLS = { l: 'line', g: 'rect', c: 'circle', a: 'arc', d: 'dimension', u: 'use', m: 'trim', o: 'offset', t: 'tarc' };
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
   document.addEventListener('keydown', e => {

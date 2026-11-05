@@ -130,6 +130,7 @@ export function rectPoints(e) {
 /** The start and end of an open entity (a line or an arc), for chaining. */
 export function ends(e) {
   if (e.t === 'line') return [e.a, e.b];
+  if (e.t === 'spline') return [e.pts[0], e.pts[e.pts.length - 1]];
   if (e.t === 'arc') return [[e.c[0] + e.r * Math.cos(e.a0), e.c[1] + e.r * Math.sin(e.a0)], [e.c[0] + e.r * Math.cos(e.a1), e.c[1] + e.r * Math.sin(e.a1)]];
   return null;
 }
@@ -142,6 +143,8 @@ export function entityPolyline(e) {
     case 'circle': { const p = circlePoints(e.c[0], e.c[1], e.r); return [...p, p[0]]; }
     case 'rect': { const p = rectPoints(e); return [...p, p[0]]; }
     case 'polygon': { const p = polygonPoints(e); return [...p, p[0]]; }
+    case 'spline': return splinePoints(e.pts);
+    case 'ellipse': { const p = ellipsePoints(e); return [...p, p[0]]; }
     default: return [];
   }
 }
@@ -309,6 +312,8 @@ export function snapPoints(entities) {
     else if (e.t === 'rect') { out.push(...rectPoints(e), [(e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2]); }
     else if (e.t === 'polygon') { out.push(e.c, ...polygonPoints(e)); }
     else if (e.t === 'point') { out.push(e.p); }
+    else if (e.t === 'spline') { out.push(e.pts[0], e.pts[e.pts.length - 1]); }
+    else if (e.t === 'ellipse') { out.push(e.c); }
   }
   return out;
 }
@@ -424,6 +429,38 @@ export function curvesFromPoints(points, closed) {
     const e = out[k], next = out[(k + 1) % out.length];
     if (!closed && k === out.length - 1) break;
     if (e.t === 'line' && next.t === 'line') next.a = e.b;
+  }
+  return out;
+}
+
+/** A smooth curve through the points (centripetal Catmull-Rom: no loops, no overshoot at sharp turns), as a polyline. */
+export function splinePoints(pts) {
+  if (!pts || pts.length < 2) return pts ? pts.slice() : [];
+  if (pts.length === 2) return [pts[0], pts[1]];
+  const P = [[2 * pts[0][0] - pts[1][0], 2 * pts[0][1] - pts[1][1]], ...pts, [2 * pts[pts.length - 1][0] - pts[pts.length - 2][0], 2 * pts[pts.length - 1][1] - pts[pts.length - 2][1]]];
+  const out = [pts[0]];
+  for (let i = 1; i < P.length - 2; i++) {
+    const [p0, p1, p2, p3] = [P[i - 1], P[i], P[i + 1], P[i + 2]];
+    const d = (a, b) => Math.max(1e-9, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])));
+    const t0 = 0, t1 = t0 + d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3);
+    const lerp = (a, b, ta, tb, t) => [(a[0] * (tb - t) + b[0] * (t - ta)) / (tb - ta), (a[1] * (tb - t) + b[1] * (t - ta)) / (tb - ta)];
+    const n = 16;
+    for (let k = 1; k <= n; k++) {
+      const t = t1 + (t2 - t1) * k / n;
+      const A1 = lerp(p0, p1, t0, t1, t), A2 = lerp(p1, p2, t1, t2, t), A3 = lerp(p2, p3, t2, t3, t);
+      const B1 = lerp(A1, A2, t0, t2, t), B2 = lerp(A2, A3, t1, t3, t);
+      out.push(lerp(B1, B2, t1, t2, t));
+    }
+  }
+  return out;
+}
+
+/** The points of an ellipse (centre, half axes rx along its direction rot (radians) and ry across it). */
+export function ellipsePoints(e) {
+  const n = 72, c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), out = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n * TAU, x = e.rx * Math.cos(t), y = e.ry * Math.sin(t);
+    out.push([e.c[0] + x * c - y * s, e.c[1] + x * s + y * c]);
   }
   return out;
 }

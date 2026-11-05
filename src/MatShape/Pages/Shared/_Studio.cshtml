@@ -105,20 +105,31 @@
     </div>
 
     @* the sketch tools, shown while a sketch is edited *@
-    <div class="ms-tools ms-tools--sketch" role="toolbar" aria-label="@L["Sketch.Tools"]" data-toolbar="sketch" hidden>
+    <div class="ms-tools ms-tools--sketch ms-tools--icons" role="toolbar" aria-label="@L["Sketch.Tools"]" data-toolbar="sketch" hidden>
         <button type="button" class="ms-tool" data-sketch-tool="select" aria-pressed="true" data-tip="@L["Sketch.Select"] (Esc)">@Ui.Icon("cursor")<span>@L["Sketch.Select"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
         <button type="button" class="ms-tool" data-sketch-tool="line" aria-pressed="false" data-tip="@L["Sketch.Line"] (L)">@Ui.Icon("line")<span>@L["Sketch.Line"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="spline" aria-pressed="false" data-tip="@L["Sketch.Spline.Tip"]">@Ui.Icon("spline")<span>@L["Sketch.Spline"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="rect" aria-pressed="false" data-tip="@L["Sketch.Rect"] (G)">@Ui.Icon("rectangle")<span>@L["Sketch.Rect"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="crect" aria-pressed="false" data-tip="@L["Sketch.CenterRect"]">@Ui.Icon("rectangle-center")<span>@L["Sketch.CenterRect"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="circle" aria-pressed="false" data-tip="@L["Sketch.Circle"] (C)">@Ui.Icon("circle-tool")<span>@L["Sketch.Circle"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="ellipse" aria-pressed="false" data-tip="@L["Sketch.Ellipse.Tip"]">@Ui.Icon("ellipse")<span>@L["Sketch.Ellipse"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="arc" aria-pressed="false" data-tip="@L["Sketch.Arc"] (A)">@Ui.Icon("arc")<span>@L["Sketch.Arc"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="tarc" aria-pressed="false" data-tip="@L["Sketch.TangentArc.Tip"] (T)">@Ui.Icon("tangent-arc")<span>@L["Sketch.TangentArc"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="polygon" aria-pressed="false" data-tip="@L["Sketch.Polygon"]">@Ui.Icon("polygon")<span>@L["Sketch.Polygon"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="slot" aria-pressed="false" data-tip="@L["Sketch.Slot.Tip"]">@Ui.Icon("slot")<span>@L["Sketch.Slot"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="point" aria-pressed="false" data-tip="@L["Sketch.Point"]">@Ui.Icon("point")<span>@L["Sketch.Point"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="text" aria-pressed="false" data-tip="@L["Sketch.Text.Tip"]">@Ui.Icon("text")<span>@L["Sketch.Text"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-sketch-tool="sfillet" aria-pressed="false" data-tip="@L["Sketch.SketchFillet.Tip"]">@Ui.Icon("fillet")<span>@L["Sketch.SketchFillet"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="trim" aria-pressed="false" data-tip="@L["Sketch.Trim.Tip"] (M)">@Ui.Icon("trim")<span>@L["Sketch.Trim"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="offset" aria-pressed="false" data-tip="@L["Sketch.Offset.Tip"] (O)">@Ui.Icon("offset")<span>@L["Sketch.Offset"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-tool="mirror" aria-pressed="false" data-tip="@L["Sketch.Mirror.Tip"]">@Ui.Icon("mirror")<span>@L["Sketch.Mirror"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
         <button type="button" class="ms-tool" data-sketch-tool="use" aria-pressed="false" data-tip="@L["Sketch.Use.Tip"] (U)">@Ui.Icon("use-edge")<span>@L["Sketch.Use"]</span></button>
         <button type="button" class="ms-tool" data-sketch-action="slice" data-tip="@L["Sketch.Slice.Tip"]">@Ui.Icon("slice")<span>@L["Sketch.Slice"]</span></button>
         <button type="button" class="ms-tool" data-sketch-action="outline" data-tip="@L["Sketch.Outline.Tip"]">@Ui.Icon("outline")<span>@L["Sketch.Outline"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="image" data-tip="@L["Sketch.Image.Tip"]">@Ui.Icon("image")<span>@L["Sketch.Image"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
         <button type="button" class="ms-tool" data-sketch-tool="dimension" aria-pressed="false" data-tip="@L["Sketch.Dimension"] (D)">@Ui.Icon("dimension")<span>@L["Sketch.Dimension"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
@@ -131,6 +142,7 @@
         <button type="button" class="ms-tool" data-sketch-constraint="equal" aria-pressed="false" data-tip="@L["Sketch.Equal"]">@Ui.Icon("equal")<span>@L["Sketch.Equal"]</span></button>
         <button type="button" class="ms-tool" data-sketch-constraint="midpoint" aria-pressed="false" data-tip="@L["Sketch.Midpoint"]">@Ui.Icon("midpoint")<span>@L["Sketch.Midpoint"]</span></button>
         <button type="button" class="ms-tool" data-sketch-constraint="concentric" aria-pressed="false" data-tip="@L["Sketch.Concentric"]">@Ui.Icon("concentric")<span>@L["Sketch.Concentric"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-constraint="symmetric" aria-pressed="false" data-tip="@L["Sketch.Symmetric.Tip"]">@Ui.Icon("symmetric")<span>@L["Sketch.Symmetric"]</span></button>
         <button type="button" class="ms-tool" data-sketch-constraint="fix" aria-pressed="false" data-tip="@L["Sketch.Fix"]">@Ui.Icon("fix")<span>@L["Sketch.Fix"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
         <button type="button" class="ms-tool" data-sketch-action="construction" aria-pressed="false" data-tip="@L["Sketch.Construction"] (Q)">@Ui.Icon("construction")<span>@L["Sketch.Construction"]</span></button>

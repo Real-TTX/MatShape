@@ -653,6 +653,7 @@ export class Viewport {
     const f = state.frame;
     // the grid of the sketch
     group.add(gridObject(f, state.grid, state.gridExtent));
+    if (state.image?.src) group.add(this.imageObject(f, state.image));
     for (const loop of state.loops || []) group.add(fillObject(f, loop.points, state.selectedProfiles?.includes(loop.key)));
     group.add(sketchObject(f, state.entities, { color: palette.sketch, selected: state.selected, hover: state.hover, hoverPoint: state.hoverPoint, points: true, status: state.status, pointStatus: state.pointStatus }));
     if (state.origin) group.add(markerObject(toWorld(f, 0, 0), state.selected?.has?.('p:origin.p') ? palette.select : palette.defined));
@@ -680,6 +681,26 @@ export class Viewport {
     this.sketchOverlay = group;
     this.overlayGroup.add(group);
     this.invalidate();
+  }
+
+  /** A picture lying in the plane of a sketch (to trace): centred at x, y, width in mm, see-through; the textures are kept per picture. */
+  imageObject(f, img) {
+    this.imageTextures ||= new Map();
+    let texture = this.imageTextures.get(img.src);
+    if (!texture) {
+      texture = new THREE.TextureLoader().load(img.src, () => this.invalidate());
+      texture.colorSpace = THREE.SRGBColorSpace;
+      if (this.imageTextures.size > 8) this.imageTextures.clear();
+      this.imageTextures.set(img.src, texture);
+    }
+    const w = img.width, h = img.width * (img.aspect || 1);
+    const corners = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([u, v]) => toWorld(f, img.x + u, img.y + v));
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([0, 1, 2, 0, 2, 3].flatMap(i => corners[i]), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
+    const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: img.opacity ?? 0.6, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+    mesh.renderOrder = 4;
+    return mesh;
   }
 
   /** The points of a measurement (or nothing). */
@@ -955,8 +976,9 @@ function sketchObject(frame, entities, style) {
       if (e.cons && !selected && !hovered) dashed.push({ a: poly[i - 1], b: poly[i], colour: state === 'conflict' ? palette.conflict : palette.cons });
       else push(colour, width, poly[i - 1], poly[i]);
     }
-    if (!style.points) continue;
-    const ends = e.t === 'line' || e.t === 'rect' ? [['a', e.a], ['b', e.b]] : e.t === 'arc' ? [['s', [e.c[0] + e.r * Math.cos(e.a0), e.c[1] + e.r * Math.sin(e.a0)]], ['e', [e.c[0] + e.r * Math.cos(e.a1), e.c[1] + e.r * Math.sin(e.a1)]], ['c', e.c]] : e.c ? [['c', e.c]] : [];
+    // the ends of geometry taken from the model (fixed) stay quiet: a cut or a text has many
+    if (!style.points || (e.use && !selected && !hovered)) continue;
+    const ends = e.t === 'spline' ? [['a', e.pts[0]], ['b', e.pts[e.pts.length - 1]]] : e.t === 'line' || e.t === 'rect' ? [['a', e.a], ['b', e.b]] : e.t === 'arc' ? [['s', [e.c[0] + e.r * Math.cos(e.a0), e.c[1] + e.r * Math.sin(e.a0)]], ['e', [e.c[0] + e.r * Math.cos(e.a1), e.c[1] + e.r * Math.sin(e.a1)]], ['c', e.c]] : e.c ? [['c', e.c]] : [];
     for (const [k, p] of ends) {
       const key = e.id + '.' + k;
       const c = style.selected?.has?.('p:' + key) ? palette.select : style.hoverPoint === key ? palette.hover : style.pointStatus ? colourOf(style.pointStatus.get(key)) : colour;

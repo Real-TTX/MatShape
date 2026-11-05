@@ -6,7 +6,8 @@
 
 **3D CAD in the browser – parametric parts from sketches and features, self-hosted.**
 
-Constraint sketches, a feature history, versions, sharing and an AI assistant that models from words or pictures.
+Constraint sketches, fillets and chamfers, section views, technical drawings, a feature history, versions, sharing and an AI
+assistant that models from words or pictures.
 One app container and PostgreSQL, no cloud, no CDN.
 
 </div>
@@ -47,10 +48,16 @@ checks it and decides who may see and change what.
   does not spoil one, crossing lines enclose what they enclose
 - Select by clicking or with a **box** (to the right: wholly inside, to the left: touched); dragging moves entities as far as the
   constraints allow – a solver (Levenberg-Marquardt with a rank analysis) holds them
+- **Geometry from the model**: **Use (U)** projects a clicked edge into the sketch, **Section** takes the cut of the parts by the
+  sketch plane, **Outline** their silhouette – as lines, arcs and circles (recognised from the mesh), fixed and black like in OnShape
 
 **Modelling**
-- **Features**: extrude (blind, symmetric, through all; new / add / remove / intersect), revolve, boolean, move / rotate /
-  copy, mirror, linear and circular pattern, split at a plane, delete part, offset plane, **variable**
+- **Features**: extrude (blind, symmetric, through all; new / add / remove / intersect), revolve, **fillet**, **chamfer**, boolean,
+  move / rotate / copy, mirror, linear and circular pattern, split at a plane, delete part, offset plane, **variable**
+- **Fillet (Shift+F) and chamfer**: click edges in the view (they light up under the pointer), a face takes all its edges, or
+  every edge of a part; outer edges are cut round, inner edges filled round; chained edges are mitred, three rounded edges
+  meet in a ball corner; chamfer with one distance or two. The edges are known by the **names of their faces**
+  (`<extrude>:end`, `<extrude>:<sketch line>` …), so they are found again when a dimension changes
 - Every field takes **expressions with units**: `25`, `2.5 cm`, `1 in`, `#d / 8`, `sqrt(#a^2 + #b^2)`, `30 deg`
 - **Feature history**: edit (double-click), rename, suppress, reorder, delete, **rollback bar**, live preview while editing
 - **Undo / redo**, keyboard shortcuts like the CAD tools on the web – **?** shows them all
@@ -70,9 +77,19 @@ checks it and decides who may see and change what.
 
 **Viewing, measuring, export**
 - **View cube** in the corner: turns with the view, a click on a face, edge or corner looks from there
+- **Section view**: the parts cut at Top / Front / Right or a plane feature, the place of the cut on a slider, either side;
+  the cut faces are filled and hatched
 - **View themes**: automatic, high contrast (thick black lines), dark, blueprint
 - Parts: name, **colour**, hide, isolate; mass properties; measure distances
 - **Export: 3MF with part colours** (for slicers), STL, OBJ, PNG of the view, the Part Studio as JSON
+
+**Technical drawings**
+- **Zeichnung / Drawing** in the toolbar: front view, top view below it, view from the left beside it (**first-angle
+  projection**, ISO / DIN), an **isometric view** and a **section A–A** (cut line with arrows in the top or front view,
+  hatched cut faces)
+- **Hidden edges** dashed, tangent edges thin, outlines of round faces; computed in the browser with a depth buffer
+- **Overall dimensions**, a **title block** (title, document, scale, date, units, drawn by, projection symbol)
+- Sheet **A4 – A1**, the largest standard scale that fits or a chosen one; download as **PDF** (to print), **SVG** and **DXF**
 
 **AI assistant**
 - Describe what to build or change ("a plate 80 × 40 × 6 with four holes of 6 mm") – the AI adds **features** you edit
@@ -131,6 +148,26 @@ colour is a part in its colour on a base plate in the outline of the motif; the 
 
 An SVG logo and a picture attached in the AI panel; the answer is a 60 mm sign with the raised circle and square – in
 the colours of the logo, as nine features that can be edited or undone in one step.
+
+### Fillets and chamfers
+
+![The fillet dialog with four picked corner edges and the rounded preview](docs/images/fillet.png)
+
+A bearing block: the four corners are picked (orange) and rounded with 6 mm, the boss meets the plate with a 2.5 mm fillet
+(an inner edge, so material is added) and has a 1.5 mm chamfer. When a dimension changes, the edges are found again by the
+names of their faces – the fillets stay where they belong.
+
+### Section view and the section in a sketch
+
+| Section view | The section as sketch curves |
+|---|---|
+| ![The part cut at the Front plane, the cut faces hatched, the slider below](docs/images/section-view.png) | ![A sketch on the Front plane with the cut of the part as fixed lines and arcs](docs/images/sketch-section.png) |
+
+### Technical drawing
+
+| The dialog | The sheet (PDF / SVG / DXF) |
+|---|---|
+| ![The drawing dialog: sheet, scale, views, section, hidden edges, dimensions](docs/images/drawing.png) | ![A3 at 1 : 1 with front, top and side view, section A–A, isometric view and title block](docs/images/drawing-sheet.png) |
 
 ### Feature dialog with live preview
 
@@ -289,7 +326,8 @@ at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E
 | M5 | **Constraint sketcher**: solver, constraint tools and symbols, dimensions by picks, conflicts | ✅ |
 | M6 | **AI attachments**: rebuild from pictures, logos as templates | ✅ |
 | M6b | **Picture to 3D model**: colours, recognised circles / rectangles, base plate, a part per colour | ✅ |
-| M7 | Fillet / chamfer, shell, picture as a tracing background in a sketch, model edges in sketches, assemblies | open |
+| M7 | **Fillet / chamfer**, **section view**, **model edges / section / outline in sketches**, **technical drawings** (PDF, SVG, DXF) | ✅ |
+| M8 | Shell, draft, picture as a tracing background in a sketch, dimensions placed by hand in drawings, assemblies | open |
 
 ## Development
 
@@ -314,7 +352,8 @@ Texts: `src/MatShape/Resources/Texts/*.json` (`{"en": …, "de": …}`). More on
 - **ASP.NET Core 10** (Razor Pages + minimal API), **EF Core** with **PostgreSQL** (the history of a Part Studio is `jsonb`)
 - Business logic in static classes with a permission check in every function; a document you may not see answers 404
 - The editor is **plain JavaScript** (ES modules, no build step): `model.js` runs the features with Manifold,
-  `sketchsolve.js` solves the sketches, `sketcher.js` is the sketch editor, `viewport.js` the three.js view
+  `sketchsolve.js` solves the sketches, `sketcher.js` is the sketch editor, `viewport.js` the three.js view,
+  `blend.js` builds fillets and chamfers, `drawing.js` the technical drawings
 - The server never runs geometry: it stores and validates the feature list and saves with a revision check in the
   UPDATE itself (no lost update)
 - CSP without inline script or style (`'wasm-unsafe-eval'` for the kernel only), antiforgery header on every change

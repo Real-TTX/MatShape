@@ -6,8 +6,8 @@
 
 **3D CAD in the browser – parametric parts from sketches and features, self-hosted.**
 
-Constraint sketches, fillets and chamfers, section views, technical drawings, a feature history, versions, sharing and an AI
-assistant that models from words or pictures.
+Constraint sketches, a full set of features (fillet, chamfer, hole, shell, sweep, loft …), drawings and assemblies as tabs,
+STEP export, versions, sharing and an AI assistant that models from words or pictures.
 One app container and PostgreSQL, no cloud, no CDN.
 
 </div>
@@ -28,11 +28,14 @@ checks it and decides who may see and change what.
 
 **Sketching – constraint-based, like the CAD tools on the web**
 - Sketch on Top / Front / Right, on offset planes or directly on a **flat face** of a part
-- Line (as a chain), rectangle, centre rectangle, circle, 3-point arc, polygon, point, **construction geometry**
+- Line (as a chain), **spline**, rectangle, centre rectangle, circle, **ellipse**, 3-point arc, **tangent arc (T)**, polygon, **slot**, point,
+  **text** (the outlines of the letters), **construction geometry** – every shape by click – click or by **press – drag – release**
+- **Editing like OnShape**: **trim (M)** – click or drag across the pieces –, **offset (O)** of a chain, **sketch fillet** of a corner, **mirror**
+  (the copies held symmetric), a **picture behind the sketch** to trace it
 - Drawing sets the obvious **constraints** by itself: a rectangle is four lines with H/V, a snapped end is coincident, a
   point on a curve stays on it, a nearly level line becomes horizontal
 - Constraints **Coincident (I), Horizontal (H), Vertical (V), Parallel, Perpendicular, Tangent, Equal, Midpoint,
-  Concentric, Fix** – select first or pick after, shown as **symbols** next to the entities
+  Concentric, Symmetric, Fix** – select first or pick after, shown as **symbols** next to the entities
 - **Dimension tool (D)**: click two points, a point and a line, two lines (distance or angle) or one line, circle or arc,
   then type the value – also expressions with variables (`#width / 2`)
 - **Colours tell the state**: blue = still free, black = fully defined, red = conflict. The sketch box shows the degrees of
@@ -41,8 +44,11 @@ checks it and decides who may see and change what.
 - **Snapping you can see**: the pointer snaps to ends and centres (•), the middle of lines (M), onto curves, level or upright (H / V),
   at a right angle to the line before (⊥) and lines up with other points (dashed guides); the symbol and the length stand at the pointer.
   No grid snapping – sizes come from dimensions
-- **Dimensions are placed like in OnShape**: pick, the dimension follows the pointer, a click places it, type the value; drawn with
-  extension and dimension lines, arrows, leaders and angle arcs, and they can be dragged elsewhere later
+- **Dimensions are placed like in OnShape**: pick, the dimension follows the pointer, a click places it, type the value; dragged up or
+  down it measures across, left or right upright, at a slant the direct distance; an angle measures the quadrant it is dragged into;
+  **arc length** (both ends, then the arc); a dimension that would over-define the sketch becomes **driven** (grey) instead of a conflict;
+  a click selects a value, a double click edits it; negative distances flip the side; drawn with extension and dimension lines, arrows,
+  leaders and angle arcs, and they can be dragged elsewhere later
 - **The model follows at once**: a new value, a constraint or a drag rebuilds the parts while the sketch is still open
 - **Profiles like OnShape**: every enclosed region counts – a line across a rectangle makes two profiles, a line ending at a corner
   does not spoil one, crossing lines enclose what they enclose
@@ -52,8 +58,10 @@ checks it and decides who may see and change what.
   sketch plane, **Outline** their silhouette – as lines, arcs and circles (recognised from the mesh), fixed and black like in OnShape
 
 **Modelling**
-- **Features**: extrude (blind, symmetric, through all; new / add / remove / intersect), revolve, **fillet**, **chamfer**, boolean,
-  move / rotate / copy, mirror, linear and circular pattern, split at a plane, delete part, offset plane, **variable**
+- **Features**: extrude (blind, symmetric, through all; new / add / remove / intersect), revolve, **sweep** (a profile along a path),
+  **loft** (through profiles), **fillet**, **chamfer**, **hole** (simple, counterbore, countersink, through or with a drill point, tapped),
+  **shell**, **rib**, **draft**, **thread** (a real 60° thread), boolean, move / rotate / copy, mirror, linear and circular pattern,
+  split at a plane, delete part, offset plane, **variable**, **import** (STL; STEP / IGES see below)
 - **Fillet (Shift+F) and chamfer**: click edges in the view (they light up under the pointer), a face takes all its edges, or
   every edge of a part; outer edges are cut round, inner edges filled round; chained edges are mitred, three rounded edges
   meet in a ball corner; chamfer with one distance or two. The edges are known by the **names of their faces**
@@ -84,12 +92,24 @@ checks it and decides who may see and change what.
 - **Export: 3MF with part colours** (for slicers), STL, OBJ, PNG of the view, the Part Studio as JSON
 
 **Technical drawings**
+- **A drawing is a tab of its own** (+ at the tabs): it follows its Part Studio; dimensions put on **by hand** (two points, the kind by the
+  drag direction), **diameters**, **detail views** (Z 2 : 1), **centre marks**, views moved by dragging – and the quick dialog below
 - **Zeichnung / Drawing** in the toolbar: front view, top view below it, view from the left beside it (**first-angle
   projection**, ISO / DIN), an **isometric view** and a **section A–A** (cut line with arrows in the top or front view,
   hatched cut faces)
 - **Hidden edges** dashed, tangent edges thin, outlines of round faces; computed in the browser with a depth buffer
 - **Overall dimensions**, a **title block** (title, document, scale, date, units, drawn by, projection symbol)
 - Sheet **A4 – A1**, the largest standard scale that fits or a chosen one; download as **PDF** (to print), **SVG** and **DXF**
+
+**Assemblies**
+- **An assembly is a tab of its own**: instances of the parts of the Part Studios, **mates** between connectors on faces (a flat face: its
+  middle; a round one: its axis) – **fastened, revolute, slider, cylindrical, planar** – with their values and **sliders** for what may move
+- Fixed and loose instances, **exploded view**, **interference check**, **bill of materials** (CSV), export of the assembled parts
+
+**Exchange**
+- **STEP AP214 export** (solids with real flat faces and colours; read back by OpenCascade to check it), STL, OBJ, 3MF with colours
+- **STL import** (faces found at sharp edges, so fillets and holes work on it); STEP / IGES / BREP import through OpenCascade (WebAssembly)
+  is built in but needs one setting of the server first (see Status)
 
 **AI assistant**
 - Describe what to build or change ("a plate 80 × 40 × 6 with four holes of 6 mm") – the AI adds **features** you edit
@@ -168,6 +188,18 @@ names of their faces – the fillets stay where they belong.
 | The dialog | The sheet (PDF / SVG / DXF) |
 |---|---|
 | ![The drawing dialog: sheet, scale, views, section, hidden edges, dimensions](docs/images/drawing.png) | ![A3 at 1 : 1 with front, top and side view, section A–A, isometric view and title block](docs/images/drawing-sheet.png) |
+
+### Sketch tools and dimensions like OnShape
+
+| Spline, ellipse, slot, tangent arc, text, trim, offset, fillet | Dimensions: across / upright / direct by the drag direction, driven (grey), arc length |
+|---|---|
+| ![A sketch with a slot, a tangent arc, a spline, an ellipse, the text "Mat", a trimmed line and an offset with a rounded corner](docs/images/sketch-tools.png) | ![A horizontal, a vertical and a driven distance between two corners, the length of an arc](docs/images/sketch-dimensions.png) |
+
+### Hole and shell, drawing tab, assembly
+
+| Shell with two counterbored holes | A drawing tab with a dimension, a diameter and a detail view | An assembly: a pin fastened on a plate |
+|---|---|---|
+| ![A box hollowed out and open at the top; the holes keep a wall](docs/images/shell-hole.png) | ![A drawing tab: the settings on the left, the sheet with views, centre marks, Ø6 and detail Z (2 : 1)](docs/images/drawing-tab.png) | ![An assembly tab: two instances, a fastened mate with its values](docs/images/assembly.png) |
 
 ### Feature dialog with live preview
 
@@ -327,7 +359,10 @@ at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E
 | M6 | **AI attachments**: rebuild from pictures, logos as templates | ✅ |
 | M6b | **Picture to 3D model**: colours, recognised circles / rectangles, base plate, a part per colour | ✅ |
 | M7 | **Fillet / chamfer**, **section view**, **model edges / section / outline in sketches**, **technical drawings** (PDF, SVG, DXF) | ✅ |
-| M8 | Shell, draft, picture as a tracing background in a sketch, dimensions placed by hand in drawings, assemblies | open |
+| M8 | **Sketch tools** (trim, offset, fillet, mirror, slot, tangent arc, spline, ellipse, text, picture), **dimensions like OnShape** (driven, arc length) | ✅ |
+| M9 | **Hole, shell, rib, sweep, loft, draft, thread**; **drawings as tabs** (dimensions by hand, details, centre marks); **assemblies** with mates, BOM, interference | ✅ |
+| M10 | **STEP export**, STL import; STEP / IGES import through OpenCascade – waits for a Content-Security-Policy of its own for `/lib/occt` (its reader evaluates script) | ◐ |
+| next | Surfaces, sheet metal, configurations, real-time collaboration, more mates (gear, rack, limits) | open |
 
 ## Development
 
@@ -353,7 +388,8 @@ Texts: `src/MatShape/Resources/Texts/*.json` (`{"en": …, "de": …}`). More on
 - Business logic in static classes with a permission check in every function; a document you may not see answers 404
 - The editor is **plain JavaScript** (ES modules, no build step): `model.js` runs the features with Manifold,
   `sketchsolve.js` solves the sketches, `sketcher.js` is the sketch editor, `viewport.js` the three.js view,
-  `blend.js` builds fillets and chamfers, `drawing.js` the technical drawings
+  `blend.js` builds fillets and chamfers, `solids.js` hole / shell / sweep / loft / draft / thread, `sketchtools.js` trim / offset /
+  mirror, `drawing.js` + `drawingeditor.js` the drawings, `assembly.js` the assemblies, `step.js` STEP and STL
 - The server never runs geometry: it stores and validates the feature list and saves with a revision check in the
   UPDATE itself (no lost update)
 - CSP without inline script or style (`'wasm-unsafe-eval'` for the kernel only), antiforgery header on every change

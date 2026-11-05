@@ -5,7 +5,7 @@ Guidance for working in this repository. Keep it in sync with the code: update i
 ## What MatShape is
 
 3D CAD in the browser in the spirit of the parametric CAD tools on the web. A **document** holds **Part Studios** (tabs); a Part Studio is an ordered **feature list** (sketch, plane,
-extrude, revolve, fillet, chamfer, boolean, transform, mirror, linear/circular pattern, split, delete part, variable) that is run from the top to make the parts. Documents are shared with people who have
+extrude, revolve, sweep, loft, fillet, chamfer, hole, shell, rib, draft, thread, boolean, transform, mirror, linear/circular pattern, split, delete part, variable, import) that is run from the top to make the parts. Documents are shared with people who have
 an account (editor / viewer) or through a read-only **link**; named **versions** keep the state of a whole document. Part of the Mat family: sign-in through **MatIdentity**, mail through
 **MatSMTP**, the platform contract for **Mattiverse** (all optional, switched on by environment variables).
 
@@ -71,7 +71,19 @@ src/MatShape
     drawing.js               technical drawings without DOM (tested in Node): projectView (sharp edges, tangent edges thin, outlines of round faces; hidden lines by a depth buffer),
                              drawingViews (front / top / left / iso, section A–A with hatching and cut line), layoutDrawing (first-angle projection, scale, title block, overall
                              dimensions; primitives in sheet mm), toSvg / toDxf (R12) / toPdf (own small writer, Helvetica)
-    drawingdialog.js         its dialog (ms-drawing): sheet, scale, views, section, hidden edges, dimensions, title; preview as SVG; PDF / SVG / DXF downloads
+    drawingdialog.js         its dialog (ms-drawing): sheet, scale, views, section, hidden edges, dimensions, title; preview as SVG; PDF / SVG / DXF downloads; "keep as a tab"
+    drawingeditor.js         a drawing TAB (content.drawing): the sheet of a Part Studio of the document, made again when it changes; settings in the side bar; tools: select
+                             (drag a view), dimension (two snap points of a view, kind by the drag direction), diameter (circles found in the views), detail view; notes are
+                             stored in view coordinates (drawing.js annotate / viewGeometry)
+    assembly.js              an assembly TAB (content.assembly): instances { studio, part, fixed, transform } and mates { type, a/b: { inst, frame }, flip, angle, offset, dx, dy };
+                             solveAssembly = a tree (grounded instance, each mate places the next; loops are left out); connectors from picked faces (flat: middle +
+                             normal, round: axisOfFace); exploded view, interference (kernel intersect), BOM CSV
+    sketchtools.js           trim (cut at crossings; circles become arcs), offset of a chain (lines meet at their crossings), sketch fillet of a corner, mirror (symmetric),
+                             slot, tangent arc – plain functions on { entities, cons } (tested in Node)
+    solids.js                offsetVertices (faces moved by their own distances: shell, draft), hole profile, sweep along a path (parallel transport, mitred corners),
+                             loft rings, axisOfFace, threadTool (60° V along a helix)
+    step.js                  STEP AP214 writer (faceted B-rep: flat regions merged into faces with holes, colours), readCad: STEP/IGES/BREP via occt-import-js in a worker
+                             (/lib/occt; needs a CSP with 'unsafe-eval' for that path, not given yet), STL reader; packArray/unpackArray (base64 of the meshes of "import")
     geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketchLoops = profiles like OnShape: curves cut at their crossings, loose ends trimmed, the smallest enclosed regions (key = sorted border ids, #2 … for regions with the same border)
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges (from the face names) + smooth normals, planes, sketches,
@@ -91,6 +103,7 @@ src/MatShape
     imagetrace.js            picture -> 3D without DOM (tested in Node): k-means colours (near ones merged), anti-aliasing seams dissolved, majority smoothing, specks removed,
                              outlines traced per colour, Douglas-Peucker, circles / rectangles recognised; buildFeatures = base plate (outline, rectangle, none) + plane + sketch/extrude per colour
     imagedialog.js           its editor (dialog ms-image): preview original / colours / shapes, a click toggles a colour, palette with height, colour, name; adds the features as one step
+    lib/occt                 occt-import-js (OpenCascade reader as WebAssembly, LGPL), unchanged copy, see its README.txt
     viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
     export.js, util.js       STL/OBJ/3MF (with a small stored ZIP writer, colours as basematerials); texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM
@@ -109,6 +122,10 @@ survive a regeneration. A sketch plane is `{ kind: "std", name }`, `{ kind: "pla
 Sketch constraints: `params.cons = [{ id, type, refs, value? }]`, a ref is a point `{ e, k: a|b|c|s|e|p }` (`{ e: "origin", k: "p" }`) or a curve `{ e }`; types and glyphs in `sketchsolve.js` (CONSTRAINTS).
 Sketch entities: `line {a,b}`, `rect {a,b}`, `circle {c,r}`, `arc {c,r,a0,a1}` (radians, counter-clockwise), `polygon {c,r,n,rot}`, `point {p}`; `cons: true` = construction,
 `use: true` = taken from the model (fixed).
+A tab is a Part Studio, or a drawing (`"drawing": { source, sheet, scale, views, section, hidden, dims, centres, title, notes, moved }`, no features) or an
+assembly (`"assembly": { instances, mates }`); the server makes them with POST /live/documents/{id}/studios { name, kind } (StudioContent.ForKind).
+Sketch entities also `spline { pts }`, `ellipse { c, rx, ry, rot }`; `params.image` = a picture behind the sketch { src, aspect, width, x, y, opacity };
+constraints also `symmetric` (2 points + line), `arclength`, `driven: true` (a dimension that only shows its value).
 Fillet `{ edges, radius }`, chamfer `{ edges, mode: equal|two, distance, distance2, flip }`; an edge ref is `{ part, faces: [name, name], at }` (an edge by its two faces; at = where
 it was picked), `{ part, face }` (every edge of a face) or `{ part }` (every edge of the part). Profiles are referred to by
 the sorted ids of their entities (`profiles: null` = all). Fields of features are strings (expressions), evaluated at regeneration.

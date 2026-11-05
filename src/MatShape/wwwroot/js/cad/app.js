@@ -3,16 +3,18 @@
    Every change is saved by itself a moment later, with the revision it started from: when somebody else saved in between, nothing is overwritten unasked.
    Without a network the changes wait on this device (localStorage) and are sent when the network is back. */
 
-import { Viewport } from './viewport.js';
+import { Viewport, edgeGroup, edgePoints } from './viewport.js';
 import { ViewCube } from './viewcube.js';
 import { Assistant } from './assistant.js';
 import { ImageDialog } from './imagedialog.js';
-import { loadKernel, regenerate, dispose, FEATURES, properties } from './model.js';
+import { DrawingDialog } from './drawingdialog.js';
+import { loadKernel, regenerate, dispose, FEATURES, TANGENT, faceKey, outlineOf, properties, sectionOf } from './model.js';
 import { buildDialog } from './dialogs.js';
+import { distToSegment3 } from './topo.js';
 import { Sketcher } from './sketcher.js';
 import { renameProfiles } from './sketchsolve.js';
 import { toObj, toStl, toThreeMf } from './export.js';
-import { STANDARD_PLANES, frameFromNormal, v3 } from './geom.js';
+import { STANDARD_PLANES, curvesFromPoints, frameFromNormal, offsetFrame, v3 } from './geom.js';
 import { clone, debounce, download, el, fileName, fmt, icon, length, request, swatch, t, toast, uid, UNITS } from './util.js';
 
 const root = document.getElementById('ms-studio');
@@ -124,6 +126,18 @@ function start() {
     },
     toAi: assistant ? file => { assistant.open(true); assistant.attach([file]); if (!assistant.input.value.trim()) assistant.input.value = t('Studio.Image.AiPrompt'); } : null,
   }) : null;
+  // the technical drawing of the visible parts (also for people who may only look)
+  const drawingEl = document.getElementById('ms-drawing');
+  const drawingDialog = drawingEl ? new DrawingDialog(drawingEl, {
+    kernel: () => state.kernel,
+    parts: () => (state.result?.parts || []).filter(p => !state.hidden.has(p.id)),
+    name: () => (state.doc.studios.length > 1 ? state.studio.name : state.doc.name),
+    doc: () => state.doc.name,
+    units: () => state.doc.units,
+    unit: () => unit(),
+    person: () => root.dataset.person || '',
+  }) : null;
+  const openDrawing = () => { if (!drawingDialog || !state.result) return; if (state.mode === 'dialog' || state.mode === 'sketch') closeModes(); drawingDialog.open(); };
   const openImage = file => { if (canEdit() && imageDialog && state.mode !== 'sketch') imageDialog.open(file); };
   // a picture dropped on the view or pasted (outside of fields) opens the editor with it
   root.addEventListener('dragover', e => { if (canEdit() && imageDialog && e.dataTransfer?.types?.includes('Files') && !e.target.closest('[data-ai-panel]')) e.preventDefault(); });
@@ -141,6 +155,7 @@ function start() {
   const sketcher = new Sketcher(viewport, { root: ui.sketchPanel, title: $('[data-sketch-title]'), summary: $('[data-sketch-summary]'), body: $('[data-sketch-body]') }, ui.sketchTools, {
     status: text => setStatus(text),
     hud: text => showHud(text),
+    toast: text => toast(text, 'info'),
     // like OnShape: every change of the sketch (a value, a constraint, a drag) rebuilds the parts at once, not only when the sketch is accepted
     changed: () => liveSketch(),
   });
@@ -258,6 +273,7 @@ function start() {
     if (state.mode !== 'measure') ui.measure.hidden = true;
     // the first part of a Part Studio: show it whole
     if (!hadParts && next.parts.length && state.mode !== 'sketch') setTimeout(() => viewport.fit(true), 320);
+    if (state.section) updateSection();
   }
 
   function sketchVisible(s, content) {
@@ -651,6 +667,7 @@ function start() {
     writeLocal('hidden.' + state.studio.id, [...state.hidden]);
     viewport.setHidden(state.hidden);
     renderParts();
+    if (state.section) updateSection();
   }
 
   async function onPartMenu(action) {
@@ -708,6 +725,7 @@ function start() {
       if ('parts' in params && !preset?.parts) params.parts = selected;
       if (type === 'boolean') { params.targets = selected.slice(0, 1); params.tools = selected.slice(1); }
     }
+    if ((type === 'fillet' || type === 'chamfer') && !state.result.parts.length) { toast(t('Studio.NeedPart'), 'warning'); return; }
     if (type === 'extrude' || type === 'revolve') {
       const sketches = state.result.sketches.filter(s => s.loops.length);
       if (!sketches.length) { toast(t('Studio.NeedSketch'), 'warning'); return; }
@@ -736,7 +754,9 @@ function start() {
     const inputContent = { ...content, features: content.features.slice(0, index), rollback: null };
     const input = regenerate(state.kernel, inputContent, state.doc.units);
     state.mode = 'dialog';
-    state.dialog = { feature, isNew, index, input, activeParts: null, activePlane: null };
+    state.dialog = { feature, isNew, index, input, activeParts: null, activePlane: null, activeEdges: null };
+    // a fillet or chamfer picks the edges of the parts before it, while the view shows its preview
+    if (feature.type === 'fillet' || feature.type === 'chamfer') viewport.setPickParts(input.parts);
     ui.dialog.hidden = false;
     ui.empty.hidden = true;
     ui.dialogTitle.textContent = t('Feature.' + feature.type);
@@ -752,6 +772,8 @@ function start() {
       rebuild: () => { build(); schedulePreview(); },
       activateParts: field => { state.dialog.activeParts?.activate(false); state.dialog.activeParts = field; field.activate(true); },
       activatePlane: field => { state.dialog.activePlane = field; setStatus(field ? t('Dialog.PickFaceHint') : ''); },
+      activateEdges: field => { state.dialog.activeEdges = field; field.activate(true); setStatus(t('Dialog.Edges.Hint')); markEdges(null); },
+      edgesChanged: () => markEdges(null),
       featureName,
       partName,
     };
@@ -804,6 +826,9 @@ function start() {
 
   function closeDialog() {
     if (!state.dialog) return;
+    viewport.setPickParts(null);
+    viewport.setEdgeMarks(null);
+    viewport.hover(null);
     dispose(state.dialog.input);
     state.dialog = null;
     state.mode = 'idle';
@@ -866,6 +891,8 @@ function start() {
     ui.empty.hidden = true;
     showHud('');
     regen(withDialogFeature());
+    // "Use" takes edges of the parts before the sketch (the view shows the whole model, which follows the sketch live)
+    viewport.setPickParts(input.parts.filter(p => !state.hidden.has(p.id)));
     sketcher.start({ name: feature.name, frame, entities: feature.params.entities, cons: feature.params.cons, dims: feature.params.dims, units: state.doc.units, variables: input.variables });
     updateUndo();
   }
@@ -883,6 +910,17 @@ function start() {
     for (const f of content.features) {
       if (f.params?.sketch === d.feature.id && Array.isArray(f.params.profiles)) f.params.profiles = renameProfiles(f.params.profiles, sketcher.replaced);
     }
+    // … and fillets and chamfers keep their edges: a side of a rectangle or polygon ("<extrude>:<rect>.<k>") is now the face of its line
+    const users = new Set(content.features.filter(f => f.params?.sketch === d.feature.id).map(f => f.id));
+    const renameFace = name => {
+      const m = /^(.+?):(.+)\.(\d+)$/.exec(name || '');
+      const lines = m && users.has(m[1]) && sketcher.replaced?.[m[2]];
+      return lines?.[Number(m[3])] ? `${m[1]}:${lines[Number(m[3])]}` : name;
+    };
+    for (const f of content.features) {
+      if (!Array.isArray(f.params?.edges) || !Object.keys(sketcher.replaced || {}).length) continue;
+      f.params.edges = f.params.edges.map(r => ({ ...r, ...(Array.isArray(r.faces) ? { faces: r.faces.map(renameFace) } : {}), ...(r.face ? { face: renameFace(r.face) } : {}) }));
+    }
     closeSketch();
     if (d.isNew && !d.feature.params.entities.length) { regen(); return; }
     state.content = content;
@@ -897,6 +935,7 @@ function start() {
 
   function closeSketch() {
     sketcher.stop();
+    viewport.setPickParts(null);
     viewport.restoreView(state.dialog?.view);
     dispose(state.dialog?.input);
     state.dialog = null;
@@ -925,12 +964,31 @@ function start() {
     else if (name === 'delete') sketcher.deleteSelected();
     else if (name === 'construction') sketcher.toggleConstruction();
     else if (name === 'normal') viewport.normalTo(sketcher.frame);
+    else if (name === 'slice' || name === 'outline') useModel(name);
   });
+
+  /** The cut of the parts (before the sketch) by the plane of the sketch, or their outline seen along its normal, as fixed curves of the sketch. */
+  function useModel(kind) {
+    const parts = state.dialog.input.parts.filter(p => !state.hidden.has(p.id));
+    const frame = sketcher.frame;
+    const loops = (kind === 'slice' ? sectionOf(state.kernel, parts, frame) : outlineOf(parts, frame)).flatMap(x => x.polygons);
+    const added = sketcher.addUsed(loops.flatMap(loop => curvesFromPoints(loop, true)));
+    toast(added ? t(kind === 'slice' ? 'Sketch.SliceAdded' : 'Sketch.OutlineAdded', added) : t(kind === 'slice' ? 'Sketch.SliceNone' : 'Sketch.OutlineNone'), added ? 'success' : 'warning');
+  }
 
   // ---- the view: clicks and hover ------------------------------------------------------------------------------------------
 
   viewport.on('hover', e => {
     if (state.mode === 'sketch') return;
+    if (state.mode === 'dialog' && state.dialog.activeEdges) {
+      // an edge near the pointer, else the face under it (all its edges)
+      const edge = viewport.pickEdge(e.ndc);
+      const face = edge ? null : viewport.pick(e.ndc);
+      viewport.hover(face);
+      markEdges(edge);
+      viewport.canvas.style.cursor = edge || face ? 'pointer' : '';
+      return;
+    }
     const pick = viewport.pick(e.ndc);
     if (state.mode === 'pickplane' || (state.mode === 'dialog' && state.dialog.activePlane)) {
       const flat = pick && viewport.faceNormal(pick.partId, pick.faceId);
@@ -966,6 +1024,13 @@ function start() {
       return;
     }
     if (state.mode === 'measure') { measureClick(pick); return; }
+    if (state.mode === 'dialog' && state.dialog.activeEdges) {
+      const d = state.dialog, edge = viewport.pickEdge(e.ndc);
+      const round = p => p.map(x => Math.round(x * 1e4) / 1e4);
+      if (edge) d.activeEdges.toggle({ part: edge.partId, faces: [faceKey(d.input, edge.faces[0]), faceKey(d.input, edge.faces[1])].sort(), at: round(edge.point) });
+      else if (pick) d.activeEdges.toggle({ part: pick.partId, face: faceKey(d.input, pick.faceId), at: round(pick.point) });
+      return;
+    }
     if (state.mode === 'dialog') {
       if (pick && state.dialog.activeParts) state.dialog.activeParts.toggle(pick.partId);
       return;
@@ -975,6 +1040,36 @@ function start() {
   });
 
   viewport.on('context', () => { if (state.mode === 'pickplane') { closeModes(); } });
+
+  /** The chosen edges of a fillet or chamfer and the edge under the pointer, drawn over the view. */
+  function markEdges(hover) {
+    const d = state.dialog;
+    if (!d?.activeEdges) { viewport.setEdgeMarks(null); return; }
+    const selected = (d.feature.params.edges || []).flatMap(ref => refPoints(ref, d.input));
+    const part = hover && d.input.parts.find(p => p.id === hover.partId);
+    viewport.setEdgeMarks({ selected, hover: part ? edgePoints(part, hover.segments) : [] });
+  }
+
+  /** The segments a reference of a fillet means, in the parts before it (like model.js finds them). */
+  function refPoints(ref, input) {
+    const part = input.parts.find(p => p.id === ref.part);
+    if (!part?.mesh.edges) return [];
+    const e = part.mesh.edges, name = n => faceKey(input, n), list = [];
+    for (let i = 0; i < e.count; i++) {
+      if (e.angle[i] <= TANGENT) continue;
+      const a = name(e.faces[i * 2]), b = name(e.faces[i * 2 + 1]);
+      if (ref.faces ? (a === ref.faces[0] && b === ref.faces[1]) || (a === ref.faces[1] && b === ref.faces[0]) : ref.face ? a === ref.face || b === ref.face : true) list.push(i);
+    }
+    if (ref.faces && ref.at && list.length > 1) {
+      let best = list[0], dist = Infinity;
+      for (const i of list) {
+        const d = distToSegment3(ref.at, [e.pos[i * 6], e.pos[i * 6 + 1], e.pos[i * 6 + 2]], [e.pos[i * 6 + 3], e.pos[i * 6 + 4], e.pos[i * 6 + 5]]);
+        if (d < dist) { dist = d; best = i; }
+      }
+      return edgePoints(part, edgeGroup(part, best));
+    }
+    return edgePoints(part, list);
+  }
 
   function roundFrame(f) {
     const r = v => v.map(x => Math.round(x * 1e6) / 1e6);
@@ -1020,6 +1115,65 @@ function start() {
     }
     ui.measure.hidden = false;
   }
+
+  // ---- the section view (like OnShape): a plane cuts the parts, the side its normal points to is not drawn, the cut faces are hatched ------------------------
+
+  const sectionUi = { panel: $('[data-section-panel]'), plane: $('[data-section-plane]'), range: $('[data-section-offset]'), value: $('[data-section-value]'), flip: $('[data-section-flip]') };
+
+  function toggleSection(on = !state.section) {
+    state.section = on ? state.section || { plane: 'std:front', offset: 0, flip: false } : null;
+    sectionUi.panel.hidden = !on;
+    root.querySelector('[data-action="section"]')?.setAttribute('aria-pressed', String(on));
+    if (on) {
+      const planes = state.result?.planes || [];
+      sectionUi.plane.replaceChildren(...['top', 'front', 'right'].map(n => el('option', { value: 'std:' + n }, t('Plane.' + n))), ...planes.map(p => el('option', { value: 'plane:' + p.fid }, featureName(p.fid))));
+      if (![...sectionUi.plane.options].some(o => o.value === state.section.plane)) state.section.plane = 'std:front';
+      sectionUi.plane.value = state.section.plane;
+      sectionUi.flip.setAttribute('aria-pressed', String(state.section.flip));
+    }
+    updateSection();
+  }
+
+  /** The plane of the section view; its normal points to the side that is cut away. */
+  function sectionFrame() {
+    const s = state.section;
+    const base = s.plane.startsWith('std:') ? STANDARD_PLANES[s.plane.slice(4)] : state.result?.planes.find(p => 'plane:' + p.fid === s.plane)?.frame;
+    return base ? { base, frame: offsetFrame(base, s.offset, s.flip) } : null;
+  }
+
+  function updateSection() {
+    if (!state.section || !state.result) { viewport.setSection(null); return; }
+    const plane = sectionFrame();
+    if (!plane) { viewport.setSection(null); return; }
+    // the slider spans the parts along the normal of the plane
+    let lo = Infinity, hi = -Infinity;
+    for (const p of state.result.parts) {
+      const box = p.manifold.boundingBox();
+      for (let k = 0; k < 8; k++) {
+        const c = [k & 1 ? box.max[0] : box.min[0], k & 2 ? box.max[1] : box.min[1], k & 4 ? box.max[2] : box.min[2]];
+        const d = v3.dot(v3.sub(c, plane.base.o), plane.base.n);
+        lo = Math.min(lo, d); hi = Math.max(hi, d);
+      }
+    }
+    if (!(hi > lo)) { lo = -50; hi = 50; }
+    const u = unit();
+    sectionUi.range.min = String(Math.floor(lo / u)); sectionUi.range.max = String(Math.ceil(hi / u));
+    sectionUi.range.step = String(Math.max(0.01, Math.pow(10, Math.floor(Math.log10((hi - lo) / u)) - 2)));
+    sectionUi.range.value = String(state.section.offset / u);
+    if (document.activeElement !== sectionUi.value) sectionUi.value.value = fmt(state.section.offset / u, 2);
+    const parts = state.result.parts.filter(p => !state.hidden.has(p.id));
+    viewport.setSection({ frame: plane.frame, caps: sectionOf(state.kernel, parts, plane.frame) });
+  }
+
+  sectionUi.plane.addEventListener('change', () => { state.section.plane = sectionUi.plane.value; state.section.offset = 0; updateSection(); });
+  sectionUi.range.addEventListener('input', () => { state.section.offset = Number(sectionUi.range.value) * unit(); updateSection(); });
+  sectionUi.value.addEventListener('change', () => {
+    const v = Number(sectionUi.value.value.replace(',', '.'));
+    if (Number.isFinite(v)) { state.section.offset = v * unit(); updateSection(); }
+  });
+  sectionUi.value.addEventListener('keydown', e => { if (e.key === 'Enter') sectionUi.value.dispatchEvent(new Event('change')); });
+  sectionUi.flip.addEventListener('click', () => { state.section.flip = !state.section.flip; sectionUi.flip.setAttribute('aria-pressed', String(state.section.flip)); updateSection(); });
+  $('[data-section-close]').addEventListener('click', () => toggleSection(false));
 
   // ---- modes, status -------------------------------------------------------------------------------------------------------
 
@@ -1125,6 +1279,7 @@ function start() {
     const name = state.doc.name + (state.doc.studios.length > 1 ? ' - ' + state.studio.name : '');
     if (kind === 'json') { download(fileName(name, 'matshape.json'), JSON.stringify({ format: 'MatShape Part Studio 1', units: state.doc.units, content: state.content }, null, 2), 'application/json'); return; }
     if (kind === 'png') { const png = await viewport.image(); if (png) download(fileName(name, 'png'), png); return; }
+    if (kind === 'drawing') { openDrawing(); return; }
     if (!parts.length) { toast(t('Export.Empty'), 'warning'); return; }
     if (kind === 'stl') download(fileName(name, 'stl'), toStl(parts, name));
     else if (kind === 'obj') download(fileName(name, 'obj'), toObj(parts, parts.map(partName)));
@@ -1169,9 +1324,11 @@ function start() {
     else if (action === 'reload') load();
     else if (action === 'display') cycleDisplay(e.target.closest('button'));
     else if (action === 'planes') togglePlanes();
+    else if (action === 'section') toggleSection();
     else if (action === 'side') toggleSide();
     else if (action === 'ai') assistant?.open();
     else if (action === 'image') openImage();
+    else if (action === 'drawing') openDrawing();
     else if (action === 'keys') openKeys();
   });
   // the export menu lives outside the root
@@ -1198,7 +1355,7 @@ function start() {
 
   // ---- keyboard: the shortcuts of OnShape (the list: Services/KeyMap.cs, the dialog "?") -----------------------------------
   const NAMED_VIEWS = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
-  const SKETCH_TOOLS = { l: 'line', g: 'rect', c: 'circle', a: 'arc', d: 'dimension' };
+  const SKETCH_TOOLS = { l: 'line', g: 'rect', c: 'circle', a: 'arc', d: 'dimension', u: 'use' };
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
   document.addEventListener('keydown', e => {
@@ -1250,6 +1407,7 @@ function start() {
     else if (e.shiftKey && key === 's') newFeature('sketch');
     else if (e.shiftKey && key === 'e') newFeature('extrude');
     else if (e.shiftKey && key === 'w') newFeature('revolve');
+    else if (e.shiftKey && key === 'f') newFeature('fillet');
   });
 
   function openKeys() { window.MatUi?.dialog?.open('ms-keys'); }

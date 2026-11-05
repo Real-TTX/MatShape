@@ -318,10 +318,82 @@ export class Viewport {
     return this.raycaster.ray.intersectPlane(plane, hit) ? [hit.x, hit.y, hit.z] : null;
   }
 
+  /** The parts that clicks and the pointer pick: the parts in the view, or the ones set by setPickParts. */
+  get pickable() { return this.pickObjects || this.partObjects; }
+
+  /** Parts that are picked but not drawn (a fillet picks the edges of the parts before it while the view shows its preview), or null for the parts in the view. */
+  setPickParts(parts) {
+    this.pickObjects?.forEach(o => o.mesh.geometry.dispose());
+    this.pickObjects = null;
+    if (!parts) return;
+    this.pickObjects = new Map();
+    const material = this.pickMaterial ||= new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    for (const part of parts) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(part.mesh.positions, 3));
+      g.computeBoundingSphere();
+      g.computeBoundingBox();
+      const mesh = new THREE.Mesh(g, material);
+      mesh.userData.part = part;
+      mesh.visible = !this.hiddenIds?.has(part.id);
+      this.pickObjects.set(part.id, { mesh, part });
+    }
+  }
+
+  /** The edge under the pointer (within a few pixels, not hidden behind a face): { partId, index, faces: [left, right], point, segments: the whole edge } or null. */
+  pickEdge(ndc, tolerance = 8) {
+    const px = (ndc.x + 1) / 2 * this.width, py = (1 - ndc.y) / 2 * this.height;
+    const m = new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse).elements;
+    const sx = (p, i) => ((m[0] * p[i] + m[4] * p[i + 1] + m[8] * p[i + 2] + m[12]) + 1) / 2 * this.width;
+    const sy = (p, i) => (1 - (m[1] * p[i] + m[5] * p[i + 1] + m[9] * p[i + 2] + m[13])) / 2 * this.height;
+    const found = [];
+    for (const [id, o] of this.pickable) {
+      const e = o.part.mesh.edges;
+      if (!e || !o.mesh.visible) continue;
+      for (let i = 0; i < e.count; i++) {
+        const ax = sx(e.pos, i * 6), ay = sy(e.pos, i * 6), bx = sx(e.pos, i * 6 + 3), by = sy(e.pos, i * 6 + 3);
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        const s = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+        const d = Math.hypot(ax + dx * s - px, ay + dy * s - py);
+        if (d < tolerance) found.push({ id, o, i, d, s });
+      }
+    }
+    found.sort((a, b) => a.d - b.d);
+    for (const c of found.slice(0, 16)) {
+      const e = c.o.part.mesh.edges, k = c.i * 6;
+      const point = [0, 1, 2].map(j => e.pos[k + j] + (e.pos[k + 3 + j] - e.pos[k + j]) * c.s);
+      if (!this.seen(point)) continue;
+      return { partId: c.id, index: c.i, faces: [e.faces[c.i * 2], e.faces[c.i * 2 + 1]], point, segments: edgeGroup(c.o.part, c.i) };
+    }
+    return null;
+  }
+
+  /** Is a point on a surface in front (nothing of the parts lies before it)? */
+  seen(point) {
+    const v = new THREE.Vector3(...point);
+    const ndc = v.clone().project(this.camera);
+    this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), this.camera);
+    const meshes = [...this.pickable.values()].filter(o => o.mesh.visible).map(o => o.mesh);
+    const hit = this.raycaster.intersectObjects(meshes, false)[0];
+    if (!hit) return true;
+    const depth = v.sub(this.raycaster.ray.origin).dot(this.raycaster.ray.direction);
+    return hit.distance >= depth - (this.sceneSize * 0.002 + this.mmPerPixel * 2);
+  }
+
+  /** Edges drawn over the parts: the one under the pointer and the chosen ones (lists of points, two per segment). */
+  setEdgeMarks(marks) {
+    if (this.edgeMarks) { disposeObject(this.edgeMarks); this.overlayGroup.remove(this.edgeMarks); this.edgeMarks = null; }
+    const group = new THREE.Group();
+    if (marks?.selected?.length) group.add(fatLines(marks.selected, palette.select, palette.edgeWidth + 2.6, { depthTest: false, renderOrder: 9 }));
+    if (marks?.hover?.length) group.add(fatLines(marks.hover, palette.hover, palette.edgeWidth + 2.6, { depthTest: false, renderOrder: 9 }));
+    if (group.children.length) { this.edgeMarks = group; this.overlayGroup.add(group); }
+    this.invalidate();
+  }
+
   /** What is under the pointer: a face of a part ({ partId, faceId, point, normal }) or null. */
   pick(ndc) {
     this.raycaster.setFromCamera(ndc, this.camera);
-    const meshes = [...this.partObjects.values()].filter(o => o.mesh.visible).map(o => o.mesh);
+    const meshes = [...this.pickable.values()].filter(o => o.mesh.visible).map(o => o.mesh);
     const hit = this.raycaster.intersectObjects(meshes, false)[0];
     if (!hit) return null;
     const part = hit.object.userData.part;
@@ -336,7 +408,7 @@ export class Viewport {
 
   /** Is the face of a part flat (every triangle of the face has the same normal)? Returns its normal or null. */
   faceNormal(partId, faceId) {
-    const o = this.partObjects.get(partId);
+    const o = this.pickable.get(partId);
     if (!o) return null;
     const pos = o.mesh.geometry.attributes.position, ids = o.part.mesh.faceIds;
     let normal = null;
@@ -372,11 +444,17 @@ export class Viewport {
       const material = new THREE.MeshStandardMaterial({ color: new THREE.Color(part.color), roughness: 0.55, metalness: 0.08, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.part = part;
-      const edgeGeometry = new THREE.EdgesGeometry(geometry, 25);
+      // the edges: where two faces meet (model.js); without them (never in practice) where the surface bends
       const edgePoints = [];
-      const ep = edgeGeometry.attributes.position.array;
-      for (let i = 0; i < ep.length; i += 3) edgePoints.push([ep[i], ep[i + 1], ep[i + 2]]);
-      edgeGeometry.dispose();
+      if (part.mesh.edges) {
+        const ep = part.mesh.edges.pos;
+        for (let i = 0; i < ep.length; i += 3) edgePoints.push([ep[i], ep[i + 1], ep[i + 2]]);
+      } else {
+        const edgeGeometry = new THREE.EdgesGeometry(geometry, 25);
+        const ep = edgeGeometry.attributes.position.array;
+        for (let i = 0; i < ep.length; i += 3) edgePoints.push([ep[i], ep[i + 1], ep[i + 2]]);
+        edgeGeometry.dispose();
+      }
       const edges = fatLines(edgePoints, palette.edge, palette.edgeWidth, { opacity: palette.edgeOpacity });
       edges.userData.part = part;
       this.partsGroup.add(mesh, edges);
@@ -386,15 +464,59 @@ export class Viewport {
       mesh.visible = edges.visible = !hidden.has(part.id);
     }
     this.sceneSize = size;
+    this.hiddenIds = hidden;
     this.applyDisplay();
     this.applySelection();
+    this.applySection();
     this.updatePlanes();
     this.invalidate();
   }
 
   setHidden(hidden) {
+    this.hiddenIds = hidden;
     for (const [id, o] of this.partObjects) o.mesh.visible = o.edges.visible = !hidden.has(id);
+    this.pickObjects?.forEach((o, id) => { o.mesh.visible = !hidden.has(id); });
     this.applyDisplay();
+    this.invalidate();
+  }
+
+  // ---- the section view ------------------------------------------------------------------------------------------------------
+
+  /**
+   * The section view (like OnShape): the parts are cut by a plane, what lies on the side its normal points to is not drawn, the cut faces are filled and hatched.
+   * section: { frame: { o, x, y, n }, caps: [{ partId, color, triangles: [x, y, z …] (world), uv: [u, v …] (mm in the plane) }] } or null.
+   */
+  setSection(section) {
+    this.section = section;
+    this.applySection();
+  }
+
+  applySection() {
+    if (this.sectionCaps) { disposeObject(this.sectionCaps); this.overlayGroup.remove(this.sectionCaps); this.sectionCaps = null; }
+    const s = this.section;
+    const n = s ? new THREE.Vector3(...s.frame.n) : null;
+    const planes = s ? [new THREE.Plane(n.clone().negate(), n.dot(new THREE.Vector3(...s.frame.o)))] : [];
+    this.renderer.localClippingEnabled = !!s;
+    for (const o of this.partObjects.values()) {
+      o.mesh.material.clippingPlanes = planes;
+      o.edges.material.clippingPlanes = planes;
+      o.mesh.material.needsUpdate = true;
+      o.edges.material.needsUpdate = true;
+    }
+    if (s) {
+      const group = new THREE.Group();
+      const hatch = this.hatchTexture ||= hatchTexture();
+      for (const cap of s.caps || []) {
+        if (this.hiddenIds?.has(cap.partId) || !cap.triangles.length) continue;
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(cap.triangles, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(cap.uv.map(x => x / 6), 2));
+        const colour = new THREE.Color(cap.color).multiplyScalar(0.82);
+        group.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: colour, map: hatch, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
+      }
+      this.sectionCaps = group;
+      this.overlayGroup.add(group);
+    }
     this.invalidate();
   }
 
@@ -454,7 +576,7 @@ export class Viewport {
     this.clearHover();
     this.hoverKey = key;
     if (!pick) return;
-    const o = this.partObjects.get(pick.partId);
+    const o = this.pickable.get(pick.partId);
     if (!o) return;
     const src = o.mesh.geometry.attributes.position.array, ids = o.part.mesh.faceIds;
     const out = [];
@@ -687,6 +809,47 @@ export class Viewport {
 }
 
 // ---- helpers ---------------------------------------------------------------------------------------------------------------
+
+/** The segments of a whole edge: the one given and every segment between the same two faces that hangs together with it (indices into part.mesh.edges). */
+export function edgeGroup(part, index) {
+  const e = part.mesh.edges;
+  const fa = e.faces[index * 2], fb = e.faces[index * 2 + 1];
+  const same = j => (e.faces[j * 2] === fa && e.faces[j * 2 + 1] === fb) || (e.faces[j * 2] === fb && e.faces[j * 2 + 1] === fa);
+  const at = new Map();
+  for (let j = 0; j < e.count; j++) {
+    if (!same(j)) continue;
+    for (const v of [e.verts[j * 2], e.verts[j * 2 + 1]]) { if (!at.has(v)) at.set(v, []); at.get(v).push(j); }
+  }
+  const out = new Set([index]), todo = [index];
+  while (todo.length) {
+    const j = todo.pop();
+    for (const v of [e.verts[j * 2], e.verts[j * 2 + 1]]) for (const k of at.get(v) || []) if (!out.has(k)) { out.add(k); todo.push(k); }
+  }
+  return [...out];
+}
+
+/** The points of segments of the edges of a part (two per segment), for setEdgeMarks. */
+export function edgePoints(part, indices) {
+  const p = part.mesh.edges.pos, out = [];
+  for (const i of indices) out.push([p[i * 6], p[i * 6 + 1], p[i * 6 + 2]], [p[i * 6 + 3], p[i * 6 + 4], p[i * 6 + 5]]);
+  return out;
+}
+
+/** The hatching of cut faces: thin diagonal lines (a texture that repeats). */
+function hatchTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 64, 64);
+  g.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+  g.lineWidth = 3;
+  for (const o of [-64, 0, 64]) { g.beginPath(); g.moveTo(o, 64); g.lineTo(o + 64, 0); g.stroke(); }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 export function isDark() {
   const theme = document.documentElement.getAttribute('data-theme');

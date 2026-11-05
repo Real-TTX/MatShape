@@ -3,9 +3,16 @@
    A feature that fails gets an error and is left out; the ones after it still run (they may fail too when they needed it). */
 
 import { evalAngle, evalLength, evalNumber, evalVariable, errorKey, ExprError, isVariableName } from './expr.js';
-import { AXES, STANDARD_PLANES, frameMatrix, mirrorMatrix, rotationMatrix, sketchLoops, v3, offsetFrame } from './geom.js';
+import { AXES, STANDARD_PLANES, distToEntity, distToSegment, frameMatrix, mirrorMatrix, polygonPoints, rectPoints, rotationMatrix, sketchLoops, toWorld, v3, offsetFrame } from './geom.js';
 import { UNITS } from './util.js';
 import { CONSTRAINTS, constraintsOf, solveSketch } from './sketchsolve.js';
+import { distToSegment3, topology } from './topo.js';
+import { blendTools } from './blend.js';
+
+/** The face numbers the model gives (every triangle carries one); smaller numbers are ones the kernel made itself. */
+export const FACE_BASE = 1 << 20;
+/** Edges flatter than this (radians between the normals) are tangent edges: they cannot be rounded and are left out of drawings. */
+export const TANGENT = 0.05;
 
 let kernelPromise = null;
 
@@ -38,6 +45,9 @@ export const FEATURES = {
   split: { icon: 'split', params: () => ({ parts: [], plane: { kind: 'std', name: 'top' }, keep: 'both' }) },
   deletepart: { icon: 'delete-part', params: () => ({ parts: [] }) },
   variable: { icon: 'variable', params: () => ({ name: '', value: '10 mm' }) },
+  // edges: [{ part, faces: [face, face], at }] an edge (by the names of its two faces, at = where it was picked), { part, face } every edge of a face, { part } every edge of a part
+  fillet: { icon: 'fillet', params: () => ({ edges: [], radius: '2' }) },
+  chamfer: { icon: 'chamfer', params: () => ({ edges: [], mode: 'equal', distance: '1', distance2: '2', flip: false }) },
 };
 
 class FeatureError extends Error {
@@ -46,7 +56,7 @@ class FeatureError extends Error {
 
 /** Runs the features; returns the result (free it with dispose when it is replaced). */
 export function regenerate(kernel, content, units = 'mm') {
-  const { CrossSection, Manifold } = kernel;
+  const { CrossSection, Manifold, Mesh } = kernel;
   const arena = [];
   const keep = obj => { arena.push(obj); return obj; };
   const unit = UNITS[units] || 1;
@@ -59,7 +69,48 @@ export function regenerate(kernel, content, units = 'mm') {
     status: {},
     created: 0,
     used: new Set(),         // sketches used by a later feature
+    faceKeys: [],            // face number - FACE_BASE -> the name of the face
+    faceNums: new Map(),     // the name of a face -> its number
   };
+
+  // ---- the names of the faces: every triangle of a new body is given the number of its face; the kernel keeps them through all operations
+  const faceNum = key => {
+    let n = ctx.faceNums.get(key);
+    if (n === undefined) { n = FACE_BASE + ctx.faceKeys.length; ctx.faceKeys.push(key); ctx.faceNums.set(key, n); }
+    return n;
+  };
+  const keyOf = n => (n >= FACE_BASE ? ctx.faceKeys[n - FACE_BASE] : `?${n}`);
+  /** A copy of a body whose triangles carry the face numbers labelOf(centre, normal, number before) names (null keeps the number). */
+  const labelled = (manifold, labelOf) => {
+    const mesh = manifold.getMesh();
+    const np = mesh.numProp, vp = mesh.vertProperties, tv = mesh.triVerts, before = mesh.faceID;
+    const ids = new Uint32Array(tv.length / 3);
+    for (let t = 0; t < ids.length; t++) {
+      const a = tv[t * 3] * np, b = tv[t * 3 + 1] * np, c = tv[t * 3 + 2] * np;
+      const A = [vp[a], vp[a + 1], vp[a + 2]], B = [vp[b], vp[b + 1], vp[b + 2]], C = [vp[c], vp[c + 1], vp[c + 2]];
+      const n = v3.norm(v3.cross(v3.sub(B, A), v3.sub(C, A)));
+      const key = labelOf([(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3, (A[2] + B[2] + C[2]) / 3], n, before?.[t] ?? 0);
+      ids[t] = key === null ? before?.[t] ?? 0 : faceNum(key);
+    }
+    const options = { numProp: np, vertProperties: vp, triVerts: tv, faceID: ids };
+    if (mesh.mergeFromVert?.length) { options.mergeFromVert = mesh.mergeFromVert; options.mergeToVert = mesh.mergeToVert; }
+    return keep(new Manifold(new Mesh(options)));
+  };
+  /** The face of a side of an extrude or revolve: the sketch entity (a side of a rectangle or polygon) the point is next to. */
+  const sideOf = (entities, q) => {
+    let best = Infinity, key = '';
+    for (const e of entities) {
+      if (e.t === 'rect' || e.t === 'polygon') {
+        const pts = e.t === 'rect' ? rectPoints(e) : polygonPoints(e);
+        pts.forEach((p, k) => { const d = distToSegment(q, p, pts[(k + 1) % pts.length]); if (d < best) { best = d; key = `${e.id}.${k}`; } });
+      } else {
+        const d = distToEntity(q, e);
+        if (d < best) { best = d; key = e.id; }
+      }
+    }
+    return key;
+  };
+  const profileEntities = sketch => sketch.entities.filter(e => !e.cons && e.t !== 'point');
 
   const features = content.features || [];
   const rollback = Number.isInteger(content.rollback) ? content.rollback : features.length;
@@ -191,7 +242,10 @@ export function regenerate(kernel, content, units = 'mm') {
       const { cs, sketch } = section(p.sketch, p.profiles);
       let depth = p.end === 'through' ? extent() : len(p.depth);
       if (!(depth > 0)) throw new FeatureError('Feature.DepthPositive');
-      let body = keep(cs.extrude(depth));
+      // the faces: "start" lies on the sketch plane (or below it), "end" opposite, a side is named after its sketch entity
+      const flipped = p.end !== 'symmetric' && p.end !== 'through' && !!p.flip;
+      const sides = profileEntities(sketch);
+      let body = labelled(keep(cs.extrude(depth)), (c, n) => (Math.abs(n[2]) > 0.999 ? `${f.id}:${(n[2] < 0) !== flipped ? 'start' : 'end'}` : `${f.id}:${sideOf(sides, c)}`));
       if (p.end === 'symmetric' || p.end === 'through') body = keep(body.translate([0, 0, -depth / 2]));
       else if (p.flip) body = keep(body.translate([0, 0, -depth]));
       body = keep(body.transform(frameMatrix(sketch.frame)));
@@ -224,7 +278,14 @@ export function regenerate(kernel, content, units = 'mm') {
       const angle = Math.min(360, Math.abs(ang(p.angle)));
       if (!(angle > 0)) throw new FeatureError('Feature.AnglePositive');
       const segments = Math.max(8, Math.round(72 * angle / 360));
-      let body = keep(cs.revolve(segments, angle));
+      // the faces: a side is named after the sketch entity it was turned from; a revolve of less than a full turn has a "start" and an "end"
+      const sides = profileEntities(sketch), partial = angle < 360 - 1e-9;
+      let body = labelled(keep(cs.revolve(segments, angle)), (c, n) => {
+        const th = Math.atan2(c[1], c[0]);
+        if (partial && Math.abs(n[0] * -Math.sin(th) + n[1] * Math.cos(th)) > 0.999) return `${f.id}:${th < (angle * Math.PI / 180) / 2 ? 'start' : 'end'}`;
+        const r = Math.hypot(c[0], c[1]);
+        return `${f.id}:${sideOf(sides, [a[0] + perp[0] * r + d[0] * c[2], a[1] + perp[1] * r + d[1] * c[2]])}`;
+      });
       if (p.symmetric) body = keep(body.rotate([0, 0, -angle / 2]));
       else if (p.flip) body = keep(body.rotate([0, 0, -angle]));
       const f3 = sketch.frame;
@@ -325,9 +386,13 @@ export function regenerate(kernel, content, units = 'mm') {
       const frame = plane(p.plane);
       let cut = 0;
       for (const part of parts) {
-        const [above, below] = part.manifold.splitByPlane(frame.n, v3.dot(frame.n, frame.o));
+        let [above, below] = part.manifold.splitByPlane(frame.n, v3.dot(frame.n, frame.o));
         keep(above); keep(below);
         if (above.isEmpty() || below.isEmpty()) continue;
+        // the new faces of the cut get a name of their own
+        const cut = (c, n, before) => (before >= FACE_BASE ? null : `${f.id}:cut`);
+        above = labelled(above, cut);
+        below = labelled(below, cut);
         cut++;
         if (p.keep === 'front') part.manifold = above;
         else if (p.keep === 'back') part.manifold = below;
@@ -341,6 +406,93 @@ export function regenerate(kernel, content, units = 'mm') {
       if (!parts.length) throw new FeatureError('Feature.NoParts');
       parts.forEach(removePart);
     },
+
+    fillet(f) { return blend(f); },
+    chamfer(f) { return blend(f); },
+  };
+
+  /** Fillet / chamfer: the chosen edges are found again by the names of their faces, the tools of blend.js are cut away (outer edges) or added (inner edges). */
+  const blend = f => {
+    const p = f.params;
+    const refs = Array.isArray(p.edges) ? p.edges.filter(r => r && typeof r === 'object') : [];
+    if (!refs.length) throw new FeatureError('Feature.NoEdges');
+    let spec;
+    if (f.type === 'fillet') {
+      const r = len(p.radius);
+      if (!(r > 0)) throw new FeatureError('Feature.RadiusPositive');
+      spec = { kind: 'fillet', r };
+    } else {
+      const d1 = len(p.distance), d2 = p.mode === 'two' ? len(p.distance2) : d1;
+      if (!(d1 > 0) || !(d2 > 0)) throw new FeatureError('Feature.DistancePositive');
+      // with two distances: the first goes to the face whose name comes first (the same face every time), "flip" swaps them
+      spec = { kind: 'chamfer', d1, d2, firstFace: (a, b) => (keyOf(a) <= keyOf(b)) !== !!p.flip };
+    }
+    const topos = new Map();
+    const topoOf = part => { if (!topos.has(part)) topos.set(part, topology(part.manifold.getMesh())); return topos.get(part); };
+    const chosen = new Map();
+    let missing = 0;
+    for (const ref of refs) {
+      let part = ctx.parts.find(x => x.id === ref.part);
+      let edges = part ? edgesOf(topoOf(part), ref, part) : [];
+      // the part may have another name now (a merge, a split): the faces tell where the edge is
+      if (!edges.length && (ref.faces || ref.face)) {
+        for (const other of ctx.parts) {
+          if (other === part) continue;
+          const found = edgesOf(topoOf(other), { ...ref, at: null, near: ref.at }, other);
+          if (found.length) { part = other; edges = found; break; }
+        }
+      }
+      if (!edges.length) { missing++; continue; }
+      if (!chosen.has(part)) chosen.set(part, new Set());
+      edges.forEach(e => chosen.get(part).add(e));
+    }
+    if (!chosen.size) throw new FeatureError('Feature.EdgesMissing', refs.length);
+    let chain = 0, corner = 0;
+    for (const [part, set] of chosen) {
+      const tools = blendTools(topoOf(part), [...set], spec);
+      if (tools.tooLarge) throw new FeatureError('Feature.BlendFailed');
+      const other = faceNum(`${f.id}:x`);
+      const solid = mesh => {
+        const key = faceNum(`${f.id}:${chain++}`);
+        const m = keep(new Manifold(new Mesh({ numProp: 3, vertProperties: mesh.vertProperties, triVerts: mesh.triVerts, faceID: mesh.faceID.map(x => (x === 1 ? key : other)) })));
+        if (m.status() !== 'NoError' || m.isEmpty()) throw new FeatureError('Feature.BlendFailed');
+        return m;
+      };
+      const cut = tools.cut.map(solid), fill = tools.add.map(solid);
+      for (const c of tools.corners) {
+        const box = labelled(keep(Manifold.hull(c.hull)), () => `${f.id}:x`);
+        const ball = labelled(keep(Manifold.sphere(c.r, 72).translate(c.centre)), () => `${f.id}:c${corner}`);
+        corner++;
+        cut.push(keep(box.subtract(ball)));
+      }
+      let m = part.manifold;
+      if (cut.length) m = keep(m.subtract(keep(Manifold.union(cut))));
+      if (fill.length) m = keep(Manifold.union([m, ...fill]));
+      if (m.isEmpty()) throw new FeatureError('Feature.EmptyBody');
+      part.manifold = m;
+    }
+    if (missing) return { state: 'warn', key: 'Feature.EdgesMissing', args: [missing] };
+  };
+
+  /** The edges of a part a reference means (see FEATURES.fillet). */
+  const edgesOf = (topo, ref, part) => {
+    const names = e => [keyOf(topo.fid[e.L]), keyOf(topo.fid[e.R])];
+    const sharp = topo.edges.filter(e => e.angle > TANGENT);
+    if (Array.isArray(ref.faces) && ref.faces.length === 2) {
+      const [k1, k2] = ref.faces;
+      let hits = sharp.filter(e => { const [a, b] = names(e); return (a === k1 && b === k2) || (a === k2 && b === k1); });
+      // no edge between these faces any more: the nearest edge where it was picked (when it is close)
+      if (!hits.length && ref.at) {
+        const box = part.manifold.boundingBox();
+        const tol = Math.max(0.5, 0.02 * Math.hypot(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]));
+        let best = null, dist = tol;
+        for (const e of sharp) { const d = distToSegment3(ref.at, topo.P(e.a), topo.P(e.b)); if (d < dist) { dist = d; best = e; } }
+        if (best) hits = sharp.filter(e => topo.fid[e.L] === topo.fid[best.L] && topo.fid[e.R] === topo.fid[best.R] || topo.fid[e.L] === topo.fid[best.R] && topo.fid[e.R] === topo.fid[best.L]);
+      }
+      return nearestGroup(topo, hits, ref.at || ref.near);
+    }
+    if (typeof ref.face === 'string') return sharp.filter(e => names(e).includes(ref.face));
+    return sharp;
   };
 
   features.forEach((f, index) => {
@@ -380,10 +532,65 @@ export function regenerate(kernel, content, units = 'mm') {
   const planes = [];
   ctx.planes.forEach((s, fid) => planes.push({ fid, ...s }));
 
-  return { parts, sketches, planes, variables: ctx.variables, status: ctx.status, arena, rollback };
+  return { parts, sketches, planes, variables: ctx.variables, status: ctx.status, arena, rollback, faceKeys: ctx.faceKeys };
 }
 
-/** A triangle mesh for drawing and picking: positions (3 per corner, 3 corners per triangle) and the face id of every triangle. */
+/** The matrix that takes world coordinates into the coordinates of a frame (x, y in the plane, z along its normal). */
+function intoFrame(f) {
+  return [f.x[0], f.y[0], f.n[0], 0, f.x[1], f.y[1], f.n[1], 0, f.x[2], f.y[2], f.n[2], 0, -v3.dot(f.x, f.o), -v3.dot(f.y, f.o), -v3.dot(f.n, f.o), 1];
+}
+
+/** The cut of parts by a plane: per part its outlines in the plane (2D loops in the coordinates of the frame) and triangles that fill them (world, with uv = the 2D point). */
+export function sectionOf(kernel, parts, frame) {
+  const m = intoFrame(frame);
+  return parts.map(part => {
+    const local = part.manifold.transform(m);
+    const cs = local.slice(0);
+    const polygons = cs.toPolygons().map(loop => loop.map(p => [p[0], p[1]]));
+    cs.delete(); local.delete();
+    const flat = polygons.flat();
+    const triangles = [], uv = [];
+    if (polygons.length) {
+      for (const t of kernel.triangulate(polygons, 1e-6)) for (const i of t) { const [u, v] = flat[i]; triangles.push(...toWorld(frame, u, v)); uv.push(u, v); }
+    }
+    return { partId: part.id, color: part.color, polygons, triangles, uv };
+  });
+}
+
+/** The outline of parts seen along the normal of a plane (their shadow on it), as 2D loops in the coordinates of the frame, one list per part. */
+export function outlineOf(parts, frame) {
+  const m = intoFrame(frame);
+  return parts.map(part => {
+    const local = part.manifold.transform(m);
+    const cs = local.project();
+    const polygons = cs.toPolygons().map(loop => loop.map(p => [p[0], p[1]]));
+    cs.delete(); local.delete();
+    return { partId: part.id, polygons };
+  });
+}
+
+/** The name of a face number of a result ("<feature>:end", "<feature>:<entity>" …). */
+export function faceKey(result, n) {
+  return n >= FACE_BASE ? result?.faceKeys?.[n - FACE_BASE] ?? `?${n}` : `?${n}`;
+}
+
+/** Of edges that may lie apart (a face pair that meets twice, copies), the connected group nearest to a point. */
+function nearestGroup(topo, edges, at) {
+  if (edges.length < 2 || !at) return edges;
+  const parent = new Map();
+  const find = v => { while (parent.get(v) !== v) { parent.set(v, parent.get(parent.get(v))); v = parent.get(v); } return v; };
+  for (const e of edges) for (const v of [e.a, e.b]) if (!parent.has(v)) parent.set(v, v);
+  for (const e of edges) { const ra = find(e.a), rb = find(e.b); if (ra !== rb) parent.set(ra, rb); }
+  const groups = new Map();
+  for (const e of edges) { const r = find(e.a); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(e); }
+  if (groups.size < 2) return edges;
+  let best = edges, dist = Infinity;
+  for (const g of groups.values()) for (const e of g) { const d = distToSegment3(at, topo.P(e.a), topo.P(e.b)); if (d < dist) { dist = d; best = g; } }
+  return best;
+}
+
+/** A triangle mesh for drawing and picking: positions (3 per corner, 3 corners per triangle), the face number of every triangle, and the edges between faces
+    (pos: 2 points each, faces: the face numbers left and right, verts: the vertex numbers for chains, angle: between the normals, radians). */
 function meshOf(manifold) {
   const mesh = manifold.getMesh();
   const props = mesh.vertProperties, tris = mesh.triVerts, np = mesh.numProp;
@@ -398,7 +605,16 @@ function meshOf(manifold) {
     }
   }
   const faceIds = mesh.faceID && mesh.faceID.length === count ? Uint32Array.from(mesh.faceID) : new Uint32Array(count);
-  return { positions, faceIds, triangles: count };
+  const topo = topology(mesh);
+  const E = topo.edges.length;
+  const edges = { pos: new Float32Array(E * 6), faces: new Uint32Array(E * 2), verts: new Uint32Array(E * 2), angle: new Float32Array(E), count: E };
+  topo.edges.forEach((e, i) => {
+    edges.pos.set([...topo.P(e.a), ...topo.P(e.b)], i * 6);
+    edges.faces[i * 2] = faceIds[e.L]; edges.faces[i * 2 + 1] = faceIds[e.R];
+    edges.verts[i * 2] = e.a; edges.verts[i * 2 + 1] = e.b;
+    edges.angle[i] = e.angle;
+  });
+  return { positions, faceIds, triangles: count, edges };
 }
 
 /** Frees everything the kernel made for a result. */
@@ -419,5 +635,5 @@ export function properties(part) {
 /** The ids of the parts a feature refers to (for the dialogs and the checks after a part is gone). */
 export function partRefs(feature) {
   const p = feature.params || {};
-  return [...(p.parts || []), ...(p.targets || []), ...(p.tools || []), ...(p.scope || [])];
+  return [...(p.parts || []), ...(p.targets || []), ...(p.tools || []), ...(p.scope || []), ...(Array.isArray(p.edges) ? p.edges.map(e => e?.part).filter(Boolean) : [])];
 }

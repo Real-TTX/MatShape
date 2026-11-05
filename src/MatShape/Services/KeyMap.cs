@@ -1,7 +1,7 @@
 namespace MatShape.Services;
 
 /// <summary>
-/// The keyboard shortcuts of the editor, the way OnShape has them (Shift+S sketch, Shift+E extrude, Shift+W revolve, Shift+1 … 7 the named views, arrows turn the view,
+/// The keyboard shortcuts of the editor, the way OnShape has them (Shift+S sketch, Shift+E extrude, Shift+W revolve, Shift+F fillet, Shift+1 … 7 the named views, arrows turn the view,
 /// P the planes, N normal to the sketch, L / G / C / A / Q / H / V in a sketch, ? this list). The list of the dialog "?" and of the About page; the keys themselves are handled
 /// in <c>wwwroot/js/cad/app.js</c> (keep the two in step). <see cref="Key.Text"/> is a key of the catalog under <c>Keys.</c>.
 /// </summary>
@@ -15,7 +15,7 @@ public static class KeyMap
     [
         new("Features",
         [
-            new("Shift+S", "Sketch"), new("Shift+E", "Extrude"), new("Shift+W", "Revolve"), new("Enter", "Accept"), new("Esc", "Cancel"),
+            new("Shift+S", "Sketch"), new("Shift+E", "Extrude"), new("Shift+W", "Revolve"), new("Shift+F", "Fillet"), new("Enter", "Accept"), new("Esc", "Cancel"),
             new("Ctrl+Z", "Undo"), new("Ctrl+Y / Ctrl+Shift+Z", "Redo"), new("M", "Measure"),
         ]),
         new("View",
@@ -26,7 +26,7 @@ public static class KeyMap
         ]),
         new("Sketching",
         [
-            new("L", "Line"), new("G", "Rect"), new("C", "Circle"), new("A", "Arc"), new("D", "Dimension"), new("Q", "Construction"), new("I", "Coincident"), new("H", "Horizontal"), new("V", "Vertical"),
+            new("L", "Line"), new("G", "Rect"), new("C", "Circle"), new("A", "Arc"), new("D", "Dimension"), new("U", "Use"), new("Q", "Construction"), new("I", "Coincident"), new("H", "Horizontal"), new("V", "Vertical"),
             new("Ctrl+A", "SelectAll"), new("Del", "Delete"), new("Esc", "SketchEscape"), new("Enter", "FinishSketch"),
         ]),
         new("General", [new("?", "Help")]),

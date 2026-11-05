@@ -124,11 +124,77 @@ export function buildDialog(form, ctx) {
       add(expr(t('Dialog.Value'), p.value, 'variable', ctx, v => { p.value = v; }));
       add(el('p', { class: 'ms-dialog__text ms-muted' }, t('Dialog.Variable.Hint')));
       break;
+
+    case 'fillet':
+    case 'chamfer': {
+      fields.edges = edgesField(ctx, p);
+      add(fields.edges.node);
+      if (f.type === 'fillet') {
+        add(expr(t('Dialog.Radius'), p.radius, 'length', ctx, v => { p.radius = v; }));
+        break;
+      }
+      const two = () => (p.mode || 'equal') === 'two';
+      add(choice(t('Dialog.ChamferType'), p.mode || 'equal', [['equal', t('Dialog.Chamfer.equal')], ['two', t('Dialog.Chamfer.two')]], v => { p.mode = v; second.hidden = flip.hidden = !two(); ctx.changed(); }));
+      add(expr(t('Dialog.Distance'), p.distance, 'length', ctx, v => { p.distance = v; }));
+      const second = expr(t('Dialog.Distance2'), p.distance2 ?? p.distance, 'length', ctx, v => { p.distance2 = v; });
+      const flip = check(t('Dialog.Flip'), p.flip, v => { p.flip = v; ctx.changed(); }, 'flip');
+      second.hidden = flip.hidden = !two();
+      add(second, flip);
+      break;
+    }
   }
 
-  // the first parts field takes the clicks in the view
-  if (fields.parts.length) ctx.activateParts(fields.parts[0]);
+  // the edges of a fillet or chamfer, else the first parts field, take the clicks in the view
+  if (fields.edges) ctx.activateEdges(fields.edges);
+  else if (fields.parts.length) ctx.activateParts(fields.parts[0]);
   return fields;
+}
+
+/** The same reference (the same edge, face or part)? */
+export function sameRef(a, b) {
+  if (a.part !== b.part) return false;
+  if (a.faces || b.faces) return !!(a.faces && b.faces) && [...a.faces].sort().join('|') === [...b.faces].sort().join('|');
+  return (a.face || null) === (b.face || null);
+}
+
+/** The edges of a fillet or chamfer: picked in the view (an edge, or a face for all its edges), or every edge of a part from the list. */
+function edgesField(ctx, p) {
+  if (!Array.isArray(p.edges)) p.edges = [];
+  const list = el('ul', { class: 'ms-edgelist' });
+  const parts = el('select', { class: 'mat-select mat-select--sm mat-input--sm', 'aria-label': t('Dialog.WholePart') });
+  const addPart = el('button', { type: 'button', class: 'mat-btn mat-btn--secondary mat-btn--sm' }, icon('plus'), el('span', null, t('Dialog.WholePart')));
+  const node = el('fieldset', { class: 'mat-field ms-field-sm ms-fieldset ms-partsfield' }, el('legend', { class: 'mat-label' }, t('Dialog.Edges')), list,
+    el('p', { class: 'mat-hint' }, t('Dialog.Edges.Hint')), el('div', { class: 'ms-dialog__pickrow' }, parts, addPart));
+  const field = {
+    node,
+    toggle(ref) {
+      const i = p.edges.findIndex(r => sameRef(r, ref));
+      if (i >= 0) p.edges.splice(i, 1); else p.edges.push(ref);
+      render();
+      ctx.changed();
+      ctx.edgesChanged?.();
+    },
+    activate(on) { node.classList.toggle('is-active', on); },
+  };
+  const render = () => {
+    list.replaceChildren();
+    const count = { edge: 0, face: 0 };
+    if (!p.edges.length) list.append(el('li', { class: 'ms-edgelist__empty ms-muted' }, t('Dialog.NoEdges')));
+    p.edges.forEach(ref => {
+      const kind = ref.faces ? 'edge' : ref.face ? 'face' : 'part';
+      const part = ctx.input.parts.find(x => x.id === ref.part);
+      const name = kind === 'part' ? t('Dialog.AllEdgesOf', part ? ctx.partName(part) : ref.part) : t(kind === 'edge' ? 'Dialog.Edge' : 'Dialog.Face', ++count[kind]);
+      const remove = el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm', 'aria-label': t('Dialog.RemoveEdge', name), 'data-tip': t('Dialog.RemoveEdge', name) }, icon('x'));
+      remove.addEventListener('click', () => field.toggle(ref));
+      list.append(el('li', { class: 'ms-edgelist__item' }, icon(kind === 'edge' ? 'edge' : kind === 'face' ? 'face' : 'part'), el('span', null, name), remove));
+    });
+  };
+  for (const part of ctx.input.parts) parts.append(el('option', { value: part.id }, ctx.partName(part)));
+  parts.disabled = addPart.disabled = !ctx.input.parts.length;
+  addPart.addEventListener('click', () => { if (parts.value && !p.edges.some(r => sameRef(r, { part: parts.value }))) field.toggle({ part: parts.value }); });
+  render();
+  node.addEventListener('focusin', () => ctx.activateEdges(field));
+  return field;
 }
 
 const OPS = [['new', t('Dialog.Op.new'), 'part'], ['add', t('Dialog.Op.add'), 'union'], ['remove', t('Dialog.Op.remove'), 'subtract'], ['intersect', t('Dialog.Op.intersect'), 'intersect']];

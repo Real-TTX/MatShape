@@ -5,7 +5,7 @@ Guidance for working in this repository. Keep it in sync with the code: update i
 ## What MatShape is
 
 3D CAD in the browser in the spirit of the parametric CAD tools on the web. A **document** holds **Part Studios** (tabs); a Part Studio is an ordered **feature list** (sketch, plane,
-extrude, revolve, boolean, transform, mirror, linear/circular pattern, split, delete part, variable) that is run from the top to make the parts. Documents are shared with people who have
+extrude, revolve, fillet, chamfer, boolean, transform, mirror, linear/circular pattern, split, delete part, variable) that is run from the top to make the parts. Documents are shared with people who have
 an account (editor / viewer) or through a read-only **link**; named **versions** keep the state of a whole document. Part of the Mat family: sign-in through **MatIdentity**, mail through
 **MatSMTP**, the platform contract for **Mattiverse** (all optional, switched on by environment variables).
 
@@ -60,18 +60,32 @@ src/MatShape
   wwwroot/js/cad/            the editor (ES modules):
     app.js                   load (/live/documents/{id}), Part Studio tabs, regeneration, feature list + rollback bar, parts list, dialogs, sketch mode, measuring, undo/redo,
                              autosave (PUT with revision; 409 -> ask), polling for changes of others, offline queue (localStorage ms.pending.<studio>), thumbnail, export, keys
-    model.js                 regenerate(kernel, content, units): runs the features with Manifold -> parts (meshes with face ids), sketches (+ closed loops), planes, variables, status per feature;
-                             every kernel object is in an arena freed by dispose(result). FEATURES = the kinds and their default parameters
+    model.js                 regenerate(kernel, content, units): runs the features with Manifold -> parts (meshes with face numbers and the edges between faces), sketches (+ closed loops),
+                             planes, variables, status per feature; every kernel object is in an arena freed by dispose(result). FEATURES = the kinds and their default parameters.
+                             Faces have NAMES (result.faceKeys, faceKey(result, n)): every new body is relabelled (triangle faceID = FACE_BASE + index of the name), the kernel keeps
+                             the numbers through booleans: "<extrude>:start" (on the sketch plane), ":end", ":<entity>" (a side; rect/polygon sides "<id>.<k>"), revolve sides,
+                             "<split>:cut", "<fillet>:<n>". Fillet/chamfer find their edges by these names (geometric fallback: the picked point). sectionOf / outlineOf: cut / silhouette
+    topo.js                  topology(mesh): neighbours of the triangles, the edges between faces (different face numbers, not coplanar) with their angle; chains(edges)
+    blend.js                 fillets and chamfers on a mesh kernel: per chain of edges a tool (the corner minus the tangent circle, or the chamfer triangle) is swept along it, mitred
+                             where the chain turns, cut away on outer edges / added on inner ones, a ball corner where three rounded edges meet; too wide -> tooLarge (an error)
+    drawing.js               technical drawings without DOM (tested in Node): projectView (sharp edges, tangent edges thin, outlines of round faces; hidden lines by a depth buffer),
+                             drawingViews (front / top / left / iso, section A–A with hatching and cut line), layoutDrawing (first-angle projection, scale, title block, overall
+                             dimensions; primitives in sheet mm), toSvg / toDxf (R12) / toPdf (own small writer, Helvetica)
+    drawingdialog.js         its dialog (ms-drawing): sheet, scale, views, section, hidden edges, dimensions, title; preview as SVG; PDF / SVG / DXF downloads
     geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketchLoops = profiles like OnShape: curves cut at their crossings, loose ends trimmed, the smallest enclosed regions (key = sorted border ids, #2 … for regions with the same border)
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
-    viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges + smooth normals, planes, sketches, picking, face highlight, snapshot
+    viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges (from the face names) + smooth normals, planes, sketches,
+                             picking (faces; pickEdge: the edge near the pointer that is not hidden; setPickParts: pick in other parts than shown, e.g. before a fillet), edge marks,
+                             face highlight, section view (setSection: clipping plane + hatched caps), snapshot
     sketcher.js              the sketch editor (like OnShape): snapping without a grid (point •, midpoint M, on curve, H/V, ⊥ to the line before, dashed guides to lined-up points) with the symbol
                              and the length at the pointer; tools set the matching constraints; additive selection + selection box (right = window, left = crossing); constraint tools
                              (I, H, V, ∥, ⊥, T, =, M, ◎, fix); dimension tool D: pick, the dimension follows the pointer, click places it, type the value; dimensionShape() draws extension
                              and dimension lines with arrows, leaders, angle arcs (c.off = place of the value relative to its anchor); state colours, conflict list, drag through the
-                             solver, own undo; callbacks.changed -> app.js rebuilds the parts live while the sketch is open
+                             solver, own undo; callbacks.changed -> app.js rebuilds the parts live while the sketch is open. Geometry from the model: Use (U, an edge projected),
+                             Section and Outline (app.js: sectionOf / outlineOf of the parts before the sketch) -> curvesFromPoints (geom.js) -> entities with use: true
     sketchsolve.js           the constraint solver: Levenberg-Marquardt over the numbers of the entities, Gram-Schmidt rank analysis (degrees of freedom, defined/free per entity and point,
-                             conflicts = redundant or unmeetable constraints, which are shown but NOT applied); legacy params.dims are migrated (constraintsOf). Used by model.js too
+                             conflicts = redundant or unmeetable constraints, which are shown but NOT applied); legacy params.dims are migrated (constraintsOf). Used by model.js too.
+                             Entities with use: true (taken from the model) are fixed: their numbers are no unknowns (a big cut does not slow it down)
     assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair;
                              attachments (paperclip, paste, drop; pictures scaled down in the browser, an SVG as text and as PNG)
     imagetrace.js            picture -> 3D without DOM (tested in Node): k-means colours (near ones merged), anti-aliasing seams dissolved, majority smoothing, specks removed,
@@ -93,7 +107,10 @@ tests/MatShape.Tests         unit + database tests (DocumentTests, AccountTests,
 Part ids are derived from the feature that made the part (`<featureId>`, `<featureId>.<n>` for several bodies or copies, `<partId>~<featureId>` for the other half of a split), so names and colours
 survive a regeneration. A sketch plane is `{ kind: "std", name }`, `{ kind: "plane", id }` (a Plane feature) or `{ kind: "face", frame: { o, x, y, n } }` (fixed when the face was picked).
 Sketch constraints: `params.cons = [{ id, type, refs, value? }]`, a ref is a point `{ e, k: a|b|c|s|e|p }` (`{ e: "origin", k: "p" }`) or a curve `{ e }`; types and glyphs in `sketchsolve.js` (CONSTRAINTS).
-Sketch entities: `line {a,b}`, `rect {a,b}`, `circle {c,r}`, `arc {c,r,a0,a1}` (radians, counter-clockwise), `polygon {c,r,n,rot}`, `point {p}`; `cons: true` = construction. Profiles are referred to by
+Sketch entities: `line {a,b}`, `rect {a,b}`, `circle {c,r}`, `arc {c,r,a0,a1}` (radians, counter-clockwise), `polygon {c,r,n,rot}`, `point {p}`; `cons: true` = construction,
+`use: true` = taken from the model (fixed).
+Fillet `{ edges, radius }`, chamfer `{ edges, mode: equal|two, distance, distance2, flip }`; an edge ref is `{ part, faces: [name, name], at }` (an edge by its two faces; at = where
+it was picked), `{ part, face }` (every edge of a face) or `{ part }` (every edge of the part). Profiles are referred to by
 the sorted ids of their entities (`profiles: null` = all). Fields of features are strings (expressions), evaluated at regeneration.
 
 ## Conventions

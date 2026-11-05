@@ -335,3 +335,95 @@ export function arcThrough(a, b, c) {
   if (norm(am - a0) > norm(a1 - a0)) [a0, a1] = [a1, a0];
   return { c: circle.c, r: circle.r, a0, a1 };
 }
+
+/**
+ * Lines, arcs and circles that follow a polyline from the model (a cut, an outline, an edge): a closed run on one circle becomes a circle, runs of short steps
+ * that turn evenly become arcs, points in a straight row become one line. Returns entities without ids ({ t: 'line', a, b } …).
+ */
+export function curvesFromPoints(points, closed) {
+  const pts = [];
+  for (const p of points) if (!pts.length || Math.hypot(p[0] - pts[pts.length - 1][0], p[1] - pts[pts.length - 1][1]) > 1e-7) pts.push([p[0], p[1]]);
+  if (closed && pts.length > 1 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) <= 1e-7) pts.pop();
+  // points in a straight row between their neighbours add nothing (a cut through a mesh has them where it crosses the diagonals of the triangles)
+  for (let changed = true; changed && pts.length > (closed ? 3 : 2);) {
+    changed = false;
+    for (let i = closed ? 0 : 1; i < pts.length - (closed ? 0 : 1) && pts.length > (closed ? 3 : 2); i++) {
+      const a = pts[(i - 1 + pts.length) % pts.length], b = pts[i], c = pts[(i + 1) % pts.length];
+      const cr = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]), dt = (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]);
+      if (dt > 0 && Math.abs(Math.atan2(cr, dt)) < 1e-3) { pts.splice(i, 1); i--; changed = true; }
+    }
+  }
+  if (pts.length < 2) return [];
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const size = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const tol = Math.max(1e-4, size * 2e-4);
+  const r4 = p => [Math.round(p[0] * 1e4) / 1e4, Math.round(p[1] * 1e4) / 1e4];
+  // a whole circle
+  if (closed && pts.length >= 8) {
+    const c = [xs.reduce((s, x) => s + x, 0) / pts.length, ys.reduce((s, y) => s + y, 0) / pts.length];
+    const r = pts.reduce((s, p) => s + Math.hypot(p[0] - c[0], p[1] - c[1]), 0) / pts.length;
+    if (r > 0 && pts.every(p => Math.abs(Math.hypot(p[0] - c[0], p[1] - c[1]) - r) < Math.max(tol, r * 2e-3))) return [{ t: 'circle', c: r4(c), r: Math.round(r * 1e4) / 1e4 }];
+  }
+  const n = pts.length;
+  const turn = i => {
+    const a = pts[(i - 1 + n) % n], b = pts[i % n], c = pts[(i + 1) % n];
+    return Math.atan2((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]), (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]));
+  };
+  // a closed loop starts at its sharpest corner, or where an arc meets a line (the length of the steps changes), so that no arc is cut in two
+  let start = 0;
+  if (closed) {
+    const len = i => Math.hypot(pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]);
+    let best = 0;
+    for (let i = 0; i < n; i++) {
+      const a = Math.abs(turn(i)), l0 = len((i - 1 + n) % n), l1 = len(i);
+      const score = a > 25 * Math.PI / 180 ? 100 + a : Math.max(l0 / l1, l1 / l0);
+      if (score > best) { best = score; start = i; }
+    }
+  }
+  const P = i => pts[(start + i) % n];
+  const T = i => turn((start + i) % n);
+  const segments = closed ? n : n - 1;
+  const MIN = 0.2 * Math.PI / 180, MAX = 30 * Math.PI / 180;
+  const out = [];
+  let i = 0;
+  while (i < segments) {
+    // the longest arc from here: at least three steps of about the same length, each turning the same way by a little, all points on the circle through the first, middle and last
+    let end = 0, fit = null;
+    const step = k => Math.hypot(P(k + 1)[0] - P(k)[0], P(k + 1)[1] - P(k)[1]);
+    const first = step(i);
+    for (let j = i + 2; j <= segments; j++) {
+      const s = step(j - 1);
+      if (s > first * 1.6 || s < first / 1.6) break;
+      if (j - 1 > i) {
+        const tj = T(j - 1), sign = Math.sign(T(i + 1));
+        if (!(Math.abs(tj) > MIN && Math.abs(tj) < MAX && Math.sign(tj) === sign)) break;
+      }
+      if (j < i + 3) continue;
+      const circle = circleThrough(P(i), P(Math.round((i + j) / 2)), P(j));
+      if (!circle || circle.r > size * 50) break;
+      let ok = true;
+      for (let k = i; k <= j && ok; k++) ok = Math.abs(Math.hypot(P(k)[0] - circle.c[0], P(k)[1] - circle.c[1]) - circle.r) < Math.max(tol, circle.r * 2e-3);
+      if (!ok) break;
+      end = j; fit = { ...circle, ccw: T(i + 1) > 0 };
+    }
+    if (fit && Math.abs(T(i + 1)) > MIN) {
+      const ang = p => Math.atan2(p[1] - fit.c[1], p[0] - fit.c[0]);
+      const [from, to] = fit.ccw ? [P(i), P(end)] : [P(end), P(i)];
+      out.push({ t: 'arc', c: r4(fit.c), r: Math.round(fit.r * 1e4) / 1e4, a0: ang(from), a1: ang(to) });
+      i = end;
+      continue;
+    }
+    // a line as long as the points stay in a row
+    let j = i + 1;
+    while (j < segments && distToSegment(P(j), P(i), P(j + 1)) < tol) j++;
+    out.push({ t: 'line', a: r4(P(i)), b: r4(P(j)) });
+    i = j;
+  }
+  // the pieces meet exactly (arcs end where their angles say)
+  for (let k = 0; k < out.length; k++) {
+    const e = out[k], next = out[(k + 1) % out.length];
+    if (!closed && k === out.length - 1) break;
+    if (e.t === 'line' && next.t === 'line') next.a = e.b;
+  }
+  return out;
+}

@@ -56,7 +56,9 @@ class System {
     this.slots = new Map();
     this.x = [];
     this.owner = [];
-    const add = (e, name, value) => { this.slots.set(e.id + '.' + name, this.x.length); this.x.push(value); this.owner.push(e.id); };
+    // geometry taken from the model (use: true, like "Use" / "Intersect" of OnShape) is fixed: its numbers are no unknowns, so a big cut does not slow the solver
+    this.fixed = new Set();
+    const add = (e, name, value) => { if (e.use) this.fixed.add(this.x.length); this.slots.set(e.id + '.' + name, this.x.length); this.x.push(value); this.owner.push(e.id); };
     for (const e of entities) {
       if (e.t === 'line' || e.t === 'rect') { add(e, 'ax', e.a[0]); add(e, 'ay', e.a[1]); add(e, 'bx', e.b[0]); add(e, 'by', e.b[1]); }
       else if (e.t === 'circle') { add(e, 'cx', e.c[0]); add(e, 'cy', e.c[1]); add(e, 'r', e.r); }
@@ -316,8 +318,13 @@ export function solveSketch(entities, constraints, evaluate, options = {}) {
       try { value = evaluate(c); } catch (error) { errors.push({ id: c.id, reason: 'value', error }); continue; }
       if (!(value > 0) && !(CONSTRAINTS[c.type].angle && value === 0)) { errors.push({ id: c.id, reason: 'value' }); continue; }
     }
-    const eq = equations(sys, c, value);
+    let eq = equations(sys, c, value);
     if (eq.error) { errors.push({ id: c.id, reason: eq.error }); continue; }
+    if (sys.fixed.size) {
+      // the fixed numbers are no unknowns; an equation between fixed things alone is met or a conflict
+      eq.forEach(r => { r.vars = r.vars.filter(v => !sys.fixed.has(v)); });
+      eq = eq.filter(r => r.vars.length || Math.abs(r.f(x)) > 1e-6);
+    }
     eq.forEach(r => { r.w = 1; r.c = c.id; });
     rowsOf.set(c.id, eq);
     rows.push(...eq);
@@ -333,7 +340,7 @@ export function solveSketch(entities, constraints, evaluate, options = {}) {
   if (options.drag?.length) {
     const pulls = [];
     for (const d of options.drag) {
-      const vars = sys.pointVars(d.ref);
+      const vars = sys.pointVars(d.ref)?.filter(v => !sys.fixed.has(v));
       if (!vars?.length) continue;
       pulls.push({ f: x2 => sys.point(x2, d.ref)[0] - d.to[0], vars, w: 1 }, { f: x2 => sys.point(x2, d.ref)[1] - d.to[1], vars, w: 1 });
     }
@@ -393,7 +400,7 @@ function analyse(sys, x, rows, found, errors, constraints) {
   for (let i = 0; i < n; i++) {
     let s = 0;
     for (const q of basis) s += q[i] * q[i];
-    defined[i] = s > 1 - 1e-6;
+    defined[i] = sys.fixed.has(i) || s > 1 - 1e-6;
   }
   const inConflict = new Set();
   for (const c of constraints || []) if (conflict.has(c.id)) (c.refs || []).forEach(r => r?.e && inConflict.add(r.e));
@@ -408,7 +415,7 @@ function analyse(sys, x, rows, found, errors, constraints) {
     }
   }
   for (const c of constraints || []) constraint.set(c.id, errors.some(e => e.id === c.id) ? 'error' : conflict.has(c.id) ? 'conflict' : 'ok');
-  return { dof: n - basis.length, entity, point, constraint, errors, conflicts: [...conflict] };
+  return { dof: n - sys.fixed.size - basis.length, entity, point, constraint, errors, conflicts: [...conflict] };
 }
 
 /** The current value of a dimension in the geometry (mm or degrees), or null. */

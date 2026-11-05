@@ -352,6 +352,12 @@ public static class ModelAssistant
         - cpattern:  {"parts": [part ids], "axis": "x|y|z", "count": "6", "angle": "360", "merge": false}   about a world axis through the origin
         - split:     {"parts": [part ids], "plane": <plane ref>, "keep": "both|front|back"}
         - deletepart:{"parts": [part ids]}
+        - fillet:    {"edges": [edge refs], "radius": "2"}   rounds edges: outer edges are cut round, inner edges filled round
+        - chamfer:   {"edges": [edge refs], "mode": "equal|two", "distance": "1", "distance2": "2", "flip": false}   bevels edges (two: distance on one face, distance2 on the other)
+                     An edge ref names the two faces that meet there: {"part": "<part id>", "faces": ["<face>", "<face>"]}; {"part": "<id>", "face": "<face>"} = every edge of
+                     that face; {"part": "<id>"} = every edge of the part. Faces are named after the feature that made them: "<extrude id>:start" (on the sketch plane),
+                     "<extrude id>:end" (the far end), "<extrude id>:<entity id>" (the side made by that sketch entity; the sides of a rect are "<rect id>.0" .. ".3":
+                     y = a.y, x = b.x, y = b.y, x = a.x), "<revolve id>:<entity id>". Example, the top edges of the plate ai_plate: {"part": "ai_plate", "face": "ai_plate:end"}.
 
         ## Part ids
         A part is named after the feature that made it: an extrude/revolve with op "new" that makes one body gives the part id = the feature id; several separate bodies give "<id>.0", "<id>.1" ...

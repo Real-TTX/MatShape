@@ -4,7 +4,7 @@
    by the solver (sketchsolve.js) after every change, also while dragging. Colours: blue = still free, black = fully defined, red = conflict.
    Drawing sets the obvious constraints by itself (snapped to a point: coincident, to a curve: on it, nearly level: horizontal …), like OnShape. */
 
-import { arcThrough, distToEntity, entityPolyline, sketchLoops, toLocal, toWorld } from './geom.js';
+import { arcThrough, curvesFromPoints, distToEntity, entityPolyline, sketchLoops, toLocal, toWorld } from './geom.js';
 import { CONSTRAINTS, ORIGIN, adoptSketch, constraintsOf, measure, pointKeys, pointOfRef, solveSketch } from './sketchsolve.js';
 import { evalAngle, evalLength, evalNumber } from './expr.js';
 import { clone, el, fmt, icon, t, uid, UNITS } from './util.js';
@@ -57,6 +57,8 @@ export class Sketcher {
 
   stop() {
     this.active = false;
+    this.useEdge = null;
+    this.vp.setEdgeMarks(null);
     this.vp.navigationOnly = false;
     this.vp.setSketchOverlay(null);
     this.closeEditor();
@@ -78,6 +80,7 @@ export class Sketcher {
   // ---- tools and history ----------------------------------------------------------------------------------------------------
 
   setTool(tool) {
+    if (this.tool === 'use' && tool !== 'use') { this.useEdge = null; this.vp.setEdgeMarks(null); }
     this.tool = tool;
     this.points = [];
     this.picks = [];
@@ -272,6 +275,15 @@ export class Sketcher {
 
   move(e) {
     this.pointer = { x: e.clientX, y: e.clientY };
+    if (this.tool === 'use') {
+      // "Use" (U, like OnShape): an edge of the model lights up; a click takes it into the sketch
+      const edge = this.vp.pickEdge(e.ndc);
+      this.useEdge = edge;
+      const part = edge && this.vp.pickable.get(edge.partId)?.part;
+      this.vp.setEdgeMarks(part ? { hover: chainOf(part, edge.segments).flatMap(c => c.points.slice(1).flatMap((p, i) => [c.points[i], p])) } : null);
+      this.vp.canvas.style.cursor = edge ? 'pointer' : '';
+      return;
+    }
     if (this.placing) {
       // the dimension follows the pointer until it is placed
       const p = this.local(e);
@@ -397,6 +409,7 @@ export class Sketcher {
     if (this.dragging) { this.dragging = null; this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool); }
     if (this.box) { this.box = null; this.drawBox(); this.vp.navigationOnly = DRAW_TOOLS.includes(this.tool); }
     if (this.tool === 'select') return this.selectClick(e);
+    if (this.tool === 'use') return this.useClick(e);
     if (this.tool === 'dimension') return this.dimensionClick(e);
     if (this.tool.startsWith('constraint:')) return this.constraintClick(e);
     const [from, prev] = this.drawContext();
@@ -418,6 +431,25 @@ export class Sketcher {
     else this.selection.add(key);
     this.renderPanel();
     this.draw();
+  }
+
+  // ---- geometry from the model (Use, section, outline) ----------------------------------------------------------------------
+
+  /** Takes an edge of the model into the sketch, projected onto its plane (as lines, arcs or a circle; fixed like the geometry OnShape "uses"). */
+  useClick(e) {
+    const edge = this.useEdge || this.vp.pickEdge(e.ndc);
+    const part = edge && this.vp.pickable.get(edge.partId)?.part;
+    if (!part) return;
+    const curves = chainOf(part, edge.segments).flatMap(c => curvesFromPoints(c.points.map(p => toLocal(this.frame, p)), c.closed));
+    if (!curves.length) { this.cb.toast?.(t('Sketch.UseNothing')); return; }
+    this.addUsed(curves);
+  }
+
+  /** Adds curves from the model (a cut, an outline, an edge): fixed geometry, black like everything that is defined. */
+  addUsed(curves) {
+    if (!curves.length) return 0;
+    this.addAll(curves.map(c => ({ id: uid('e'), ...c, use: true })), []);
+    return curves.length;
   }
 
   // ---- drawing tools, with the constraints they set by themselves ------------------------------------------------------------
@@ -1174,4 +1206,29 @@ function anchorOf(entities, c) {
       return a && b ? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] : a || b;
     }
   }
+}
+
+/** The segments of an edge of a part (indices into part.mesh.edges) as polylines in their order: [{ points (world), closed }]. */
+function chainOf(part, indices) {
+  const e = part.mesh.edges;
+  const at = new Map();
+  for (const i of indices) for (const v of [e.verts[i * 2], e.verts[i * 2 + 1]]) { if (!at.has(v)) at.set(v, []); at.get(v).push(i); }
+  const point = v => { for (const i of at.get(v)) { const k = e.verts[i * 2] === v ? 0 : 3; return [e.pos[i * 6 + k], e.pos[i * 6 + k + 1], e.pos[i * 6 + k + 2]]; } };
+  const used = new Set(), out = [];
+  const walk = from => {
+    const verts = [from];
+    let v = from;
+    for (;;) {
+      const i = (at.get(v) || []).find(j => !used.has(j));
+      if (i === undefined) break;
+      used.add(i);
+      v = e.verts[i * 2] === v ? e.verts[i * 2 + 1] : e.verts[i * 2];
+      verts.push(v);
+    }
+    const closed = verts.length > 2 && verts[verts.length - 1] === verts[0];
+    out.push({ points: (closed ? verts.slice(0, -1) : verts).map(point), closed });
+  };
+  for (const [v, list] of at) if (list.length !== 2 && list.some(i => !used.has(i))) walk(v);
+  for (const [v, list] of at) if (list.some(i => !used.has(i))) walk(v);
+  return out;
 }

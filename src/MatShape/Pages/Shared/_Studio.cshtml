@@ -71,6 +71,7 @@
         <button type="button" class="mat-menu__item" role="menuitem" data-export="3mf">@Ui.Icon("download")<span>@L["Studio.Export.ThreeMf"]</span></button>
         <button type="button" class="mat-menu__item" role="menuitem" data-export="obj">@Ui.Icon("download")<span>@L["Studio.Export.Obj"]</span></button>
         <button type="button" class="mat-menu__item" role="menuitem" data-export="png">@Ui.Icon("image")<span>@L["Studio.Export.Png"]</span></button>
+        <button type="button" class="mat-menu__item" role="menuitem" data-export="drawing">@Ui.Icon("drawing")<span>@L["Studio.Export.Drawing"]</span></button>
         <div class="mat-menu__sep" role="separator"></div>
         <button type="button" class="mat-menu__item" role="menuitem" data-export="json">@Ui.Icon("code")<span>@L["Studio.Export.Json"]</span></button>
     </div>
@@ -83,6 +84,8 @@
             <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="extrude" data-tip="@L["Feature.extrude"] (Shift+E)">@Ui.Icon("extrude")<span>@L["Feature.extrude"]</span></button>
             <button type="button" class="ms-tool" data-feature="revolve" data-tip="@L["Feature.revolve"] (Shift+W)">@Ui.Icon("revolve")<span>@L["Feature.revolve"]</span></button>
+            <button type="button" class="ms-tool" data-feature="fillet" data-tip="@L["Feature.fillet"] (Shift+F)">@Ui.Icon("fillet")<span>@L["Feature.fillet"]</span></button>
+            <button type="button" class="ms-tool" data-feature="chamfer" data-tip="@L["Feature.chamfer"]">@Ui.Icon("chamfer")<span>@L["Feature.chamfer"]</span></button>
             <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="boolean" data-tip="@L["Feature.boolean"]">@Ui.Icon("boolean")<span>@L["Feature.boolean"]</span></button>
             <button type="button" class="ms-tool" data-feature="split" data-tip="@L["Feature.split"]">@Ui.Icon("split")<span>@L["Feature.split"]</span></button>
@@ -98,6 +101,7 @@
             <span class="ms-tools__sep" aria-hidden="true"></span>
         }
         <button type="button" class="ms-tool" data-action="measure" aria-pressed="false" data-tip="@L["Studio.Measure"] (M)">@Ui.Icon("ruler")<span>@L["Studio.Measure"]</span></button>
+        <button type="button" class="ms-tool" data-action="drawing" data-tip="@L["Drawing.Tool"]">@Ui.Icon("drawing")<span>@L["Drawing.Short"]</span></button>
     </div>
 
     @* the sketch tools, shown while a sketch is edited *@
@@ -111,6 +115,10 @@
         <button type="button" class="ms-tool" data-sketch-tool="arc" aria-pressed="false" data-tip="@L["Sketch.Arc"] (A)">@Ui.Icon("arc")<span>@L["Sketch.Arc"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="polygon" aria-pressed="false" data-tip="@L["Sketch.Polygon"]">@Ui.Icon("polygon")<span>@L["Sketch.Polygon"]</span></button>
         <button type="button" class="ms-tool" data-sketch-tool="point" aria-pressed="false" data-tip="@L["Sketch.Point"]">@Ui.Icon("point")<span>@L["Sketch.Point"]</span></button>
+        <span class="ms-tools__sep" aria-hidden="true"></span>
+        <button type="button" class="ms-tool" data-sketch-tool="use" aria-pressed="false" data-tip="@L["Sketch.Use.Tip"] (U)">@Ui.Icon("use-edge")<span>@L["Sketch.Use"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="slice" data-tip="@L["Sketch.Slice.Tip"]">@Ui.Icon("slice")<span>@L["Sketch.Slice"]</span></button>
+        <button type="button" class="ms-tool" data-sketch-action="outline" data-tip="@L["Sketch.Outline.Tip"]">@Ui.Icon("outline")<span>@L["Sketch.Outline"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
         <button type="button" class="ms-tool" data-sketch-tool="dimension" aria-pressed="false" data-tip="@L["Sketch.Dimension"] (D)">@Ui.Icon("dimension")<span>@L["Sketch.Dimension"]</span></button>
         <span class="ms-tools__sep" aria-hidden="true"></span>
@@ -162,6 +170,17 @@
                 <button type="button" class="ms-vbtn" data-action="display" aria-label="@L["View.Display"]" data-tip="@L["View.Display"]" data-tip-align="end">@Ui.Icon("shaded")</button>
                 <button type="button" class="ms-vbtn" data-menu-toggle="ms-theme-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["View.Theme"]" data-tip="@L["View.Theme"]" data-tip-align="end">@Ui.Icon("palette")</button>
                 <button type="button" class="ms-vbtn" data-action="planes" aria-pressed="true" aria-label="@L["View.Planes"]" data-tip="@L["View.Planes"] (P)" data-tip-align="end">@Ui.Icon("plane")</button>
+                <button type="button" class="ms-vbtn" data-action="section" aria-pressed="false" aria-label="@L["View.Section"]" data-tip="@L["View.Section"]" data-tip-align="end">@Ui.Icon("section")</button>
+            </div>
+
+            @* the section view: the parts cut by a plane that can be moved (the cut faces hatched) *@
+            <div class="ms-section" data-section-panel role="group" aria-label="@L["View.Section"]" hidden>
+                <span class="ms-section__title">@Ui.Icon("section")<span>@L["View.Section"]</span></span>
+                <select class="mat-select mat-select--sm mat-input--sm" data-section-plane aria-label="@L["View.Section.Plane"]"></select>
+                <input type="range" class="ms-section__range" data-section-offset min="-100" max="100" step="0.1" value="0" aria-label="@L["View.Section.Offset"]">
+                <input class="mat-input mat-input--sm mat-mono ms-section__value" data-section-value inputmode="decimal" autocomplete="off" aria-label="@L["View.Section.Offset"]">
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-section-flip aria-pressed="false" aria-label="@L["View.Section.Flip"]" data-tip="@L["View.Section.Flip"]">@Ui.Icon("flip")</button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-section-close aria-label="@L["Common.Dialog.Close"]" data-tip="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button>
             </div>
 
             @* the axes in the corner (drawn by the scripts) *@
@@ -369,6 +388,71 @@
                     <button type="button" class="mat-btn mat-btn--secondary" data-img-ai disabled>@Ui.Icon("sparkles")<span>@L["Image.ToAi"]</span></button>
                 }
                 <button type="button" class="mat-btn mat-btn--ghost" data-dialog-close>@L["Common.Cancel"]</button>
+            </div>
+        </div>
+    </div>
+</dialog>
+
+@* the technical drawing of the visible parts: views in first-angle projection, a section, dimensions, a title block; PDF, SVG, DXF *@
+<dialog class="mat-dialog mat-dialog--xl ms-drawdlg" id="ms-drawing" aria-labelledby="ms-drawing-title">
+    <div class="mat-dialog__form">
+        <div class="mat-dialog__head">@Ui.Icon("drawing")<h2 class="mat-dialog__title" id="ms-drawing-title">@L["Drawing.Title"]</h2>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-dialog__close" data-dialog-close aria-label="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button></div>
+        <div class="mat-dialog__body ms-drawdlg__body">
+            <div class="ms-drawdlg__view">
+                <div class="ms-drawdlg__stage"><img class="ms-drawdlg__sheet" data-draw-preview alt="@L["Drawing.Preview"]" hidden></div>
+                <p class="ms-muted ms-drawdlg__stats" data-draw-stats aria-live="polite"></p>
+            </div>
+            <div class="ms-drawdlg__side mat-form">
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-draw-name">@L["Drawing.Name"]</label>
+                    <input class="mat-input mat-input--sm" id="ms-draw-name" maxlength="80" autocomplete="off" data-draw-name>
+                </div>
+                <div class="ms-drawdlg__row">
+                    <div class="mat-field">
+                        <label class="mat-label" for="ms-draw-sheet">@L["Drawing.Sheet"]</label>
+                        <select class="mat-select mat-select--sm" id="ms-draw-sheet" data-draw-sheet>
+                            <option value="A4">A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+                        </select>
+                    </div>
+                    <div class="mat-field">
+                        <label class="mat-label" for="ms-draw-scale">@L["Drawing.Scale"]</label>
+                        <select class="mat-select mat-select--sm" id="ms-draw-scale" data-draw-scale><option value="auto">@L["Drawing.Scale.Auto"]</option></select>
+                    </div>
+                </div>
+                <h3 class="ms-imgdlg__h">@L["Drawing.Views"]</h3>
+                <div class="mat-checks">
+                    <label class="mat-check"><input type="checkbox" checked data-draw-view="front"><span class="mat-check__text">@L["Drawing.View.Front"]</span></label>
+                    <label class="mat-check"><input type="checkbox" checked data-draw-view="top"><span class="mat-check__text">@L["Drawing.View.Top"]</span></label>
+                    <label class="mat-check"><input type="checkbox" checked data-draw-view="left"><span class="mat-check__text">@L["Drawing.View.Left"]</span></label>
+                    <label class="mat-check"><input type="checkbox" checked data-draw-view="iso"><span class="mat-check__text">@L["Drawing.View.Iso"]</span></label>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="ms-draw-section">@L["Drawing.Section"]</label>
+                    <select class="mat-select mat-select--sm" id="ms-draw-section" data-draw-section>
+                        <option value="none">@L["Drawing.Section.None"]</option>
+                        <option value="front" selected>@L["Drawing.Section.Front"]</option>
+                        <option value="right">@L["Drawing.Section.Right"]</option>
+                        <option value="top">@L["Drawing.Section.Top"]</option>
+                    </select>
+                </div>
+                <div class="mat-field" data-draw-offset-field>
+                    <label class="mat-label" for="ms-draw-offset">@L["Drawing.Offset"]</label>
+                    <input class="mat-input mat-input--sm mat-mono" id="ms-draw-offset" inputmode="decimal" value="0" autocomplete="off" data-draw-offset>
+                </div>
+                <div class="mat-checks">
+                    <label class="mat-check"><input type="checkbox" checked data-draw-hidden><span class="mat-check__text">@L["Drawing.Hidden"]</span></label>
+                    <label class="mat-check"><input type="checkbox" checked data-draw-dims><span class="mat-check__text">@L["Drawing.Dims"]</span></label>
+                </div>
+                <p class="mat-hint">@L["Drawing.Hint"]</p>
+            </div>
+        </div>
+        <div class="mat-dialog__foot">
+            <div class="mat-btn-row">
+                <button type="button" class="mat-btn mat-btn--primary" data-draw-save="pdf" disabled>@Ui.Icon("download")<span>PDF</span></button>
+                <button type="button" class="mat-btn mat-btn--secondary" data-draw-save="svg" disabled>@Ui.Icon("download")<span>SVG</span></button>
+                <button type="button" class="mat-btn mat-btn--secondary" data-draw-save="dxf" disabled>@Ui.Icon("download")<span>DXF</span></button>
+                <button type="button" class="mat-btn mat-btn--ghost" data-dialog-close>@L["Common.Dialog.Close"]</button>
             </div>
         </div>
     </div>

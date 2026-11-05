@@ -21,6 +21,20 @@ public sealed class StudioContentTests
         Assert.Equal(2, StudioContent.CountFeatures(json));
     }
 
+    [Fact]
+    public void Fillets_and_chamfers_are_known()
+    {
+        const string json = """
+            {"features":[
+              {"id":"s1","type":"sketch","params":{"plane":{"kind":"std","name":"top"},"entities":[{"id":"r","t":"rect","a":[0,0],"b":[10,5]}]}},
+              {"id":"e1","type":"extrude","params":{"sketch":"s1","depth":"10","op":"new"}},
+              {"id":"f1","type":"fillet","params":{"edges":[{"part":"e1","faces":["e1:end","e1:r.0"],"at":[5,0,10]}],"radius":"2"}},
+              {"id":"c1","type":"chamfer","params":{"edges":[{"part":"e1","face":"e1:start"}],"mode":"two","distance":"1","distance2":"2","flip":false}}
+            ],"parts":{},"rollback":null}
+            """;
+        Assert.Null(StudioContent.Validate(json));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not json")]

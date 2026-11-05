@@ -131,6 +131,21 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 .ms-vbtn[aria-pressed="true"] { color: var(--mat-accent-text); }
 .ms-vbtn .mat-icon { width: 20px; height: 20px; }
 
+/* the section view: a bar at the bottom of the view (plane, place of the cut, which side stays) */
+.ms-section {
+  position: absolute; left: 50%; bottom: var(--mat-space-3); transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: var(--mat-space-2); padding: 4px 6px 4px var(--mat-space-3); max-width: calc(100% - 2 * var(--mat-space-3));
+  background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); box-shadow: var(--mat-shadow-2); font-size: var(--mat-fs-sm);
+}
+.ms-section[hidden] { display: none; }
+.ms-section__title { display: inline-flex; align-items: center; gap: var(--mat-space-1); font-weight: 600; white-space: nowrap; }
+.ms-section__title .mat-icon { width: 16px; height: 16px; color: var(--mat-accent-text); }
+.ms-section .mat-select { width: auto; min-width: 7rem; }
+.ms-section__range { width: min(220px, 24vw); accent-color: var(--mat-accent); }
+.ms-section__value { width: 5.5rem; text-align: right; }
+.ms-section .mat-btn[aria-pressed="true"] { color: var(--mat-accent-text); background: var(--mat-accent-soft); }
+@media (max-width: 720px) { .ms-section__title > span { display: none; } .ms-section__range { width: 28vw; } }
+
 /* the dialog of a feature, over the view at the top left (like the feature dialogs of the CAD tools) */
 .ms-dialog {
   position: absolute; top: var(--mat-space-3); left: var(--mat-space-3); z-index: 8;
@@ -161,6 +176,13 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 .ms-fieldset legend { padding: 0; margin-bottom: 4px; }
 .ms-checklist { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow: auto; padding: var(--mat-space-1); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-sm); }
 .ms-partsfield.is-active .ms-checklist { border-color: var(--mat-accent); box-shadow: 0 0 0 1px var(--mat-accent); }
+/* the edges of a fillet / chamfer: the picked ones, each with a remove button; the list is framed in the accent while clicks in the view go to it */
+.ms-edgelist { list-style: none; margin: 0; padding: var(--mat-space-1); display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow: auto; border: 1px solid var(--mat-border); border-radius: var(--mat-radius-sm); }
+.ms-partsfield.is-active .ms-edgelist { border-color: var(--mat-accent); box-shadow: 0 0 0 1px var(--mat-accent); }
+.ms-edgelist__item { display: flex; align-items: center; gap: var(--mat-space-2); font-size: var(--mat-fs-sm); }
+.ms-edgelist__item > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-edgelist__item > .mat-icon { width: 16px; height: 16px; color: var(--mat-accent-text); }
+.ms-edgelist__empty { font-size: var(--mat-fs-sm); padding: 2px var(--mat-space-1); }
 .ms-check { display: flex; align-items: center; gap: var(--mat-space-2); font-size: var(--mat-fs-sm); }
 .ms-check .mat-check__text { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
 .ms-check .mat-icon { width: 14px; height: 14px; }
@@ -389,6 +411,19 @@ dialog.ms-imgdlg { width: min(1100px, calc(100vw - 2 * var(--mat-space-4))); }
 .ms-imgdlg__colour.is-off { opacity: .55; }
 .ms-imgdlg__height { width: 64px; }
 .ms-imgdlg__share { min-width: 42px; text-align: right; color: var(--mat-text-muted); }
+/* the drawing: the sheet on the left (white like paper, also in dark mode), the settings on the right */
+dialog.ms-drawdlg { width: min(1180px, calc(100vw - 2 * var(--mat-space-4))); }
+.ms-drawdlg__body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: var(--mat-space-4); align-items: start; }
+.ms-drawdlg__view { display: flex; flex-direction: column; gap: var(--mat-space-2); min-width: 0; }
+.ms-drawdlg__stage { display: grid; place-items: center; min-height: 300px; padding: var(--mat-space-3); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); }
+.ms-drawdlg__sheet { display: block; max-width: 100%; max-height: 64vh; width: auto; height: auto; background: #ffffff; box-shadow: var(--mat-shadow-2); }
+.ms-drawdlg__sheet[hidden] { display: none; }
+.ms-drawdlg__stats { margin: 0; font-size: var(--mat-fs-sm); }
+.ms-drawdlg__side { display: flex; flex-direction: column; gap: var(--mat-space-2); max-height: 70vh; overflow: auto; padding-right: 2px; }
+.ms-drawdlg__side .mat-field { margin: 0; }
+.ms-drawdlg__side .mat-field[hidden] { display: none; }
+.ms-drawdlg__row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--mat-space-2); }
+@media (max-width: 860px) { .ms-drawdlg__body { grid-template-columns: 1fr; } .ms-drawdlg__side { max-height: none; } }
 dialog.ms-imgdlg.is-dropping .ms-imgdlg__view { outline: 2px dashed var(--mat-accent); outline-offset: 4px; }
 @media (max-width: 760px) {
   .ms-imgdlg__body { grid-template-columns: 1fr; }

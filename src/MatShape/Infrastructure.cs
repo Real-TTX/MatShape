@@ -65,11 +65,18 @@ public sealed class SecurityHeaders(RequestDelegate next)
         "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; " +
         "frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
+    /// <summary>
+    /// Only for the files of the STEP / IGES / BREP reader (/lib/occt, OpenCascade as WebAssembly): it runs in a Web Worker and its embind code builds
+    /// functions at run time, so this worker may evaluate script. A worker takes the policy of its own script, so every page keeps the strict policy above.
+    /// </summary>
+    private const string OcctWorkerPolicy =
+        "default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
+
     public Task InvokeAsync(HttpContext context)
     {
         var headers = context.Response.Headers;
 
-        headers["Content-Security-Policy"] = Policy;
+        headers["Content-Security-Policy"] = context.Request.Path.StartsWithSegments("/lib/occt", StringComparison.Ordinal) ? OcctWorkerPolicy : Policy;
         headers["X-Content-Type-Options"] = "nosniff";
         headers["X-Frame-Options"] = "DENY";
         headers["Referrer-Policy"] = "same-origin";

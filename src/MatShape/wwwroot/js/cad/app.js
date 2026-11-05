@@ -187,7 +187,7 @@ function start() {
       commit(before);
       setTimeout(() => viewport.fit(), 50);
       toast(t('Import.Done', bodies.length), 'success');
-    } catch (e) { console.warn('MatShape: import failed', e); toast(t(kind === 'stl' ? 'Import.Failed' : 'Import.NeedsWorker'), 'danger'); }
+    } catch (e) { console.warn('MatShape: import failed', e); toast(t('Import.Failed'), 'danger'); }
   });
 
   // ---- an assembly tab (assembly.js): instances of parts, mates -------------------------------------------------------------

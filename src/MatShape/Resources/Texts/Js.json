@@ -45,7 +45,6 @@
   "Js.Import.Reading": { "en": "Reading {0} …", "de": "{0} wird gelesen …" },
   "Js.Import.Done": { "en": "Imported: {0} bodies.", "de": "Importiert: {0} Körper." },
   "Js.Import.Failed": { "en": "The file could not be read.", "de": "Die Datei ließ sich nicht lesen." },
-  "Js.Import.NeedsWorker": { "en": "STEP, IGES and BREP cannot be read on this server yet (the reader needs its own security policy). STL works.", "de": "STEP, IGES und BREP lassen sich auf diesem Server noch nicht lesen (der Leser braucht eine eigene Sicherheitsrichtlinie). STL geht." },
   "Js.Studio.NeedSketchAny": { "en": "Draw a sketch first.", "de": "Zeichne zuerst eine Skizze." },
   "Js.Drawing.View.front": { "en": "Front view", "de": "Vorderansicht" },
   "Js.Drawing.View.top": { "en": "Top view", "de": "Draufsicht" },

@@ -108,8 +108,8 @@ checks it and decides who may see and change what.
 
 **Exchange**
 - **STEP AP214 export** (solids with real flat faces and colours; read back by OpenCascade to check it), STL, OBJ, 3MF with colours
-- **STL import** (faces found at sharp edges, so fillets and holes work on it); STEP / IGES / BREP import through OpenCascade (WebAssembly)
-  is built in but needs one setting of the server first (see Status)
+- **Import of STEP, IGES and BREP** through OpenCascade (WebAssembly, in a worker, loaded only then) with the faces and colours of the file,
+  and of **STL** (faces found at sharp edges) – fillets, holes and booleans work on imported bodies like on own ones
 
 **AI assistant**
 - Describe what to build or change ("a plate 80 × 40 × 6 with four holes of 6 mm") – the AI adds **features** you edit
@@ -361,7 +361,7 @@ at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E
 | M7 | **Fillet / chamfer**, **section view**, **model edges / section / outline in sketches**, **technical drawings** (PDF, SVG, DXF) | ✅ |
 | M8 | **Sketch tools** (trim, offset, fillet, mirror, slot, tangent arc, spline, ellipse, text, picture), **dimensions like OnShape** (driven, arc length) | ✅ |
 | M9 | **Hole, shell, rib, sweep, loft, draft, thread**; **drawings as tabs** (dimensions by hand, details, centre marks); **assemblies** with mates, BOM, interference | ✅ |
-| M10 | **STEP export**, STL import; STEP / IGES import through OpenCascade – waits for a Content-Security-Policy of its own for `/lib/occt` (its reader evaluates script) | ◐ |
+| M10 | **STEP export**, **STEP / IGES / BREP / STL import** (OpenCascade in a worker with a Content-Security-Policy of its own) | ✅ |
 | next | Surfaces, sheet metal, configurations, real-time collaboration, more mates (gear, rack, limits) | open |
 
 ## Development
@@ -392,7 +392,8 @@ Texts: `src/MatShape/Resources/Texts/*.json` (`{"en": …, "de": …}`). More on
   mirror, `drawing.js` + `drawingeditor.js` the drawings, `assembly.js` the assemblies, `step.js` STEP and STL
 - The server never runs geometry: it stores and validates the feature list and saves with a revision check in the
   UPDATE itself (no lost update)
-- CSP without inline script or style (`'wasm-unsafe-eval'` for the kernel only), antiforgery header on every change
+- CSP without inline script or style (`'wasm-unsafe-eval'` for the kernel only; the STEP reader in its worker under `/lib/occt` alone may
+  evaluate script), antiforgery header on every change
 
 ## Branches & versioning
 

@@ -36,7 +36,7 @@ the npm packages (see the README.txt next to them), not loaded from a CDN. Docke
 ```
 src/MatShape
   Program.cs                 composition root: services, cookie auth (+ MatIdentity), antiforgery header, razor conventions, rate limit, static files (no-cache without ?v=), endpoints
-  Infrastructure.cs          HealthCheck (--healthcheck), Database.MigrateWithRetry, SecurityHeaders (CSP: no inline script/style, 'wasm-unsafe-eval' for the kernel), MaintenanceService, EmptyStringBinderProvider
+  Infrastructure.cs          HealthCheck (--healthcheck), Database.MigrateWithRetry, SecurityHeaders (CSP: no inline script/style, 'wasm-unsafe-eval' for the kernel; /lib/occt alone (the STEP reader in a worker) also 'unsafe-eval'), MaintenanceService, EmptyStringBinderProvider
   Data/                      Entities.cs (User, UserSession, Document, DocumentMember, PartStudio, DocumentVersion, SystemSetting), AppDbContext.cs, Migrations/
   Services/Documents/        THE business layer, static classes (permission check in every function):
                              DocumentAccess (Actor = person and/or link token -> DocumentRole; null = "not found"; an administrator has NO access to the documents of others),
@@ -83,7 +83,7 @@ src/MatShape
     solids.js                offsetVertices (faces moved by their own distances: shell, draft), hole profile, sweep along a path (parallel transport, mitred corners),
                              loft rings, axisOfFace, threadTool (60° V along a helix)
     step.js                  STEP AP214 writer (faceted B-rep: flat regions merged into faces with holes, colours), readCad: STEP/IGES/BREP via occt-import-js in a worker
-                             (/lib/occt; needs a CSP with 'unsafe-eval' for that path, not given yet), STL reader; packArray/unpackArray (base64 of the meshes of "import")
+                             (/lib/occt has its own CSP with 'unsafe-eval' – SecurityHeaders; the pages stay strict), STL reader; packArray/unpackArray (base64 of the meshes of "import")
     geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketchLoops = profiles like OnShape: curves cut at their crossings, loose ends trimmed, the smallest enclosed regions (key = sorted border ids, #2 … for regions with the same border)
     expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges (from the face names) + smooth normals, planes, sketches,

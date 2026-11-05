@@ -166,8 +166,8 @@ function hexToRgb(hex) {
 // ---- import -----------------------------------------------------------------------------------------------------------------------
 
 /**
- * Reads a file with OpenCascade in a Web Worker (the worker of occt-import-js in /lib/occt). Its code builds functions at run time (embind), which the
- * Content-Security-Policy of MatShape does not allow; without a policy of its own for /lib/occt the worker fails and the import says so.
+ * Reads a file with OpenCascade in a Web Worker (the worker of occt-import-js in /lib/occt). Its code builds functions at run time (embind): /lib/occt
+ * has a Content-Security-Policy of its own that allows this (Infrastructure.cs); the pages keep the strict one.
  */
 function readInWorker(format, bytes, params) {
   return new Promise((resolve, reject) => {

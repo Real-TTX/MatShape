@@ -57,9 +57,17 @@ builder.Services.AddSingleton<MatShape.Services.Ai.ChatGptLoginStates>();
 builder.Services.AddHttpClient("ai");
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MailService>());
 
-// The Mat platform contract (MatDesign docs/PLATFORM.md): /api, /api/health, /api/state, /api/configure, /api/actions with MAT_API_KEY or a token of MatIdentity.
-// The package MatPlatform (a copy in MatPlatform/) serves the endpoints; MatShapePlatform describes MatShape and supplies the values through the services.
-var platform = builder.AddMatPlatform<MatShapePlatform>(MatShapePlatform.Describe, o => o.DefaultLanguage = Languages.Default);
+// The Mat platform contract (MatDesign docs/PLATFORM.md, contract 2): /api, /api/health, /api/state, /api/configure, /api/actions with MAT_API_KEY or a token of
+// MatIdentity, /api/connections (the Connections area, Administration → Connections, kept in /data/matplatform) and the contributions to a shell (the launcher
+// MatShape, its document views, two widgets for administrators). The package MatPlatform (a copy in MatPlatform/) serves the endpoints; MatShapePlatform describes
+// MatShape and supplies the values through the services. MAT_PUBLIC_URL fixes the public address.
+var publicUrl = MatPlatformSettings.From(builder.Configuration, MatShapePlatform.AppId).AppPublicUrl;
+var platform = builder.AddMatPlatform<MatShapePlatform>(o => MatShapePlatform.Describe(o, publicUrl), o =>
+{
+    o.DefaultLanguage = Languages.Default;
+    o.DataDirectory = dataDir;
+    o.ConnectionsAccess = http => Task.FromResult(http.User.IsInRole(nameof(UserRole.Admin)));
+});
 
 // The interface speaks English and German (MatShape.Localization); every localizer reads the one catalog of JSON texts.
 builder.Services.AddSingleton<Microsoft.Extensions.Localization.IStringLocalizerFactory, CatalogLocalizerFactory>();

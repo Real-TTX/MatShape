@@ -5,12 +5,13 @@ using MatPlatform;
 namespace MatShape.Platform;
 
 /// <summary>
-/// MatShape as an app of the platform contract (MatDesign docs/PLATFORM.md) on the shared package MatPlatform (the folder <c>MatPlatform/</c>, a copy):
-/// how a consumer such as Mattiverse shows MatShape (<see cref="Describe"/>: tiles, the few settings, buttons), its values and what its buttons do.
-/// The settings are the two of the admin page System (registration, public address), kept in the same place (<see cref="InstanceService"/>).
+/// MatShape as an app of the platform contract (MatDesign docs/PLATFORM.md, contract 2) on the shared package MatPlatform (the folder <c>MatPlatform/</c>, a copy):
+/// how a consumer such as Mattiverse shows MatShape (<see cref="Describe"/>: tiles, the few settings, buttons), what it consumes (the sign-in of MatIdentity and the
+/// mail of MatSMTP, both optional), what it adds to a shell (the launcher MatShape with its document views, two widgets for administrators), its values and what its
+/// buttons do. The settings are the two of the admin page System (registration, public address), kept in the same place (<see cref="InstanceService"/>).
 /// The values come from the services (no DbContext here: this is the web layer).
 /// </summary>
-public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapePlatform> log)
+public sealed class MatShapePlatform(InstanceService instance, MatPlatformSettings settings, ILogger<MatShapePlatform> log)
     : IMatPlatformState, IMatPlatformConfiguration, IMatPlatformActions, IMatPlatformHealth
 {
     /// <summary>The id of MatShape in the platform (and the default client id at MatIdentity), as in MatDesign <c>AppRegistry.cs</c>.</summary>
@@ -19,16 +20,46 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
     /// <summary>The accent of MatShape (a fresh green in the family of the CAD tools on the web, but its own; see <c>wwwroot/css/app.css</c>).</summary>
     public const string Accent = "#3cb764";
 
-    /// <summary>The MatApiDefinition of MatShape (<c>GET /api</c>); <c>auth</c> and <c>endpoints</c> are set by MatPlatform.</summary>
-    public static void Describe(MatPlatformBuilder o)
+    /// <summary>The MatApiDefinition of MatShape (<c>GET /api</c>) without <c>MAT_PUBLIC_URL</c>.</summary>
+    public static void Describe(MatPlatformBuilder o) => Describe(o, null);
+
+    /// <summary>
+    /// The MatApiDefinition of MatShape (<c>GET /api</c>); <c>auth</c> and <c>endpoints</c> are set by MatPlatform. <paramref name="publicUrl"/> is the value of
+    /// <c>MAT_PUBLIC_URL</c>: while it is set, the field <c>publicUrl</c> is fixed.
+    /// </summary>
+    public static void Describe(MatPlatformBuilder o, string? publicUrl)
     {
         var T = o.T;
 
         o.App(AppId, "MatShape", T("3D-CAD im Browser: parametrische Teile modellieren", "3D CAD in the browser: model parametric parts"), AppInfo.Version, "/img/logo/matshape-mark.svg", Accent, "/Documents");
 
+        // What MatShape uses from other apps: the sign-in through MatIdentity and the mail through MatSMTP (the mail when a document is shared), each set by its variables.
+        o.Consumes(MatCapabilities.IdentityOidc, optional: true);
+        o.Consumes(MatCapabilities.MailSmtp, optional: true);
+
+        // What MatShape adds to the home screen of a shell (Mattiverse): its icon with a new document and the lists of its menu, and two widgets for administrators.
+        o.Launcher("documents", "MatShape", "/img/logo/matshape-mark.svg", "/Documents");
+        o.QuickAction("documents", T("Neues Dokument", "New document"), "plus", url: "/Documents/Edit");
+        o.QuickAction("documents", T("Alle Dokumente", "All documents"), "box", url: "/Documents");
+        o.QuickAction("documents", T("Mit mir geteilt", "Shared with me"), "users", url: "/Documents?scope=shared");
+        o.Widget(new MatWidget("documents", T("Dokumente", "Documents"), MatWidgetKinds.Tiles, "medium")
+        {
+            Items = ["documents", "sharedDocuments", "linkedDocuments", "changedLast7Days"],
+            Icon = "box",
+            Url = "/Admin/System",
+            Audience = MatAudience.Admin,
+        });
+        o.Widget(new MatWidget("users", T("Aktive Benutzer", "Active users"), MatWidgetKinds.Stat)
+        {
+            Items = ["users"],
+            Icon = "users",
+            Url = "/Admin/Users",
+            Audience = MatAudience.Admin,
+        });
+
         o.Page("overview", T("Übersicht", "Overview"), "dashboard",
             MatSection.Tiles("users", "documents", "sharedDocuments", "linkedDocuments", "studios", "versions", "changedLast7Days", "registration", "lastActivity"),
-            MatSection.Actions("openApp", "openUsers", "openSystem", "cleanUp"));
+            MatSection.Actions("openApp", "openUsers", "openConnections", "openSystem", "cleanUp"));
         o.Page("settings", T("Einstellungen", "Settings"), "settings",
             MatSection.Form(T("Allgemein", "General"), "registrationOpen", "publicUrl"));
 
@@ -46,15 +77,21 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
         {
             Hint = T("Aus: nur Administratoren legen Konten an.", "Off: only administrators create accounts."),
         });
-        o.Field(new MatField("publicUrl", T("Öffentliche Adresse", "Public address"), "url")
+        var address = new MatField("publicUrl", T("Öffentliche Adresse", "Public address"), "url")
         {
             Max = 300,
             Placeholder = "https://cad.example.com",
             Hint = T("Für die Adressen in E-Mails; leer: die Adresse des Aufrufs.", "For the addresses in mails; empty: the address of the request."),
+        };
+        o.Field(publicUrl is null ? address : address with
+        {
+            Fixed = true,
+            Hint = T("Festgelegt durch MAT_PUBLIC_URL (Mattiverse); hier lässt sie sich nicht ändern.", "Set by MAT_PUBLIC_URL (Mattiverse); it cannot be changed here."),
         });
 
         o.LinkAction("openApp", T("Öffnen", "Open"), "external", "/Documents");
         o.LinkAction("openUsers", T("Benutzer", "Users"), "users", "/Admin/Users");
+        o.LinkAction("openConnections", T("Verbindungen", "Connections"), "plug", "/Admin/Connections");
         o.LinkAction("openSystem", T("System", "System"), "settings", "/Admin/System");
         o.PostAction(
             "cleanUp",
@@ -125,6 +162,9 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
             {
                 case "registrationOpen" when value.ValueKind is JsonValueKind.True or JsonValueKind.False:
                     open = value.GetBoolean();
+                    break;
+                case "publicUrl" when settings.AppPublicUrl is not null:
+                    errors[key] = call.T("Festgelegt durch MAT_PUBLIC_URL.", "Set by MAT_PUBLIC_URL.");
                     break;
                 case "publicUrl" when value.ValueKind is JsonValueKind.String:
                     url = value.GetString()!;

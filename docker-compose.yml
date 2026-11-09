@@ -11,6 +11,21 @@ services:
       - "3939:3939"
     volumes:
       - web-data:/data
+    # Optional, none of them is needed (README "Settings that matter"); Mattiverse sets them when it installs MatShape:
+    # environment:
+    #   MAT_API_KEY: ""                    # the key of /api/* (platform contract)
+    #   MAT_PUBLIC_URL: ""                 # https://cad.example.com: the public address (fixed on Administration -> System while set)
+    #   MAT_FRAME_ANCESTORS: ""            # origins that may show MatShape in a frame (Mattiverse)
+    #   MATIDENTITY_AUTHORITY: ""          # https://id.example.com: sign-in through MatIdentity
+    #   MATIDENTITY_CLIENT_ID: "matshape"
+    #   MATIDENTITY_CLIENT_SECRET: ""
+    #   MATIDENTITY_INTERNAL_URL: ""       # http://matidentity:2300 inside Docker
+    #   MATSMTP_HOST: ""                   # mail through MatSMTP ("a document was shared with you")
+    #   MATSMTP_PORT: "2025"
+    #   MATSMTP_USERNAME: ""
+    #   MATSMTP_PASSWORD: ""
+    #   MATSMTP_FROM: ""                   # matshape@example.com
+    #   MATSMTP_TLS: "none"                # none, starttls or tls
     depends_on:
       db:
         condition: service_healthy

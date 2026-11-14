@@ -120,7 +120,7 @@ public sealed partial class TextCatalogTests
         => string.Join(',', PlaceholderRegex().Matches(text).Select(m => m.Value).Distinct().Order(StringComparer.Ordinal));
 
     // L["Key"], L["Key", ...], Text.T("Key"), t('Js.Key'), and the keys written as plain strings in a ternary (L[x ? "A.B" : "C.D"]): every quoted Area.Thing of the catalog's areas
-    [GeneratedRegex("""["'](?<key>(Common|Shell|Menu|Settings|Password|Admin|Account|Models|Folders|Studios|Versions|Units|Studio|Members|Share|About|Mail|Users|System|Lists|Landing|Errors|Ai|Js)\.[A-Za-z0-9.]+)["']""")]
+    [GeneratedRegex("""["'](?<key>(Common|Shell|Menu|Settings|Password|Admin|Account|Models|Folders|Studios|Versions|Units|Studio|Members|Share|About|Mail|Users|System|Connections|Lists|Landing|Errors|Ai|Js)\.[A-Za-z0-9.]+)["']""")]
     private static partial Regex KeyRegex();
 
     // the quoted keys of the editor's areas: t('Tree.Edit'), new FeatureError('Feature.NoParts'), t(gone ? 'Studio.Gone.Title' : 'Studio.Fail.Title')

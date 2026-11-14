@@ -44,7 +44,8 @@ EXPOSE 3939
 
 COPY --from=build /app/publish .
 
-# One volume for what the app keeps in files: the keys that protect the sessions. The database is the other container.
+# One volume for what the app keeps in files: the keys that protect the sessions, the encrypted AI secrets and the connections entered by hand
+# (matplatform/). The database is the other container.
 RUN mkdir -p /data/keys && chown -R $APP_UID:$APP_UID /data
 VOLUME /data
 USER $APP_UID

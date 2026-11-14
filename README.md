@@ -341,35 +341,53 @@ when it installs MatShape.
 | Variable | Meaning |
 |---|---|
 | `ConnectionStrings__Default` | PostgreSQL (default in the image: `Host=db;Database=matshape;Username=matshape;Password=matshape`) |
+| `DataDirectory` | Folder of the session keys, the encrypted AI secrets and the connections (`matplatform/`); default `/data`, the volume `web-data` |
 | `MAT_API_KEY` | Key for the platform API `/api/*` (header `X-Api-Key`) |
+| `MAT_PUBLIC_URL` | The public address of MatShape (for the document links and the links in e-mails); set = *Administration → System* only shows it. Mattiverse sets it once MatShape has an address of its own |
+| `MAT_FRAME_ANCESTORS` | Addresses that may show MatShape in a frame (the window of Mattiverse); Mattiverse sets it |
 | `MATIDENTITY_AUTHORITY`, `MATIDENTITY_CLIENT_ID`, `MATIDENTITY_CLIENT_SECRET`, `MATIDENTITY_INTERNAL_URL` | Sign-in through **MatIdentity** |
 | `MATSMTP_HOST`, `MATSMTP_PORT`, `MATSMTP_USERNAME`, `MATSMTP_PASSWORD`, `MATSMTP_FROM`, `MATSMTP_TLS` | E-mail through **MatSMTP** ("a model was shared with you") |
 
 ### After the first sign-in
 
-*Administration* holds **users**, **system** (registration, public address) and **AI**: add a profile (provider, key,
+*Administration* holds **users**, **connections** (what MatShape uses of other apps), **system** (registration, public address) and **AI**: add a profile (provider, key,
 *Load models*, *Test*, *Activate*), set limits for tokens per person and month, and look at every run. Keys and ChatGPT
 sign-ins are stored **encrypted in the `/data` volume**, never in the database or the browser.
 
 ### The volumes
 
 ```
-web-data  (/data)   session keys, encrypted AI secrets ({data}/secrets/ai)
-db-data             PostgreSQL 17: accounts, models, Part Studios (jsonb), versions, AI runs
+web-data  (/data)   session keys, encrypted AI secrets ({data}/secrets/ai), connections entered by hand ({data}/matplatform)
+db-data             PostgreSQL 17: accounts, models, folders, Part Studios (jsonb), versions, AI runs
 ```
 
 ## Mat platform: API and sign-in through MatIdentity
 
-MatShape follows the platform contract of the Mat apps ([MatDesign `docs/PLATFORM.md`](https://github.com/Real-TTX/MatDesign/blob/main/docs/PLATFORM.md),
-package MatPlatform 1.4.0 in `src/MatShape/MatPlatform`, a copy that is never edited here).
+MatShape follows contract 2 of the platform contract of the Mat apps ([MatDesign `docs/PLATFORM.md`](https://github.com/Real-TTX/MatDesign/blob/main/docs/PLATFORM.md),
+package MatPlatform 2.2.1 in `src/MatShape/MatPlatform`, a copy that is never edited here; the app model:
+[`docs/APP-MODEL.md`](https://github.com/Real-TTX/MatDesign/blob/main/docs/APP-MODEL.md)): Mattiverse and other apps can show, watch and set up MatShape
+without knowing it beforehand.
+
+**What MatShape uses:** the sign-in through MatIdentity (`identity.oidc`, through the `MATIDENTITY_*` variables) and the e-mail through MatSMTP
+(`mail.smtp`, through the `MATSMTP_*` variables), both optional. MatShape depends on no other app and runs the same without Mattiverse.
+
+**What MatShape adds to a home screen** (Mattiverse's, for example): the icon *MatShape* (`/Documents`) with the quick actions *New document*
+(`/Documents/Edit`), *All documents* and *Shared with me*, and two widgets for administrators: *Documents* (documents, shared, with a link, changed in
+7 days) and *Active users*.
+
+**Connections:** *Administration → Connections* (`/Admin/Connections`, administrators only) shows what MatShape uses, where it comes from (the variables or
+not connected) and what it adds to a home screen; `GET /api/connections` answers the same as JSON.
 
 | Endpoint | Access | What it is |
 |---|---|---|
-| `GET /api` | anonymous | the description: pages *Overview* and *Settings*, tiles, fields, actions, roles `admin` / `user` |
+| `GET /api` | anonymous | the description: pages *Overview* and *Settings*, tiles, fields, actions, roles `admin` / `user`, what it consumes and contributes |
 | `GET /api/health` | anonymous | `ok` / `degraded` (no active administrator) / `down` (database gone) |
 | `GET /api/state[/{key}]` | key or token | tiles: active users, models, shared models, models with a link, Part Studios, versions, changed in 7 days, registration, last change |
-| `GET` / `PUT /api/configure` | key or token | registration open, public address |
+| `GET` / `PUT /api/configure` | key or token | registration open, public address (fixed while `MAT_PUBLIC_URL` is set) |
+| `GET /api/connections` | key or token | the connections: what MatShape uses and adds to a home screen |
 | `POST /api/actions/cleanUp` | key or token | removes ended sessions and models deleted more than 30 days ago |
+
+The other actions are links (*Open* `/Documents`, *Users* `/Admin/Users`, *Connections* `/Admin/Connections`, *System* `/Admin/System`).
 
 **Sign-in through MatIdentity** is on when `MATIDENTITY_AUTHORITY` is set: OpenID Connect with PKCE, back-channel logout
 at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E-mail through MatSMTP** is on with

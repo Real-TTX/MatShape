@@ -54,7 +54,8 @@ src/MatShape
   Services/Accounts/          static too: Profiles (own account), UserAdmin (administrators only; the last administrator stays)
   Services/Mail/MailService  MatSMTP through MailKit, queued in the background; off unless MATSMTP_HOST is set
   Services/Auth/             CurrentUser, PasswordService, SessionService (sessions in the DB), AccountService, ExternalSignInService (MatIdentity), AccountDataService (GDPR export/erase)
-  Services/                  Ui (icons, logo), MenuService, InstanceService (numbers, settings, housekeeping), ListModels (toolbar, pager), Dates, Assets, Outcome, StudioViewModel
+  Services/                  Ui (icons, logo), MenuService, InstanceService (numbers, settings – the public address in force: MAT_PUBLIC_URL, else the stored one, PublicUrlOf;
+                             the share mail and the document link take it from SettingsAsync –, housekeeping), ListModels (toolbar, pager), Dates, Assets, Outcome, StudioViewModel
   Services/Ai/               the AI (pattern of DesignThix): AiTypes, ChatCompletionsClient (any OpenAI-compatible provider, /models with "free"), ChatGptAccount (device code like Codex),
                              LenientJson (copied from DesignThix, keep in step); AiSecretStore (keys + sign-ins encrypted in {data}/secrets/ai) + AiRateLimiter; AiSettings (JSON in SystemSetting);
                              AiAdmin (profiles, settings, runs: administrators only), AiService (one call: on/off, limits, transport, one JSON object, nudges, every step into AiRun/AiRunStep),
@@ -63,11 +64,15 @@ src/MatShape
                              files at signed addresses for 3 days), MeshService (editor right to start, only the starter asks/fetches/stops, limits count generations (running + done) per
                              person per day and for all per month, every generation an AiRun with action Mesh; the files go through the server), settings in AiSettings.Mesh, the key in
                              AiSecretStore under the installation token (Guid.Empty, kind "meshy"); endpoints /live/studios/{id}/ai/mesh, /live/ai/mesh/{run}[/model|stl|thumbnail]
-  MatPlatform/               copy of the shared package (MatDesign): platform contract, MatIdentity sign-in, back-channel logout, MatSmtpSettings. Never edit here.
-  Platform/                  MatShapePlatform (tiles, settings, actions for Mattiverse), MatShapeIdentityUsers
+  MatPlatform/               copy of the shared package of MatDesign, 2.2.1 (node tools/matplatform-copy.js src/MatShape in MatDesign): platform contract 2, MatIdentity sign-in,
+                             back-channel logout, MatSmtpSettings, the Connections area (<mat-connections />, /api/connections, kept in {data}/matplatform), MAT_PUBLIC_URL,
+                             MAT_FRAME_ANCESTORS. Never edit here.
+  Platform/                  MatShapePlatform (contract 2: tiles, the two settings – publicUrl fixed while MAT_PUBLIC_URL is set –, actions; consumes identity.oidc and mail.smtp,
+                             both optional; contributes the launcher MatShape with the quick actions New model / All models / Shared with me and the admin widgets
+                             models (tiles) / users (stat)), MatShapeIdentityUsers
   Controls/                  ONE code base per control: <ms-field>, <ms-buttons>, <ms-table>, <ms-tabs>/<ms-tab>
   Pages/                     Models/ (Index = gallery + table with the folders of ?folder= above and the path as crumbs, Folder = create/edit a folder, Move = file a model,
-                             Edit/Members/Share/Versions = the tabs of a model, Version = create/edit a version, Studio = the editor), Public/Link (link /s/{token}), Account/, Admin/ (Users, System, Ai/: General, Profiles, Mesh = the 3D generation, Runs),
+                             Edit/Members/Share/Versions = the tabs of a model, Version = create/edit a version, Studio = the editor), Public/Link (link /s/{token}), Account/, Admin/ (Users, System, Connections = <mat-connections />, Ai/: General, Profiles, Mesh = the 3D generation, Runs),
                              About, Shared/ (_Layout, _LayoutStudio + _Studio = the editor frame, _ModelTabs, _AiTabs)
   Resources/Texts/           the text catalog (en + de): Models.json, Studio.json (server texts of the editor), Js.json (texts of the scripts, key Js.*), ...
   wwwroot/js/cad/            the editor (ES modules):
@@ -139,7 +144,9 @@ src/MatShape
   wwwroot/lib/three/lines/   LineSegments2 / LineMaterial of three.js (lines with a width; the view themes in viewport.js use them)
   wwwroot/sw.js              service worker: static cache (incl. lib), network-first for editor pages and /live/models/{id} (copies for offline), offline.html; cleared on sign-out (pwa.js)
   wwwroot/js/folders.js      the list of models: drag a model or folder onto a folder (or a crumb of the path) -> the hidden form, handler Drop
-tests/MatShape.Tests         unit + database tests (ModelTests, FolderTests incl. the migration, AccountTests, StudioContentTests, AiTests, MeshTests (fake Meshy), TextCatalogTests)
+tests/MatShape.Tests         unit + database tests (ModelTests, FolderTests incl. the migration, AccountTests, StudioContentTests, AiTests, MeshTests (fake Meshy), TextCatalogTests);
+                             Platform/: the definition (PlatformDefinitionTests, no database) and the whole app in memory (MatShapeFactory = WebApplicationFactory on a database of
+                             its own, first account admin@example.com; PlatformApiTests, the collection "The app in memory" runs alone after the rest because the factories set environment variables)
 ```
 
 ## The content of a Part Studio
@@ -169,6 +176,11 @@ Studio and of a version is `jsonb`.
 **Security**: every model query goes through `ModelAccess`; a model you may not see answers 404. Every change of `/live` needs a signed-in person, the antiforgery header
 `RequestVerificationToken` and the editor right (checked in the business layer). A link never edits. Saving compares the revision in the UPDATE itself (no lost update). The CSP forbids inline script and
 style (scripts set styles through the CSSOM). Text is always put into the page with `textContent`, never as HTML. Mail addresses are never logged in full.
+
+**Platform (MatDesign docs/PLATFORM.md, contract 2; the app model docs/APP-MODEL.md)**: `/api*` and the Connections area come from MatPlatform; MatShapePlatform only describes and asks the
+services. MatShape consumes `identity.oidc` and `mail.smtp` (both optional) and runs without any variable. A new figure for a home screen is a widget made of existing tiles (no code per shell);
+every icon of the definition must be in the MatUi sprite (an icon of `app-icons.svg` fails the validator). `MAT_PUBLIC_URL` wins over the stored public address everywhere
+(`InstanceService.SettingsAsync`) and fixes it on *Administration → System* and in `/api/configure`; the stored value stays and comes back when the variable goes.
 
 **UI (MatDesign rules)**: CRUD = list page (toolbar above, table/gallery, pager under it, actions left below) + separate edit page (Save, Back, space, Delete); a model has **tabs** (General, People,
 Link, Versions) that are pages of their own. The editor is the special UI of the app (like a designer in a designer app): its own page without the menu, built on the tokens of the toolkit.

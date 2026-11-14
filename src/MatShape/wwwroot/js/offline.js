@@ -1,7 +1,7 @@
 /* MatShape without a network – small on purpose.
    - A page of the app shows "Offline" in the top bar while the device has no network (a click tries again).
    - The offline page (offline.html, shown by the service worker when a page cannot be loaded) tries again by itself as soon as the network is back, and by a button.
-   - The editor works offline by itself (app.js: the last copy of the document from the service worker, and the changes wait on this device until the network is back). */
+   - The editor works offline by itself (app.js: the last copy of the model from the service worker, and the changes wait on this device until the network is back). */
 (function () {
   'use strict';
 
@@ -33,7 +33,7 @@
     root.lang = stored || ((navigator.language || 'en').slice(0, 2) === 'de' ? 'de' : lang || 'en');
     var retry = document.getElementById('ms-retry');
     var status = document.getElementById('ms-retry-status');
-    var go = function () { location.assign(document.referrer && document.referrer.indexOf(location.origin) === 0 ? document.referrer : '/Documents'); };
+    var go = function () { location.assign(document.referrer && document.referrer.indexOf(location.origin) === 0 ? document.referrer : '/Models'); };
     retry.addEventListener('click', function () {
       status.hidden = false;
       fetch('/health', { cache: 'no-store' }).then(function (r) { if (r.ok) { go(); } else { status.hidden = false; } }).catch(function () { status.hidden = false; });

@@ -1,9 +1,9 @@
 using MatShape.Data;
-using MatShape.Services.Documents;
+using MatShape.Services.Models;
 
 namespace MatShape.Services;
 
-/// <summary>What the menu shows: the documents the person worked on last and how many there are.</summary>
+/// <summary>What the menu shows: the models the person worked on last and how many there are.</summary>
 public sealed class MenuModel
 {
     public IReadOnlyList<(long Id, string Name)> Recent { get; init; } = [];
@@ -20,12 +20,12 @@ public sealed class MenuService(AppDbContext db, CurrentUser me)
 {
     private MenuModel? _model;
 
-    /// <summary>The menus of the switcher: the documents, the settings of the person and, for an administrator, the administration.</summary>
+    /// <summary>The menus of the switcher: the models, the settings of the person and, for an administrator, the administration.</summary>
     public static IReadOnlyList<MenuArea> Areas(bool admin)
     {
         var list = new List<MenuArea>
         {
-            new("documents", Localization.Text.T("Shell.Area.Documents"), "box"),
+            new("models", Localization.Text.T("Shell.Area.Models"), "box"),
             new("settings", Localization.Text.T("Settings.Title"), "settings"),
         };
         if (admin)
@@ -46,7 +46,7 @@ public sealed class MenuService(AppDbContext db, CurrentUser me)
             return "admin";
         }
 
-        return Under("/Account") ? "settings" : "documents";
+        return Under("/Account") ? "settings" : "models";
     }
 
     public async Task<MenuModel> GetAsync()
@@ -57,10 +57,10 @@ public sealed class MenuService(AppDbContext db, CurrentUser me)
         }
 
         var userId = me.RequiredId;
-        var (mine, shared) = await DocumentService.CountsAsync(db, userId);
+        var (mine, shared) = await ModelService.CountsAsync(db, userId);
         _model = new MenuModel
         {
-            Recent = await DocumentService.RecentAsync(db, userId, 6),
+            Recent = await ModelService.RecentAsync(db, userId, 6),
             Mine = mine,
             Shared = shared,
         };

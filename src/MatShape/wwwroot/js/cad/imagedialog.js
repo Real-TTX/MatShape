@@ -27,7 +27,7 @@ function colourName(rgb) {
 }
 
 export class ImageDialog {
-  /** host: { apply(features, parts), toAi(file) | null } */
+  /** host: { apply(features, parts), toAi(file) | null, toMesh(file) | null (the 3D generation) } */
   constructor(dialog, host) {
     this.dialog = dialog;
     this.host = host;
@@ -73,6 +73,7 @@ export class ImageDialog {
     this.$('[data-img-base]').addEventListener('change', () => { this.$('[data-img-base-fields]').hidden = this.$('[data-img-base]').value === 'none'; });
     this.$('[data-img-apply]').addEventListener('click', () => this.apply());
     this.$('[data-img-ai]')?.addEventListener('click', () => { if (this.file) { this.close(); this.host.toAi?.(this.file); } });
+    this.$('[data-img-mesh]')?.addEventListener('click', () => { if (this.file) { this.close(); this.host.toMesh?.(this.file); } });
     this.outputs();
   }
 
@@ -115,6 +116,8 @@ export class ImageDialog {
     this.$('[data-img-apply]').disabled = false;
     const ai = this.$('[data-img-ai]');
     if (ai) ai.disabled = false;
+    const mesh = this.$('[data-img-mesh]');
+    if (mesh) mesh.disabled = false;
     this.compute('pixels');
   }
 

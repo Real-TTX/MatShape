@@ -1,0 +1,162 @@
+@page "/Models"
+@model MatShape.Pages.Models.IndexModel
+@{
+    var inFolder = Model.Browsing && Model.Folder is not null;
+    ViewData["Title"] = inFolder ? Model.Path[^1].Name : L["Models.Title"].Value;
+    ViewData["PageSub"] = inFolder ? IndexModel.Contents(new MatShape.Services.Models.FolderTile(0, string.Empty, Model.Listing.Matching, Model.Folders.Count, default)) : L["Models.Sub"].Value;
+    if (inFolder)
+    {
+        // the path of the open folder: every folder above is a link and a place to drop models on (folders.js)
+        var crumbs = new List<(string, string?)> { (L["Models.Title"].Value, "/Models") };
+        crumbs.AddRange(Model.Path.Select(f => (f.Name, (string?)$"/Models?folder={f.Id}")));
+        ViewData["Crumbs"] = crumbs;
+        ViewData["NewModelUrl"] = $"/Models/Edit?folder={Model.Folder}";
+    }
+
+    var newModel = inFolder ? $"/Models/Edit?folder={Model.Folder}" : "/Models/Edit";
+    var newFolder = inFolder ? $"/Models/Folder?parent={Model.Folder}" : "/Models/Folder";
+    var nothing = Model.Listing.Rows.Count == 0 && Model.Folders.Count == 0;
+}
+
+@section TopActions {
+    @if (inFolder)
+    {
+        <a class="mat-btn mat-btn--secondary mat-btn--icon" href="/Models/Folder?id=@Model.Folder" aria-label="@L["Folders.Edit"]" data-tip="@L["Folders.Edit"]">@Ui.Icon("edit")</a>
+    }
+}
+
+<div class="mat-list" data-view-scope>
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Folders.Count > 0)
+    {
+        @* the folders of the open folder (or the ones a search found): a click opens one, a model or folder dropped on one goes into it *@
+        <ul class="ms-folders" aria-label="@L["Folders.Many"]">
+            @foreach (var f in Model.Folders)
+            {
+                <li>
+                    <a class="ms-folder" href="/Models?folder=@f.Id" data-drop-folder="@f.Id" data-drag-folder="@f.Id" draggable="true">
+                        @Ui.Icon("folder", "ms-folder__icon")
+                        <span class="ms-folder__body">
+                            <span class="ms-folder__name">@f.Name</span>
+                            <span class="ms-folder__meta">@IndexModel.Contents(f)</span>
+                        </span>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (nothing && inFolder)
+    {
+        <div class="mat-empty mat-empty--first">
+            <span class="mat-empty__icon">@Ui.Icon("folder-open")</span>
+            <div class="mat-empty__title">@L["Folders.EmptyFolder.Title"]</div>
+            <p>@L["Folders.EmptyFolder.Text"]</p>
+            <a class="mat-btn mat-btn--primary" href="@newModel">@Ui.Icon("plus")<span>@L["Models.New"]</span></a>
+        </div>
+    }
+    else if (nothing)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("cube", L[Model.Toolbar.Total == 0 ? "Models.Empty.Title" : "Models.NoMatch"].Value, L[Model.Toolbar.Total == 0 ? "Models.Empty.Text" : "Lists.ChangeTools"].Value, Model.Toolbar.Total == 0, newModel, L["Models.New"].Value, Model.Toolbar.UrlReset()))" />
+    }
+    else if (Model.Listing.Rows.Count > 0)
+    {
+        @* the pictures (the default view): one tile per model with the picture the editor made of it; a tile can be dragged onto a folder *@
+        <div class="mat-gallery" data-view="gallery">
+            @foreach (var d in Model.Listing.Rows)
+            {
+                <a class="mat-tile ms-model-tile" href="/Models/Studio/@d.Id" data-drag-model="@d.Id">
+                    <span class="mat-tile__media ms-model-tile__media">
+                        @if (d.HasThumbnail)
+                        {
+                            <img src="/live/models/@d.Id/thumbnail" alt="" loading="lazy" width="320" height="240" draggable="false" />
+                        }
+                        else
+                        {
+                            @Ui.Icon("cube", "ms-model-tile__icon")
+                        }
+                    </span>
+                    <span class="mat-tile__body">
+                        <span class="mat-tile__title">@d.Name</span>
+                        <span class="mat-tile__meta">@(d.Mine ? L["Models.You"].Value : d.OwnerName) · @Dates.Stamp(d.UpdateDate, Model.Zone)</span>
+                        <span class="ms-model-tile__pills">
+                            <span class="mat-pill @(d.Mine ? "mat-pill--accent" : "mat-pill--plain")">@L["Models.Role." + d.Role]</span>
+                            <span class="mat-pill mat-pill--plain">@d.Units</span>
+                        </span>
+                    </span>
+                </a>
+            }
+        </div>
+
+        <div data-view="list" hidden>
+            <ms-table caption="@L["Models.Title"]">
+                <thead>
+                    <tr>
+                        <th scope="col">@L["Models.Col.Model"]</th>
+                        <th scope="col" class="mat-hide-sm">@L["Models.Col.Owner"]</th>
+                        <th scope="col">@L["Models.Col.Access"]</th>
+                        <th scope="col" class="mat-num mat-hide-sm">@L["Models.Col.Studios"]</th>
+                        <th scope="col" class="mat-hide-md">@L["Models.Col.Changed"]</th>
+                        <th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Model.Listing.Rows)
+                    {
+                        <tr>
+                            <td data-label="@L["Models.Col.Model"]">
+                                <a class="ms-name" href="/Models/Studio/@d.Id" data-drag-model="@d.Id">@Ui.Icon("cube")<span>@d.Name</span></a>
+                                @if (!string.IsNullOrEmpty(d.Description)) { <small class="ms-muted ms-block-line">@d.Description</small> }
+                            </td>
+                            <td data-label="@L["Models.Col.Owner"]" class="mat-hide-sm">@(d.Mine ? L["Models.You"].Value : d.OwnerName)</td>
+                            <td data-label="@L["Models.Col.Access"]"><span class="mat-pill @(d.Mine ? "mat-pill--accent" : "mat-pill--plain")">@L["Models.Role." + d.Role]</span></td>
+                            <td data-label="@L["Models.Col.Studios"]" class="mat-num mat-mono mat-hide-sm">@d.Studios</td>
+                            <td data-label="@L["Models.Col.Changed"]" class="mat-mono mat-hide-md">@Dates.Stamp(d.UpdateDate, Model.Zone)</td>
+                            <td class="mat-table__cell-actions">
+                                <div class="mat-table__actions">
+                                    <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Models/Studio/@d.Id" aria-label="@L["Models.OpenNamed", d.Name]" data-tip="@L["Models.Open"]">@Ui.Icon("external")</a>
+                                    <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Models/Move?id=@d.Id" aria-label="@L["Folders.MoveNamed", d.Name]" data-tip="@L["Folders.Move"]">@Ui.Icon("folder")</a>
+                                    <form method="post" asp-page-handler="Duplicate" asp-route-id="@d.Id">
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@L["Models.DuplicateNamed", d.Name]" data-tip="@L["Models.Duplicate"]">@Ui.Icon("copy")</button>
+                                    </form>
+                                    @if (d.Mine)
+                                    {
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Models/Edit?id=@d.Id" aria-label="@L["Common.EditNamed", d.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a>
+                                    }
+                                    else
+                                    {
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Models/Versions?id=@d.Id" aria-label="@L["Versions.Title"]: @d.Name" data-tip="@L["Versions.Title"]">@Ui.Icon("version")</a>
+                                        <form method="post" asp-page-handler="Leave" asp-route-id="@d.Id" class="ms-sep">
+                                            <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm ms-danger" aria-label="@L["Models.LeaveNamed", d.Name]" data-tip="@L["Models.Leave"]"
+                                                    data-confirm="@L["Models.LeaveConfirm", d.Name]" data-confirm-ok="@L["Models.Leave"]">@Ui.Icon("logout")</button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </ms-table>
+        </div>
+    }
+
+    <partial name="_Pager" model="Model.Pager" />
+
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--primary" href="@newModel">@Ui.Icon("plus")<span>@L["Models.New"]</span></a>
+        <a class="mat-btn mat-btn--secondary" href="@newFolder">@Ui.Icon("folder")<span>@L["Folders.New"]</span></a>
+    </div>
+
+    @* what a drop sends (folders.js fills it in): a model or a folder, into a folder (empty = the top), and the way back to this list *@
+    <form method="post" asp-page-handler="Drop" data-drop-form hidden>
+        <input type="hidden" name="kind" />
+        <input type="hidden" name="id" />
+        <input type="hidden" name="target" />
+        <input type="hidden" name="back" value="@Model.Here" />
+    </form>
+</div>
+
+@section Scripts {
+    <script src="~/js/folders.js" asp-append-version="true"></script>
+}

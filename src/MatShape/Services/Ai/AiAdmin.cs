@@ -81,7 +81,7 @@ public static class AiAdmin
         }
         else if (name.Length > 80)
         {
-            errors.Add(new FieldError("Name", Text.T("Documents.NameTooLong", 80)));
+            errors.Add(new FieldError("Name", Text.T("Models.NameTooLong", 80)));
         }
         else if (await c.Db.AiProfiles.AnyAsync(p => p.Name == name && p.Id != id, ct))
         {

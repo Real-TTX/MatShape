@@ -16,7 +16,7 @@
             <dt>@L["Ai.Runs.Col.Profile"]</dt><dd>@r.ProfileName <span class="mat-mono">@r.Model</span></dd>
             <dt>@L["Ai.Runs.Col.Tokens"]</dt><dd class="mat-mono">@(r.TokensEstimated ? "≈" : "")@r.PromptTokens.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture) + @r.CompletionTokens.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture)</dd>
             <dt>@L["Ai.Runs.Col.Started"]</dt><dd class="mat-mono">@Dates.Stamp(r.StartDate, Model.Zone)</dd>
-            @if (r.DocumentId is { } doc) { <dt>@L["Documents.One"]</dt><dd><a href="/Documents/Studio/@doc">#@doc</a></dd> }
+            @if (r.ModelId is { } doc) { <dt>@L["Models.One"]</dt><dd><a href="/Models/Studio/@doc">#@doc</a></dd> }
         </dl>
     </div>
 </div>

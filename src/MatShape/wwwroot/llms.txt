@@ -1,19 +1,19 @@
 # MatShape
 
-> MatShape is a self-hosted 3D CAD application in the browser, in the spirit of the parametric CAD tools on the web. People design parts from sketches and features (extrude, revolve, boolean, transform, mirror, linear and circular patterns, split, delete part, planes and variables) in a feature history that can be changed at any point. Documents hold several Part Studios, keep named versions and can be shared. It is a Progressive Web App (installable; the last loaded documents stay available offline).
+> MatShape is a self-hosted 3D CAD application in the browser, in the spirit of the parametric CAD tools on the web. People design parts from sketches and features (extrude, revolve, boolean, transform, mirror, linear and circular patterns, split, delete part, planes and variables) in a feature history that can be changed at any point. Models hold several Part Studios, keep named versions and can be shared. It is a Progressive Web App (installable; the last loaded models stay available offline).
 
-Everything except the start page needs an account or the secret link of a document. There is no public API for third parties; the pages and the JSON endpoints of the editor are its only interface (the platform contract under /api is for Mattiverse and needs a key). The interface is available in English and German.
+Everything except the start page needs an account or the secret link of a model. There is no public API for third parties; the pages and the JSON endpoints of the editor are its only interface (the platform contract under /api is for Mattiverse and needs a key). The interface is available in English and German.
 
 ## What a person can do
 
-- Create documents (name, description, units: mm, cm, m, in), duplicate them, delete them; add, rename, copy, move and delete Part Studios (the tabs of a document).
+- Create models (name, description, units: mm, cm, m, in), duplicate them, delete them; add, rename, copy, move and delete Part Studios (the tabs of a model).
 - Sketch on the standard planes (Top, Front, Right), on offset planes or on flat faces of parts: lines, rectangles, circles, three-point arcs, polygons, points, construction geometry; snap to ends, centres and the grid; type exact numbers.
 - Build parts with features whose fields take expressions with units and variables (for example `#width / 2 + 3 mm`); suppress, reorder, roll back and edit features; undo and redo.
 - Name and colour parts, hide them, see their volume, surface and size, measure distances.
 - Export STL, OBJ, a PNG picture of the view and the Part Studio as JSON.
-- Keep versions of a document, open them read-only and restore them.
-- Share a document with people who have an account (editor or viewer) or give out a read-only link.
-- Sign in locally or through MatIdentity; mails about shared documents go through MatSMTP (both optional, set up by Mattiverse).
+- Keep versions of a model, open them read-only and restore them.
+- Share a model with people who have an account (editor or viewer) or give out a read-only link.
+- Sign in locally or through MatIdentity; mails about shared models go through MatSMTP (both optional, set up by Mattiverse).
 
 ## Links
 

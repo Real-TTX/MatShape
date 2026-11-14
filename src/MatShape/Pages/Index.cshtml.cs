@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace MatShape.Pages;
 
-/// <summary>The start page: for a visitor what MatShape is, for a signed-in person straight to the documents.</summary>
+/// <summary>The start page: for a visitor what MatShape is, for a signed-in person straight to the models.</summary>
 public sealed class IndexModel(AccountService accounts, CurrentUser me) : PageModel
 {
     public bool RegistrationOpen { get; private set; }
@@ -13,7 +13,7 @@ public sealed class IndexModel(AccountService accounts, CurrentUser me) : PageMo
     {
         if (me.IsAuthenticated)
         {
-            return LocalRedirect("/Documents");
+            return LocalRedirect("/Models");
         }
 
         RegistrationOpen = !await accounts.AnyUserAsync() || (await accounts.SettingsAsync()).RegistrationOpen;

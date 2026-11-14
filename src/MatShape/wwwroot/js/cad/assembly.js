@@ -1,4 +1,4 @@
-/* MatShape – an assembly as a tab of its own (like the assemblies of OnShape): instances of parts of the Part Studios of the document, placed by mates.
+/* MatShape – an assembly as a tab of its own (like the assemblies of OnShape): instances of parts of the Part Studios of the model, placed by mates.
    A mate joins two mate connectors (picked on a flat face: its middle, its normal; on a round face: its axis) and says what may still move:
    fastened (nothing), revolute (turn about the axis), slider (move along it), cylindrical (both), planar (move in the plane and turn). Every mate keeps its
    values (angle, offset, dx, dy); the free ones have sliders. The placing is a tree: the first (or a fixed) instance stays, each mate places the instance

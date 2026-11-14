@@ -30,23 +30,23 @@ public enum UserRole
     User = 2,
 }
 
-/// <summary>What a person may do with a document they do not own. The owner may do everything.</summary>
-public enum DocumentRole
+/// <summary>What a person may do with a model they do not own. The owner may do everything.</summary>
+public enum ModelRole
 {
     /// <summary>No access.</summary>
     None = 0,
 
-    /// <summary>May look at the document, measure and export.</summary>
+    /// <summary>May look at the model, measure and export.</summary>
     Viewer = 1,
 
     /// <summary>May change the Part Studios and create versions.</summary>
     Editor = 2,
 
-    /// <summary>May also change the name, the members and the link, and delete the document.</summary>
+    /// <summary>May also change the name, the members and the link, and delete the model.</summary>
     Owner = 3,
 }
 
-/// <summary>What a link to a document allows for anybody who has it. A link never edits: designs are changed by people with an account.</summary>
+/// <summary>What a link to a model allows for anybody who has it. A link never edits: designs are changed by people with an account.</summary>
 public enum LinkMode
 {
     Off = 0,
@@ -84,10 +84,10 @@ public sealed class User : SoftEntity
     /// <summary>standard, paper, contrast or oled.</summary>
     public string Scheme { get; set; } = "standard";
 
-    /// <summary>The unit new documents start with: mm, cm, m or in.</summary>
+    /// <summary>The unit new models start with: mm, cm, m or in.</summary>
     public string DefaultUnits { get; set; } = "mm";
 
-    /// <summary>Mail about documents that are shared with the person (only when the installation can send mail).</summary>
+    /// <summary>Mail about models that are shared with the person (only when the installation can send mail).</summary>
     public bool MailOnShare { get; set; } = true;
 
     /// <summary>The person of MatIdentity (the claim <c>sub</c>) this account is linked with; null = a local account only.</summary>
@@ -120,8 +120,8 @@ public sealed class UserSession : Entity
     public string? IdentitySessionId { get; set; }
 }
 
-/// <summary>A CAD document: a container of Part Studios (the tabs at the foot of the editor), shared as a whole.</summary>
-public sealed class Document : SoftEntity
+/// <summary>A CAD model: a container of Part Studios (the tabs at the foot of the editor), shared as a whole.</summary>
+public sealed class Model : SoftEntity
 {
     public string Name { get; set; } = string.Empty;
 
@@ -142,23 +142,52 @@ public sealed class Document : SoftEntity
 
     public LinkMode LinkMode { get; set; } = LinkMode.Off;
 
-    public ICollection<DocumentMember> Members { get; set; } = [];
+    /// <summary>The folder the owner put the model in; null = at the top. A member files it in a folder of their own (<see cref="ModelMember.FolderId"/>).</summary>
+    public long? FolderId { get; set; }
+
+    public Folder? Folder { get; set; }
+
+    public ICollection<ModelMember> Members { get; set; } = [];
 
     public ICollection<PartStudio> Studios { get; set; } = [];
 }
 
-/// <summary>A person a document is shared with (the owner is not a member, they are <see cref="Document.OwnerId"/>).</summary>
-public sealed class DocumentMember : Entity
+/// <summary>A person a model is shared with (the owner is not a member, they are <see cref="Model.OwnerId"/>).</summary>
+public sealed class ModelMember : Entity
 {
-    public long DocumentId { get; set; }
+    public long ModelId { get; set; }
 
-    public Document? Document { get; set; }
+    public Model? Model { get; set; }
 
     public long UserId { get; set; }
 
     public User? User { get; set; }
 
-    public DocumentRole Role { get; set; } = DocumentRole.Editor;
+    public ModelRole Role { get; set; } = ModelRole.Editor;
+
+    /// <summary>The folder this person put the shared model in (a folder of their own); null = at the top.</summary>
+    public long? FolderId { get; set; }
+
+    public Folder? Folder { get; set; }
+}
+
+/// <summary>
+/// A folder of one person, to give the list of models a structure: it holds models and other folders. Folders are private: everybody files the models they see (their own and
+/// the ones shared with them) in folders of their own, so sharing a model never shows the folders of its owner. Deleting a folder deletes nothing in it: its models and folders
+/// move up to where it was.
+/// </summary>
+public sealed class Folder : Entity
+{
+    public long OwnerId { get; set; }
+
+    public User? Owner { get; set; }
+
+    /// <summary>The folder it lies in; null = at the top.</summary>
+    public long? ParentId { get; set; }
+
+    public Folder? Parent { get; set; }
+
+    public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -167,9 +196,9 @@ public sealed class DocumentMember : Entity
 /// </summary>
 public sealed class PartStudio : SoftEntity
 {
-    public long DocumentId { get; set; }
+    public long ModelId { get; set; }
 
-    public Document? Document { get; set; }
+    public Model? Model { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
@@ -182,12 +211,12 @@ public sealed class PartStudio : SoftEntity
     public long Revision { get; set; }
 }
 
-/// <summary>A named, unchangeable state of a whole document (every Part Studio), like a release. It can be opened read-only and restored.</summary>
-public sealed class DocumentVersion : Entity
+/// <summary>A named, unchangeable state of a whole model (every Part Studio), like a release. It can be opened read-only and restored.</summary>
+public sealed class ModelVersion : Entity
 {
-    public long DocumentId { get; set; }
+    public long ModelId { get; set; }
 
-    public Document? Document { get; set; }
+    public Model? Model { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
@@ -254,6 +283,9 @@ public enum AiAction
 
     /// <summary>The modelling assistant of the editor: a request becomes features of the Part Studio.</summary>
     Model = 1,
+
+    /// <summary>3D generation: a picture, several views or a text become a mesh at a provider (Meshy); the run follows the task there.</summary>
+    Mesh = 2,
 }
 
 public enum AiRunStatus
@@ -273,7 +305,7 @@ public sealed class AiRun : Entity
 
     public AiRunStatus Status { get; set; } = AiRunStatus.Running;
 
-    public long? DocumentId { get; set; }
+    public long? ModelId { get; set; }
 
     public long? StudioId { get; set; }
 

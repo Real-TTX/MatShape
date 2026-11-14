@@ -3,7 +3,7 @@
   "name": "MatShape",
   "short_name": "MatShape",
   "description": "3D CAD in the browser: sketch, extrude, revolve and combine parametric parts. 3D-CAD im Browser: parametrische Teile konstruieren.",
-  "start_url": "/Documents",
+  "start_url": "/Models",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
@@ -18,8 +18,8 @@
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "shortcuts": [
-    { "name": "New document / Neues Dokument", "short_name": "New", "url": "/Documents/Edit", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
-    { "name": "My documents / Meine Dokumente", "short_name": "Mine", "url": "/Documents?scope=mine", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Shared with me / Mit mir geteilt", "short_name": "Shared", "url": "/Documents?scope=shared", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] }
+    { "name": "New model / Neues Modell", "short_name": "New", "url": "/Models/Edit", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
+    { "name": "My models / Meine Modelle", "short_name": "Mine", "url": "/Models?scope=mine", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Shared with me / Mit mir geteilt", "short_name": "Shared", "url": "/Models?scope=shared", "icons": [{ "src": "/img/icon-192.png", "sizes": "192x192" }] }
   ]
 }

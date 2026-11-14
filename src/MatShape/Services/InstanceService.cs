@@ -4,20 +4,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MatShape.Services;
 
-/// <summary>The numbers of the installation (the platform tiles, the admin page System). Nothing here says what is in a document: only how many.</summary>
+/// <summary>The numbers of the installation (the platform tiles, the admin page System). Nothing here says what is in a model: only how many.</summary>
 public sealed record InstanceSnapshot(
     int Users,
     int Admins,
-    int Documents,
-    int SharedDocuments,
-    int LinkedDocuments,
+    int Models,
+    int SharedModels,
+    int LinkedModels,
     int Studios,
     int Versions,
     int ChangedLast7Days,
     DateTime? LastActivityUtc);
 
 /// <summary>What the housekeeping removed.</summary>
-public sealed record CleanUpResult(int Sessions, int Documents);
+public sealed record CleanUpResult(int Sessions, int Models);
 
 /// <summary>
 /// The installation as a whole: its numbers, the few settings of the system (registration, public address), the state of the database and the housekeeping.
@@ -45,13 +45,13 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts)
         return new InstanceSnapshot(
             Users: await db.Users.CountAsync(u => u.IsActive, ct),
             Admins: await db.Users.CountAsync(u => u.IsActive && u.Role == UserRole.Admin, ct),
-            Documents: await db.Documents.CountAsync(ct),
-            SharedDocuments: await db.Documents.CountAsync(d => d.Members.Any(), ct),
-            LinkedDocuments: await db.Documents.CountAsync(d => d.LinkMode != LinkMode.Off, ct),
+            Models: await db.Models.CountAsync(ct),
+            SharedModels: await db.Models.CountAsync(d => d.Members.Any(), ct),
+            LinkedModels: await db.Models.CountAsync(d => d.LinkMode != LinkMode.Off, ct),
             Studios: await db.PartStudios.CountAsync(ct),
-            Versions: await db.DocumentVersions.CountAsync(ct),
-            ChangedLast7Days: await db.Documents.CountAsync(d => d.UpdateDate >= weekAgo, ct),
-            LastActivityUtc: await db.Documents.MaxAsync(d => (DateTime?)d.UpdateDate, ct));
+            Versions: await db.ModelVersions.CountAsync(ct),
+            ChangedLast7Days: await db.Models.CountAsync(d => d.UpdateDate >= weekAgo, ct),
+            LastActivityUtc: await db.Models.MaxAsync(d => (DateTime?)d.UpdateDate, ct));
     }
 
     /// <summary>Has anybody registered yet?</summary>
@@ -111,16 +111,16 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts)
 
     public static bool IsPublicUrl(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 
-    /// <summary>The housekeeping: ended and old sessions go, and a document or Part Studio that was deleted more than 30 days ago is removed for good.</summary>
+    /// <summary>The housekeeping: ended and old sessions go, and a model or Part Studio that was deleted more than 30 days ago is removed for good.</summary>
     public async Task<CleanUpResult> CleanUpAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
         var limit = now.AddDays(-30);
         var sessions = await db.Sessions.Where(s => s.IsRevoked || s.ExpiresDate < now.AddDays(-1)).ExecuteDeleteAsync(ct);
         await db.PartStudios.IgnoreQueryFilters().Where(s => s.UpdateState == SoftEntity.Deleted && s.UpdateDate < limit).ExecuteDeleteAsync(ct);
-        var documents = await db.Documents.IgnoreQueryFilters().Where(d => d.UpdateState == SoftEntity.Deleted && d.UpdateDate < limit).ExecuteDeleteAsync(ct);
+        var models = await db.Models.IgnoreQueryFilters().Where(d => d.UpdateState == SoftEntity.Deleted && d.UpdateDate < limit).ExecuteDeleteAsync(ct);
         // the runs of the AI (with what was sent) are kept for half a year, for the costs and for questions
         await db.AiRuns.Where(r => r.StartDate < now.AddDays(-180)).ExecuteDeleteAsync(ct);
-        return new CleanUpResult(sessions, documents);
+        return new CleanUpResult(sessions, models);
     }
 }

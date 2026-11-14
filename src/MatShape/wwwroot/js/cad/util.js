@@ -45,7 +45,7 @@ export function icon(name, cls) {
   return svg;
 }
 
-/** A short id that is unique enough inside one document. */
+/** A short id that is unique enough inside one model. */
 export function uid(prefix = '') {
   const bytes = new Uint8Array(6);
   crypto.getRandomValues(bytes);
@@ -63,7 +63,7 @@ export function fmt(value, places = 4) {
   return rounded.toLocaleString(document.documentElement.lang || 'en', { maximumFractionDigits: places, useGrouping: false });
 }
 
-/** The unit factor and label of a document unit. */
+/** The unit factor and label of a model unit. */
 export const UNITS = { mm: 1, cm: 10, m: 1000, in: 25.4 };
 
 export function length(mm, unit) {

@@ -1,6 +1,6 @@
 using MatShape.Data;
 using MatShape.Localization;
-using MatShape.Services.Documents;
+using MatShape.Services.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace MatShape.Services.Accounts;
@@ -52,7 +52,7 @@ public static class Profiles
         user.DisplayName = name.Length > 120 ? name[..120] : name;
         user.Language = Languages.IsSupported(input.Language) ? Languages.Normalize(input.Language) : string.Empty;
         user.TimeZone = input.TimeZone;
-        user.DefaultUnits = DocumentUnits.IsUnit(input.DefaultUnits) ? input.DefaultUnits : DocumentUnits.Default;
+        user.DefaultUnits = ModelUnits.IsUnit(input.DefaultUnits) ? input.DefaultUnits : ModelUnits.Default;
         if (mailConfigured)
         {
             user.MailOnShare = input.MailOnShare;

@@ -29,7 +29,8 @@ public sealed class TestDatabase : IAsyncDisposable
 
     public AppDbContext Db { get; private set; } = null!;
 
-    public static async Task<TestDatabase> CreateAsync()
+    /// <summary>A new database; <paramref name="migrate"/> = false leaves it empty (a test of a migration takes it step by step).</summary>
+    public static async Task<TestDatabase> CreateAsync(bool migrate = true)
     {
         var test = new TestDatabase();
         await using (var admin = new NpgsqlConnection(Admin))
@@ -41,7 +42,11 @@ public sealed class TestDatabase : IAsyncDisposable
 
         var connection = new NpgsqlConnectionStringBuilder(Admin) { Database = test._name }.ConnectionString;
         test.Db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
-        await test.Db.Database.MigrateAsync();
+        if (migrate)
+        {
+            await test.Db.Database.MigrateAsync();
+        }
+
         return test;
     }
 

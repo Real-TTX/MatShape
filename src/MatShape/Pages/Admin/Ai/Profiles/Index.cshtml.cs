@@ -61,7 +61,7 @@ public sealed class IndexModel(AppDbContext db) : AppPageModel
 
     public async Task<IActionResult> OnPostDuplicateAsync(long id)
     {
-        if (await AiAdmin.DuplicateAsync(Context, id, Text.T("Documents.CopyWord")) is not { } copy)
+        if (await AiAdmin.DuplicateAsync(Context, id, Text.T("Models.CopyWord")) is not { } copy)
         {
             return NotFound();
         }

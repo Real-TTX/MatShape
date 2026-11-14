@@ -1,4 +1,4 @@
-/* MatShape – a drawing as a tab of its own (like the drawings of OnShape): the sheet of a Part Studio of the document, made again whenever the Part Studio changes.
+/* MatShape – a drawing as a tab of its own (like the drawings of OnShape): the sheet of a Part Studio of the model, made again whenever the Part Studio changes.
    Settings on the left (Part Studio, sheet, scale, views, section, hidden edges, overall dimensions, centre marks, title); tools over the sheet: select (drag a
    view to move it, Del deletes a note), dimension (two points of a view; dragged up/down it measures across, left/right upright, at a slant along), diameter
    (a circle), detail view (centre, size, place). The notes are kept in the coordinates of their view, so they follow when the model changes.
@@ -12,7 +12,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 const LETTERS = 'ZYXWVUTSRQPONMLKJIHGFEDCB';
 
 export class DrawingEditor {
-  /** ui: { sheet (container over the view), panel (settings), toolbar }; host: { kernel(), studios(), units(), unit(), person(), docName(), name(), change(fn(drawing)), canEdit() } */
+  /** ui: { sheet (container over the view), panel (settings), toolbar }; host: { kernel(), studios(), units(), unit(), person(), modelName(), name(), change(fn(drawing)), canEdit() } */
   constructor(ui, host) {
     this.ui = ui;
     this.host = host;
@@ -94,8 +94,8 @@ export class DrawingEditor {
     this.sheet = this.views.length ? layoutDrawing({
       sheet: d.sheet, scale: d.scale === 'auto' ? 'auto' : String(d.scale).split(':').map(Number), views: this.views, moved: d.moved, centres: d.centres,
       title: {
-        name: d.title || this.host.name(), doc: this.host.docName(), date: new Date().toLocaleDateString(document.documentElement.lang || 'en'), units: this.host.units(), by: this.host.person(),
-        labels: { title: t('Drawing.Block.Title'), document: t('Drawing.Block.Document'), scale: t('Drawing.Block.Scale'), date: t('Drawing.Block.Date'), units: t('Drawing.Block.Units'), sheet: t('Drawing.Block.Sheet'), by: t('Drawing.Block.By'), software: t('Drawing.Block.Software'), projection: t('Drawing.Block.Projection') },
+        name: d.title || this.host.name(), model: this.host.modelName(), date: new Date().toLocaleDateString(document.documentElement.lang || 'en'), units: this.host.units(), by: this.host.person(),
+        labels: { title: t('Drawing.Block.Title'), model: t('Drawing.Block.Model'), scale: t('Drawing.Block.Scale'), date: t('Drawing.Block.Date'), units: t('Drawing.Block.Units'), sheet: t('Drawing.Block.Sheet'), by: t('Drawing.Block.By'), software: t('Drawing.Block.Software'), projection: t('Drawing.Block.Projection') },
       },
       format,
     }) : null;

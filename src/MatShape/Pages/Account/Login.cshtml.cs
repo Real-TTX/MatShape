@@ -145,5 +145,5 @@ public sealed class LoginModel(AccountService accounts, SessionService sessions,
     private bool Flag(string name) => Request.Query[name].ToString() is "1" or "true" or "True";
 
     /// <summary>Only a local address, else the day's tasks.</summary>
-    private string Target() => !string.IsNullOrEmpty(ReturnUrl) && Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : "/Documents";
+    private string Target() => !string.IsNullOrEmpty(ReturnUrl) && Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : "/Models";
 }

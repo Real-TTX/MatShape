@@ -1,0 +1,19 @@
+@page "/Models/Folder"
+@model MatShape.Pages.Models.FolderModel
+@{
+    ViewData["Title"] = L[Model.IsNew ? "Folders.New" : "Folders.Edit"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Models.Title"].Value, "/Models"), (Model.IsNew ? L["Folders.New"].Value : Model.Name, null) };
+    ViewData["Width"] = "narrow";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <partial name="_FormSummary" model="ViewData.ModelState" />
+    <div class="mat-card">
+        <div class="mat-card__body mat-form">
+            <ms-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" autofocus msg-required="@L["Common.NameRequired"]" />
+            <ms-field name="Parent" kind="select" label="@L["Folders.Parent"]" value="@Model.Parent" options="Model.ParentChoices" hint="@L["Folders.Parent.Hint"]" />
+        </div>
+    </div>
+    <ms-buttons save="@L[Model.IsNew ? "Folders.Create" : "Common.Save"]" back="@Model.BackUrl" delete-handler="@(Model.IsNew ? null : "Delete")" delete-label="@L["Folders.Delete"]"
+                delete-confirm="@L["Folders.DeleteConfirm", Model.Name]" />
+</form>

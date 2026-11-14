@@ -34,7 +34,7 @@
                 {
                     <tr>
                         <td data-label="@L["Ai.Runs.Col.Request"]">
-                            <a class="ms-name" href="/Admin/Ai/Runs/Details?id=@r.Id">@Ui.Icon(r.Action == AiAction.Test ? "play" : "sparkles")<span>@(string.IsNullOrEmpty(r.Prompt) ? L["Ai.Action." + r.Action].Value : r.Prompt.Length > 90 ? r.Prompt[..90] + " …" : r.Prompt)</span></a>
+                            <a class="ms-name" href="/Admin/Ai/Runs/Details?id=@r.Id">@Ui.Icon(r.Action == AiAction.Test ? "play" : r.Action == AiAction.Mesh ? "cube" : "sparkles")<span>@(string.IsNullOrEmpty(r.Prompt) ? L["Ai.Action." + r.Action].Value : r.Prompt.Length > 90 ? r.Prompt[..90] + " …" : r.Prompt)</span></a>
                             @if (r.Error is { } err) { <small class="ms-muted ms-block-line">@(err.Length > 140 ? err[..140] + " …" : err)</small> }
                         </td>
                         <td data-label="@L["Ai.Runs.Col.Person"]" class="mat-hide-sm">@(r.UserName ?? "–")</td>

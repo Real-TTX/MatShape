@@ -2,6 +2,8 @@
   <!-- The icons only MatShape has, drawn like the toolkit's (24 x 24, a line of 2, round ends; the colour is the text colour). -->
   <symbol id="mat-i-matshape" viewBox="0 0 24 24"><path d='M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z'/><path d='M4 7.4l8 4.6 8-4.6M12 12v9.2'/><path d='M8 5.1l8 4.6'/></symbol>
   <symbol id="mat-i-cube" viewBox="0 0 24 24"><path d='M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z'/><path d='M4 7.4l8 4.6 8-4.6M12 12v9.2'/></symbol>
+  <symbol id="mat-i-ai-3d" viewBox="0 0 24 24"><path d='M10 6.6 16.5 10.3v7.5L10 21.5l-6.5-3.7v-7.5z'/><path d='M3.5 10.3 10 14l6.5-3.7M10 14v7.5'/><path d='m18.5 2-.9 2.2-2.2.9 2.2.9.9 2.2.9-2.2 2.2-.9-2.2-.9z'/></symbol>
+  <symbol id="mat-i-figure" viewBox="0 0 24 24"><circle cx='12' cy='8' r='4.2'/><circle cx='8.4' cy='4.4' r='1.7'/><circle cx='15.6' cy='4.4' r='1.7'/><path d='M7 21.2c-.6-4.8 1.6-8.4 5-8.4s5.6 3.6 5 8.4z'/></symbol>
   <symbol id="mat-i-studio" viewBox="0 0 24 24"><path d='M12 3.5 18.5 7.2v7.5L12 18.5l-6.5-3.8V7.2z'/><path d='M5.5 7.2 12 11l6.5-3.8M12 11v7.5'/><path d='M3 21h18'/></symbol>
   <symbol id="mat-i-cursor" viewBox="0 0 24 24"><path d='M4.5 3.5 20 10l-7.2 2.3L10 19.5z'/></symbol>
   <symbol id="mat-i-undo" viewBox="0 0 24 24"><path d='M9 14 4 9l5-5'/><path d='M4 9h10.5a5.5 5.5 0 0 1 0 11H11'/></symbol>
@@ -45,6 +47,7 @@
   <symbol id="mat-i-view-right" viewBox="0 0 24 24"><rect x='6' y='4' width='12' height='16' rx='1.5'/><path d='M14 4v16'/></symbol>
   <symbol id="mat-i-normal-to" viewBox="0 0 24 24"><path d='M3 17.5 9 13h12l-6 4.5z'/><path d='M12 15V3M9.5 5.5 12 3l2.5 2.5'/></symbol>
   <symbol id="mat-i-section" viewBox="0 0 24 24"><path d='M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z'/><path d='M2 12h20' stroke-dasharray='2.5 2'/></symbol>
+  <symbol id="mat-i-spacemouse" viewBox="0 0 24 24"><path d='M3 15.5v1.5c0 1.9 4 3.5 9 3.5s9-1.6 9-3.5v-1.5'/><ellipse cx='12' cy='15.5' rx='9' ry='3.5'/><path d='M7.5 13.6V7.5M16.5 13.6V7.5'/><ellipse cx='12' cy='7.5' rx='4.5' ry='2.5'/></symbol>
   <symbol id="mat-i-rollback" viewBox="0 0 24 24"><path d='M4 12h16'/><path d='M4 6h10M4 18h7' opacity='.45'/><path d='m17 9 3 3-3 3'/></symbol>
   <symbol id="mat-i-suppress" viewBox="0 0 24 24"><circle cx='12' cy='12' r='9'/><path d='m5.6 5.6 12.8 12.8'/></symbol>
   <symbol id="mat-i-part" viewBox="0 0 24 24"><path d='M5 8h14v11H5z'/><path d='M5 8l3-4h14l-3 4M19 19l3-4V4'/></symbol>

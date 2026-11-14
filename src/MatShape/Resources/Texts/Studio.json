@@ -45,7 +45,7 @@
   "Keys.FinishSketch": { "en": "Finish the sketch", "de": "Skizze fertigstellen" },
   "Keys.Help": { "en": "This list", "de": "Diese Liste" },
 
-  "Studio.Back": { "en": "Back to the documents", "de": "Zurück zu den Dokumenten" },
+  "Studio.Back": { "en": "Back to the models", "de": "Zurück zu den Modellen" },
   "Studio.Version": { "en": "Version", "de": "Version" },
   "Studio.ReadOnly": { "en": "Read-only", "de": "Nur ansehen" },
   "Studio.Offline": { "en": "Offline – changes wait on this device. Click to try again.", "de": "Offline – Änderungen warten auf diesem Gerät. Klicken, um es erneut zu versuchen." },
@@ -251,8 +251,17 @@
   "View.Theme.dark": { "en": "Dark", "de": "Dunkel" },
   "View.Theme.blueprint": { "en": "Blueprint", "de": "Blaupause" },
   "View.Section": { "en": "Section view", "de": "Schnittansicht" },
+  "View.SpaceMouse": { "en": "3D mouse (SpaceMouse)", "de": "3D-Maus (SpaceMouse)" },
+  "View.SpaceMouse.Connect": { "en": "Connect a 3D mouse …", "de": "3D-Maus verbinden …" },
+  "View.SpaceMouse.Disconnect": { "en": "Disconnect the 3D mouse", "de": "3D-Maus trennen" },
+  "View.SpaceMouse.Speed.slow": { "en": "Slow", "de": "Langsam" },
+  "View.SpaceMouse.Speed.normal": { "en": "Normal speed", "de": "Normale Geschwindigkeit" },
+  "View.SpaceMouse.Speed.fast": { "en": "Fast", "de": "Schnell" },
+  "View.SpaceMouse.Mode.object": { "en": "The cap moves the model", "de": "Die Kappe bewegt das Modell" },
+  "View.SpaceMouse.Mode.camera": { "en": "The cap moves the camera", "de": "Die Kappe bewegt die Kamera" },
   "View.Section.Plane": { "en": "Section plane", "de": "Schnittebene" },
   "View.Section.Offset": { "en": "Place of the cut (along the normal of the plane)", "de": "Lage des Schnitts (entlang der Normalen der Ebene)" },
   "View.Section.Flip": { "en": "Show the other side", "de": "Andere Seite zeigen" },
-  "View.Planes": { "en": "Show the planes", "de": "Ebenen anzeigen" }
+  "View.Planes": { "en": "Show the planes", "de": "Ebenen anzeigen" },
+  "Feature.figure": { "en": "Figure", "de": "Figur" }
 }

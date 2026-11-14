@@ -1,35 +1,35 @@
 /* MatShape service worker: the app as a PWA – small on purpose.
    - Static files (toolkit, styles, scripts, the 3D libraries, icons): from the cache first, refreshed in the background.
    - Pages come from the network. Without one: the last copy of an editor page you opened, else the offline page (offline.html) with a button to try again.
-   - The data of a document (GET /live/documents/{id}) comes from the network and a copy is kept: without a network the last copy is shown (read-only in effect;
+   - The data of a model (GET /live/models/{id}) comes from the network and a copy is kept: without a network the last copy is shown (read-only in effect;
      changes made then wait in the browser and are sent by the editor when the network is back).
    - The APIs, every change (PUT, POST, DELETE) and everything else of /live are never touched. */
-const VERSION = 'matshape-v1';
+const VERSION = 'matshape-v2';
 const PAGES = 'ms-pages';
-const DOCS = 'ms-docs';
+const MODELS = 'ms-models';
 const SHELL = [
   '/offline.html', '/js/offline.js', '/matui/matui.css', '/matui/matui.js', '/css/app.css', '/css/studio.css', '/favicon.svg', '/img/icon-192.png', '/img/icon-512.png',
   '/img/logo/matshape-logo.svg', '/img/logo/matshape-logo-dark.svg', '/manifest.webmanifest',
   '/lib/three/three.module.js', '/lib/three/three.core.js', '/lib/manifold/manifold.js', '/lib/manifold/manifold.wasm',
 ];
 const MAX_PAGES = 12;
-const MAX_DOCS = 20;
+const MAX_MODELS = 20;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 
-// an older version of the shell is gone (the copies of pages and documents stay: they are the person's)
+// an older version of the shell is gone (the copies of pages and models stay: they are the person's)
 self.addEventListener('activate', event => {
   event.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== PAGES && k !== DOCS).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== PAGES && k !== MODELS).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
 // signing out clears what was kept for this person (sent by pwa.js)
 self.addEventListener('message', event => {
   if (event.data === 'ms-clear') {
-    event.waitUntil(Promise.all([caches.delete(PAGES), caches.delete(DOCS)]));
+    event.waitUntil(Promise.all([caches.delete(PAGES), caches.delete(MODELS)]));
   }
 });
 
@@ -38,11 +38,11 @@ function isStatic(url) {
 }
 
 function isEditorPage(url) {
-  return /^\/Documents\/Studio\/\d+$/i.test(url.pathname) || /^\/s\/[0-9a-f-]{36}$/i.test(url.pathname);
+  return /^\/Models\/Studio\/\d+$/i.test(url.pathname) || /^\/s\/[0-9a-f-]{36}$/i.test(url.pathname);
 }
 
-function isDocumentData(url) {
-  return /^\/live\/documents\/\d+$/.test(url.pathname);
+function isModelData(url) {
+  return /^\/live\/models\/\d+$/.test(url.pathname);
 }
 
 function trim(cache, max) {
@@ -66,7 +66,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname === '/sw.js' || url.pathname === '/health' || url.pathname.startsWith('/api/')) return;
 
-  if (isDocumentData(url)) { event.respondWith(networkFirst(request, DOCS, MAX_DOCS)); return; }
+  if (isModelData(url)) { event.respondWith(networkFirst(request, MODELS, MAX_MODELS)); return; }
   if (url.pathname.startsWith('/live/')) return;
 
   if (request.mode === 'navigate') {

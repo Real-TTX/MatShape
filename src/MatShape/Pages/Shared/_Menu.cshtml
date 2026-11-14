@@ -2,39 +2,39 @@
 @inject CurrentUser Me
 @*
     The menus (SHELL-01 .. SHELL-19): one panel per menu of the switcher at the foot (SHELL-15), the one of the page shown.
-    - documents: the main action first, the lists (all, mine, shared with me) and the documents worked on last
+    - models: the main action first, the lists (all, mine, shared with me) and the models worked on last
     - settings: profile, password, my data
     - admin:    users, system (administrators only)
-    A page names what it belongs to: ViewData["ActiveDocument"] (the id of a document).
+    A page names what it belongs to: ViewData["ActiveModel"] (the id of a model).
 *@
 @{
     var m = Model.Menu;
     var path = Context.Request.Path.Value ?? "/";
     var scope = Context.Request.Query["scope"].ToString();
-    var active = ViewData["ActiveDocument"] as long?;
+    var active = ViewData["ActiveModel"] as long?;
 
     bool Under(string prefix) => path.Equals(prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
     string Cls(bool active) => "mat-nav__item" + (active ? " is-active" : string.Empty);
     string Cur(bool active) => active ? "page" : null!;
     string Badge(int n) => n > 99 ? "99+" : n.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    var onList = path.Equals("/Documents", StringComparison.OrdinalIgnoreCase);
+    var onList = path.Equals("/Models", StringComparison.OrdinalIgnoreCase);
 }
-<nav class="mat-nav__scroll" aria-label="@L["Shell.Area.Documents"]" data-nav-panel="documents" hidden="@(Model.Area != "documents")">
+<nav class="mat-nav__scroll" aria-label="@L["Shell.Area.Models"]" data-nav-panel="models" hidden="@(Model.Area != "models")">
     <ul class="mat-nav__list">
         <li>
-            <a class="mat-nav__item mat-nav__item--primary" href="/Documents/Edit">@Ui.Icon("plus")<span>@L["Documents.New"]</span></a>
+            <a class="mat-nav__item mat-nav__item--primary" href="/Models/Edit">@Ui.Icon("plus")<span>@L["Models.New"]</span></a>
         </li>
         <li>
             @{ var all = onList && scope.Length == 0; }
-            <a class="@Cls(all)" href="/Documents" aria-current="@Cur(all)">@Ui.Icon("box")<span>@L["Documents.All"]</span></a>
+            <a class="@Cls(all)" href="/Models" aria-current="@Cur(all)">@Ui.Icon("box")<span>@L["Models.All"]</span></a>
         </li>
         <li>
             @{ var mine = onList && scope == "mine"; }
-            <a class="@Cls(mine)" href="/Documents?scope=mine" aria-current="@Cur(mine)">@Ui.Icon("user")<span>@L["Documents.Mine"]</span>@if (m.Mine > 0) { <span class="mat-nav__badge mat-nav__badge--plain">@Badge(m.Mine)</span> }</a>
+            <a class="@Cls(mine)" href="/Models?scope=mine" aria-current="@Cur(mine)">@Ui.Icon("user")<span>@L["Models.Mine"]</span>@if (m.Mine > 0) { <span class="mat-nav__badge mat-nav__badge--plain">@Badge(m.Mine)</span> }</a>
         </li>
         <li>
             @{ var shared = onList && scope == "shared"; }
-            <a class="@Cls(shared)" href="/Documents?scope=shared" aria-current="@Cur(shared)">@Ui.Icon("users")<span>@L["Documents.Shared"]</span>@if (m.Shared > 0) { <span class="mat-nav__badge mat-nav__badge--plain">@Badge(m.Shared)</span> }</a>
+            <a class="@Cls(shared)" href="/Models?scope=shared" aria-current="@Cur(shared)">@Ui.Icon("users")<span>@L["Models.Shared"]</span>@if (m.Shared > 0) { <span class="mat-nav__badge mat-nav__badge--plain">@Badge(m.Shared)</span> }</a>
         </li>
 
         @if (m.Recent.Count > 0)
@@ -42,7 +42,7 @@
             <li class="mat-nav__group" role="presentation">@L["Menu.Recent"]</li>
             @foreach (var d in m.Recent)
             {
-                <li><a class="@Cls(active == d.Id)" href="/Documents/Studio/@d.Id" aria-current="@Cur(active == d.Id)">@Ui.Icon("cube")<span>@d.Name</span></a></li>
+                <li><a class="@Cls(active == d.Id)" href="/Models/Studio/@d.Id" aria-current="@Cur(active == d.Id)">@Ui.Icon("cube")<span>@d.Name</span></a></li>
             }
         }
     </ul>

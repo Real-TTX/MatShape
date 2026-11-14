@@ -1,8 +1,0 @@
-@page "/Documents/Studio/{id:long}"
-@model MatShape.Pages.Documents.StudioModel
-@{
-    Layout = "_LayoutStudio";
-    ViewData["Title"] = Model.Studio.Name;
-}
-
-<partial name="_Studio" model="Model.Studio" />

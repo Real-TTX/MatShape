@@ -283,6 +283,26 @@ export class Viewport {
     this.updateCamera();
   }
 
+  /**
+   * One frame of a 3D mouse (spacemouse.js motionOf): turn = the turn of the camera about the middle of the screen (screen axes, radians per second), pan = the
+   * move of the middle (view heights per second), zoom = the change of the view height (e^(zoom · seconds)). All at once, as the cap is moved.
+   */
+  navigate(motion, seconds) {
+    const q = this.camera.quaternion;
+    const [ax, ay, az] = motion.turn;
+    const angle = Math.hypot(ax, ay, az) * seconds;
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+    const move = this.viewHeight * seconds;
+    this.target.addScaledVector(right, motion.pan[0] * move).addScaledVector(up, motion.pan[1] * move);
+    if (angle > 1e-9) {
+      const axis = new THREE.Vector3(ax, ay, az).normalize().applyQuaternion(q);
+      q.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, angle)).normalize();
+    }
+    this.viewHeight = Math.min(1e6, Math.max(0.05, this.viewHeight * Math.exp(motion.zoom * seconds)));
+    this.updateCamera();
+  }
+
   /** Zooms by a factor (> 1 out) and keeps the point under the pointer where it is. */
   zoomAt(factor, clientX, clientY) {
     const before = this.screenToWorldOnView(clientX, clientY);
@@ -793,7 +813,7 @@ export class Viewport {
     }
   }
 
-  /** A PNG of the current view (for the list of documents), scaled to w × h. */
+  /** A PNG of the current view (for the list of models), scaled to w × h. */
   async snapshot(w = 320, h = 240) {
     const planes = this.planesGroup.visible, sketches = this.sketchGroup.visible, overlay = this.overlayGroup.visible;
     const view = this.saveView(), selection = this.selected;

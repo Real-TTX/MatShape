@@ -24,23 +24,23 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
     {
         var T = o.T;
 
-        o.App(AppId, "MatShape", T("3D-CAD im Browser: parametrische Teile modellieren", "3D CAD in the browser: model parametric parts"), AppInfo.Version, "/img/logo/matshape-mark.svg", Accent, "/Documents");
+        o.App(AppId, "MatShape", T("3D-CAD im Browser: parametrische Teile modellieren", "3D CAD in the browser: model parametric parts"), AppInfo.Version, "/img/logo/matshape-mark.svg", Accent, "/Models");
 
         o.Page("overview", T("Übersicht", "Overview"), "dashboard",
-            MatSection.Tiles("users", "documents", "sharedDocuments", "linkedDocuments", "studios", "versions", "changedLast7Days", "registration", "lastActivity"),
+            MatSection.Tiles("users", "models", "sharedModels", "linkedModels", "studios", "versions", "changedLast7Days", "registration", "lastActivity"),
             MatSection.Actions("openApp", "openUsers", "openSystem", "cleanUp"));
         o.Page("settings", T("Einstellungen", "Settings"), "settings",
             MatSection.Form(T("Allgemein", "General"), "registrationOpen", "publicUrl"));
 
         o.Tile("users", T("Aktive Benutzer", "Active users"), icon: "users");
-        o.Tile("documents", T("Dokumente", "Documents"), icon: "box");
-        o.Tile("sharedDocuments", T("Geteilte Dokumente", "Shared documents"), icon: "users");
-        o.Tile("linkedDocuments", T("Dokumente mit Link", "Documents with a link"), icon: "link");
+        o.Tile("models", T("Modelle", "Models"), icon: "box");
+        o.Tile("sharedModels", T("Geteilte Modelle", "Shared models"), icon: "users");
+        o.Tile("linkedModels", T("Modelle mit Link", "Models with a link"), icon: "link");
         o.Tile("studios", T("Part Studios", "Part Studios"), icon: "layers");
         o.Tile("versions", T("Versionen", "Versions"), icon: "git");
         o.Tile("changedLast7Days", T("Geändert in 7 Tagen", "Changed in 7 days"), icon: "activity");
         o.Tile("registration", T("Registrierung", "Sign-up"), "status", icon: "user");
-        o.Tile("lastActivity", T("Letzte Änderung an einem Dokument", "Last change to a document"), "time", icon: "activity");
+        o.Tile("lastActivity", T("Letzte Änderung an einem Modell", "Last change to a model"), "time", icon: "activity");
 
         o.Field(new MatField("registrationOpen", T("Registrierung offen", "Open sign-up"), "bool")
         {
@@ -53,15 +53,15 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
             Hint = T("Für die Adressen in E-Mails; leer: die Adresse des Aufrufs.", "For the addresses in mails; empty: the address of the request."),
         });
 
-        o.LinkAction("openApp", T("Öffnen", "Open"), "external", "/Documents");
+        o.LinkAction("openApp", T("Öffnen", "Open"), "external", "/Models");
         o.LinkAction("openUsers", T("Benutzer", "Users"), "users", "/Admin/Users");
         o.LinkAction("openSystem", T("System", "System"), "settings", "/Admin/System");
         o.PostAction(
             "cleanUp",
             T("Aufräumen", "Clean up"),
             "broom",
-            T("Beendete Sitzungen und vor mehr als 30 Tagen gelöschte Dokumente jetzt endgültig entfernen?",
-              "Remove ended sessions and the documents deleted more than 30 days ago for good now?"));
+            T("Beendete Sitzungen und vor mehr als 30 Tagen gelöschte Modelle jetzt endgültig entfernen?",
+              "Remove ended sessions and the models deleted more than 30 days ago for good now?"));
 
         o.Role("admin", T("Administrator", "Administrator"));
         o.Role("user", T("Benutzer", "User"));
@@ -90,9 +90,9 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
         return new Dictionary<string, MatStateValue>
         {
             ["users"] = new(s.Users),
-            ["documents"] = new(s.Documents),
-            ["sharedDocuments"] = new(s.SharedDocuments),
-            ["linkedDocuments"] = new(s.LinkedDocuments),
+            ["models"] = new(s.Models),
+            ["sharedModels"] = new(s.SharedModels),
+            ["linkedModels"] = new(s.LinkedModels),
             ["studios"] = new(s.Studios),
             ["versions"] = new(s.Versions),
             ["changedLast7Days"] = new(s.ChangedLast7Days),
@@ -163,9 +163,9 @@ public sealed class MatShapePlatform(InstanceService instance, ILogger<MatShapeP
         }
 
         var result = await instance.CleanUpAsync(ct);
-        log.LogInformation("Clean-up through the platform API by {Caller}: {Sessions} sessions, {Documents} documents", call.Caller, result.Sessions, result.Documents);
+        log.LogInformation("Clean-up through the platform API by {Caller}: {Sessions} sessions, {Models} models", call.Caller, result.Sessions, result.Models);
         return new MatActionResult(true, call.T(
-            $"Aufgeräumt: {result.Sessions} Sitzungen, {result.Documents} Dokumente.",
-            $"Cleaned up: {result.Sessions} sessions, {result.Documents} documents."));
+            $"Aufgeräumt: {result.Sessions} Sitzungen, {result.Models} Modelle.",
+            $"Cleaned up: {result.Sessions} sessions, {result.Models} models."));
     }
 }

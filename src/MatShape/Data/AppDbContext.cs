@@ -14,13 +14,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
 
     public DbSet<UserSession> Sessions => Set<UserSession>();
 
-    public DbSet<Document> Documents => Set<Document>();
+    public DbSet<Model> Models => Set<Model>();
 
-    public DbSet<DocumentMember> DocumentMembers => Set<DocumentMember>();
+    public DbSet<ModelMember> ModelMembers => Set<ModelMember>();
+
+    public DbSet<Folder> Folders => Set<Folder>();
 
     public DbSet<PartStudio> PartStudios => Set<PartStudio>();
 
-    public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
+    public DbSet<ModelVersion> ModelVersions => Set<ModelVersion>();
 
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
@@ -60,42 +62,58 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
             e.HasIndex(x => x.IdentitySessionId);
         });
 
-        b.Entity<Document>(e =>
+        b.Entity<Model>(e =>
         {
-            e.ToTable("Document");
+            e.ToTable("Model");
             e.HasIndex(x => x.OwnerId);
             e.HasIndex(x => x.ShareToken).IsUnique();
             e.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Name).HasMaxLength(120);
             e.Property(x => x.Description).HasMaxLength(1000);
             e.Property(x => x.Units).HasMaxLength(4);
+            e.HasIndex(x => x.FolderId);
+            e.HasOne(x => x.Folder).WithMany().HasForeignKey(x => x.FolderId).OnDelete(DeleteBehavior.SetNull);
             e.HasQueryFilter(x => x.UpdateState != SoftEntity.Deleted);
         });
 
-        b.Entity<DocumentMember>(e =>
+        b.Entity<ModelMember>(e =>
         {
-            e.ToTable("DocumentMember");
-            e.HasIndex(x => new { x.DocumentId, x.UserId }).IsUnique();
+            e.ToTable("ModelMember");
+            e.HasIndex(x => new { x.ModelId, x.UserId }).IsUnique();
             e.HasIndex(x => x.UserId);
-            e.HasOne(x => x.Document).WithMany(x => x.Members).HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Model).WithMany(x => x.Members).HasForeignKey(x => x.ModelId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.FolderId);
+            e.HasOne(x => x.Folder).WithMany().HasForeignKey(x => x.FolderId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // a folder is deleted after its content moved up (FolderService); the parent link is checked at the end of the statement (NO ACTION), so an account that is
+        // erased takes all its folders with it in one go
+        b.Entity<Folder>(e =>
+        {
+            e.ToTable("Folder");
+            e.HasIndex(x => new { x.OwnerId, x.ParentId });
+            e.HasIndex(x => x.ParentId);
+            e.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Parent).WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.NoAction);
+            e.Property(x => x.Name).HasMaxLength(120);
         });
 
         b.Entity<PartStudio>(e =>
         {
             e.ToTable("PartStudio");
-            e.HasIndex(x => new { x.DocumentId, x.Position });
-            e.HasOne(x => x.Document).WithMany(x => x.Studios).HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ModelId, x.Position });
+            e.HasOne(x => x.Model).WithMany(x => x.Studios).HasForeignKey(x => x.ModelId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Name).HasMaxLength(80);
             e.Property(x => x.Content).HasColumnType("jsonb");
             e.HasQueryFilter(x => x.UpdateState != SoftEntity.Deleted);
         });
 
-        b.Entity<DocumentVersion>(e =>
+        b.Entity<ModelVersion>(e =>
         {
-            e.ToTable("DocumentVersion");
-            e.HasIndex(x => x.DocumentId);
-            e.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.ToTable("ModelVersion");
+            e.HasIndex(x => x.ModelId);
+            e.HasOne(x => x.Model).WithMany().HasForeignKey(x => x.ModelId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Name).HasMaxLength(120);
             e.Property(x => x.Description).HasMaxLength(1000);
             e.Property(x => x.Content).HasColumnType("jsonb");

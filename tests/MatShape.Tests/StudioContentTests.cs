@@ -1,4 +1,4 @@
-using MatShape.Services.Documents;
+using MatShape.Services.Models;
 
 namespace MatShape.Tests;
 
@@ -69,9 +69,9 @@ public sealed class StudioContentTests
     [Fact]
     public void Units_are_known()
     {
-        Assert.True(DocumentUnits.IsUnit("in"));
-        Assert.False(DocumentUnits.IsUnit("ft"));
-        Assert.Equal(25.4, DocumentUnits.Millimetres("in"));
+        Assert.True(ModelUnits.IsUnit("in"));
+        Assert.False(ModelUnits.IsUnit("ft"));
+        Assert.Equal(25.4, ModelUnits.Millimetres("in"));
     }
 }
 

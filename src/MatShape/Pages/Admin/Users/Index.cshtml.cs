@@ -5,7 +5,7 @@ using MatShape.Services.Accounts;
 
 namespace MatShape.Pages.Admin.Users;
 
-/// <summary>The accounts of the installation. An administrator sees how many documents a person owns, never what is on them.</summary>
+/// <summary>The accounts of the installation. An administrator sees how many models a person owns, never what is on them.</summary>
 public sealed class IndexModel(AppDbContext db) : AppPageModel
 {
     private const int PageSize = 25;

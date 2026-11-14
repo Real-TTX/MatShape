@@ -1,0 +1,17 @@
+@page "/Models/Move"
+@model MatShape.Pages.Models.MoveModel
+@{
+    ViewData["Title"] = L["Folders.Move"].Value;
+    ViewData["PageSub"] = Model.Name;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Models.Title"].Value, "/Models"), (Model.Name, null) };
+    ViewData["Width"] = "narrow";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <div class="mat-card">
+        <div class="mat-card__body mat-form">
+            <ms-field name="Folder" kind="select" label="@L["Folders.One"]" value="@Model.Folder" options="Model.FolderChoices" hint="@L["Folders.Move.Hint"]" />
+        </div>
+    </div>
+    <ms-buttons save="@L["Folders.Move"]" back="@Model.BackUrl" />
+</form>

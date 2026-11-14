@@ -16,7 +16,7 @@
                     <ms-field name="PublicUrl" kind="url" label="@L["System.PublicUrl"]" value="@Model.PublicUrl" placeholder="https://cad.example.com" optional hint="@L["System.PublicUrl.Hint"]" />
                 </div>
             </div>
-            <ms-buttons save="@L["Common.Save"]" back="/Documents" />
+            <ms-buttons save="@L["Common.Save"]" back="/Models" />
         </form>
     </div>
     <div class="mat-col-12 mat-col-lg-5">
@@ -27,9 +27,9 @@
                     <dt>@L["System.Version"]</dt><dd class="mat-mono">@AppInfo.Version</dd>
                     <dt>@L["System.Database"]</dt><dd class="mat-mono">@Model.Database</dd>
                     <dt>@L["Users.Title"]</dt><dd>@Model.Counts.Users</dd>
-                    <dt>@L["Documents.Title"]</dt><dd>@Model.Counts.Documents</dd>
-                    <dt>@L["System.SharedDocuments"]</dt><dd>@Model.Counts.SharedDocuments</dd>
-                    <dt>@L["System.LinkedDocuments"]</dt><dd>@Model.Counts.LinkedDocuments</dd>
+                    <dt>@L["Models.Title"]</dt><dd>@Model.Counts.Models</dd>
+                    <dt>@L["System.SharedModels"]</dt><dd>@Model.Counts.SharedModels</dd>
+                    <dt>@L["System.LinkedModels"]</dt><dd>@Model.Counts.LinkedModels</dd>
                     <dt>@L["System.Studios"]</dt><dd>@Model.Counts.Studios</dd>
                     <dt>@L["System.Versions"]</dt><dd>@Model.Counts.Versions</dd>
                     <dt>@L["System.Mail"]</dt><dd>@(Model.MailText ?? L["System.Mail.Off"].Value)</dd>

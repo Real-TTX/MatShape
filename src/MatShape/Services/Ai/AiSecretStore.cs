@@ -15,6 +15,12 @@ public sealed class AiSecretStore
     public const string ApiKey = "key";
     public const string ChatGpt = "chatgpt";
 
+    /// <summary>The key of the 3D generation (Meshy): a secret of the installation, not of a profile, stored under <see cref="Installation"/>.</summary>
+    public const string Meshy = "meshy";
+
+    /// <summary>The token of the secrets of the installation (no profile has it: theirs are random).</summary>
+    public static readonly Guid Installation = Guid.Empty;
+
     private readonly string _dir;
     private readonly IDataProtector _protector;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();

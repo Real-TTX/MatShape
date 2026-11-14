@@ -4,9 +4,10 @@ Guidance for working in this repository. Keep it in sync with the code: update i
 
 ## What MatShape is
 
-3D CAD in the browser in the spirit of the parametric CAD tools on the web. A **document** holds **Part Studios** (tabs); a Part Studio is an ordered **feature list** (sketch, plane,
-extrude, revolve, sweep, loft, fillet, chamfer, hole, shell, rib, draft, thread, boolean, transform, mirror, linear/circular pattern, split, delete part, variable, import) that is run from the top to make the parts. Documents are shared with people who have
-an account (editor / viewer) or through a read-only **link**; named **versions** keep the state of a whole document. Part of the Mat family: sign-in through **MatIdentity**, mail through
+3D CAD in the browser in the spirit of the parametric CAD tools on the web. A **model** holds **Part Studios** (tabs); a Part Studio is an ordered **feature list** (sketch, plane,
+extrude, revolve, sweep, loft, fillet, chamfer, hole, shell, rib, draft, thread, boolean, transform, mirror, linear/circular pattern, split, delete part, variable, import, figure) that is run from the top to make the parts. Models are shared with people who have
+an account (editor / viewer) or through a read-only **link**; named **versions** keep the state of a whole model; everybody files the models they see in **folders** of their own
+(models were called "documents" until M11: the tables, classes and addresses were renamed, the old addresses lead to the new ones). Part of the Mat family: sign-in through **MatIdentity**, mail through
 **MatSMTP**, the platform contract for **Mattiverse** (all optional, switched on by environment variables).
 
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages**, EF Core + **PostgreSQL**, the **MatUi** toolkit of the sister project MatDesign (`wwwroot/matui`, release 0.9.3, copied: never edit by hand),
@@ -22,10 +23,13 @@ the npm packages (see the README.txt next to them), not loaded from a CDN. Docke
   Without the variable those tests are skipped. `TextCatalogTests` checks every text key of the server code and of the editor (`t('Area.Key')` → `Js.Area.Key`) in English and German.
 - **Run / test the app: always rebuild the container** (`./scripts/redeploy.ps1`, `-Clean` for empty volumes). CSS, JS and cshtml are baked into the image.
 - **Test account (always):** `admin@example.com` / `Start12345` – the first account of a fresh stack (it becomes the administrator); browser tests and screenshots sign in with it.
-- **Real tests are end to end in a browser** (Playwright with the installed Edge, see the `screenshots` skill): register, create a document, sketch with the mouse, extrude/revolve through the dialogs,
+- **Real tests are end to end in a browser** (Playwright with the installed Edge, see the `screenshots` skill): register, create a model, sketch with the mouse, extrude/revolve through the dialogs,
   undo, offline (`context.setOffline`), the link as a guest, a phone (390 px), dark mode. Look at the screenshots. The geometry can also be tested in Node: import `wwwroot/js/cad/model.js` and pass
   a kernel from `manifold-3d` (`regenerate(kernel, content, 'mm')`).
 - **AI without a real provider:** a fake OpenAI-compatible server (Node, `/v1/models` with free models, `/v1/chat/completions` with a canned answer) on the host, profile address `http://host.docker.internal:<port>/v1` from the container. Never test with a real key in CI.
+  **3D generation without Meshy:** a fake Meshy (Node: `POST /openapi/v1/image-to-3d` / `multi-image-to-3d` / `v2/text-to-3d` -> `{ result }`, `GET …/{id}` PENDING -> IN_PROGRESS -> SUCCEEDED with
+  `model_urls.glb` + `thumbnail_url` on the same server, any GLB of closed or open shells); Admin → AI → 3D generation: address `http://host.docker.internal:<port>`, any key the fake accepts.
+  `MeshTests` does the same with a fake `HttpMessageHandler`. Put the address and the key back afterwards.
 - **Migrations:** `dotnet ef migrations add <Name> -p src/MatShape -o Data/Migrations` (local tool in `dotnet-tools.json`; a design-time factory exists). Applied at start-up.
 - **Updating MatUi:** take the release of MatDesign (`origin/main`): the CSS is the parts of `src/MatUi/wwwroot/css` joined in the order of the first line of `matui.css`; `matui.js`, `matui.boot.js`,
   `matui-icons.svg` as they are. **Updating three.js / Manifold:** `npm pack three manifold-3d`, copy `build/three.module.js` + `build/three.core.js` and `manifold.js` + `manifold.wasm`, run the e2e checks.
@@ -36,13 +40,17 @@ the npm packages (see the README.txt next to them), not loaded from a CDN. Docke
 ```
 src/MatShape
   Program.cs                 composition root: services, cookie auth (+ MatIdentity), antiforgery header, razor conventions, rate limit, static files (no-cache without ?v=), endpoints
-  Infrastructure.cs          HealthCheck (--healthcheck), Database.MigrateWithRetry, SecurityHeaders (CSP: no inline script/style, 'wasm-unsafe-eval' for the kernel; /lib/occt alone (the STEP reader in a worker) also 'unsafe-eval'), MaintenanceService, EmptyStringBinderProvider
-  Data/                      Entities.cs (User, UserSession, Document, DocumentMember, PartStudio, DocumentVersion, SystemSetting), AppDbContext.cs, Migrations/
-  Services/Documents/        THE business layer, static classes (permission check in every function):
-                             DocumentAccess (Actor = person and/or link token -> DocumentRole; null = "not found"; an administrator has NO access to the documents of others),
-                             DocumentService (list/create/update/delete/duplicate, members, link, thumbnail), StudioService (open, save with revision -> Saved/Conflict/Invalid/Denied,
+  Infrastructure.cs          HealthCheck (--healthcheck), Database.MigrateWithRetry, SecurityHeaders (CSP: no inline script/style, 'wasm-unsafe-eval' for the kernel; /lib/occt alone (the STEP reader in a worker) also 'unsafe-eval'),
+                             OldAddresses (/Documents/... -> 301 /Models/..., /live/documents/... answered as /live/models/...), MaintenanceService, EmptyStringBinderProvider
+  Data/                      Entities.cs (User, UserSession, Model, ModelMember, Folder, PartStudio, ModelVersion, SystemSetting), AppDbContext.cs, Migrations/
+                             (ModelsAndFolders renames the Document tables BY HAND – a scaffolded rename drops and creates tables; FolderTests checks that data survives)
+  Services/Models/           THE business layer, static classes (permission check in every function):
+                             ModelAccess (Actor = person and/or link token -> ModelRole; null = "not found"; an administrator has NO access to the models of others),
+                             ModelService (list/create/update/delete/duplicate, members, link, thumbnail), StudioService (open, save with revision -> Saved/Conflict/Invalid/Denied,
                              add/rename/move/duplicate/delete tabs), VersionService (list/create/update/delete/restore; restore keeps the state before as a version),
-                             StudioContent (the JSON shape the server accepts: features of known types, unique ids, size limits), DocumentUnits, DocumentEndpoints (/live: JSON for the editor)
+                             StudioContent (the JSON shape the server accepts: features of known types, unique ids, size limits), ModelUnits, ModelEndpoints (/live: JSON for the editor),
+                             FolderService (folders of ONE person: create/update/move without cycles, max depth 12, delete = the content moves up; FileAsync files a model:
+                             the owner on Model.FolderId, a member on ModelMember.FolderId; filing does not change the date of the model)
   Services/Accounts/          static too: Profiles (own account), UserAdmin (administrators only; the last administrator stays)
   Services/Mail/MailService  MatSMTP through MailKit, queued in the background; off unless MATSMTP_HOST is set
   Services/Auth/             CurrentUser, PasswordService, SessionService (sessions in the DB), AccountService, ExternalSignInService (MatIdentity), AccountDataService (GDPR export/erase)
@@ -50,15 +58,20 @@ src/MatShape
   Services/Ai/               the AI (pattern of DesignThix): AiTypes, ChatCompletionsClient (any OpenAI-compatible provider, /models with "free"), ChatGptAccount (device code like Codex),
                              LenientJson (copied from DesignThix, keep in step); AiSecretStore (keys + sign-ins encrypted in {data}/secrets/ai) + AiRateLimiter; AiSettings (JSON in SystemSetting);
                              AiAdmin (profiles, settings, runs: administrators only), AiService (one call: on/off, limits, transport, one JSON object, nudges, every step into AiRun/AiRunStep),
-                             ModelAssistant (the instruction = the format of the features, the situation, Merge of append/patch/replace + StudioContent check), AiEndpoints (/live/studios/{id}/ai, /live/ai/*)
+                             ModelAssistant (the instruction = the format of the features, the situation, Merge of append/patch/replace + StudioContent check), AiEndpoints (/live/studios/{id}/ai, /live/ai/*);
+                             the 3D generation (like Meshy's app): MeshyClient (the REST API of Meshy: image / multi-image / text to 3D, untextured, remeshed triangles, GLB + STL; task state,
+                             files at signed addresses for 3 days), MeshService (editor right to start, only the starter asks/fetches/stops, limits count generations (running + done) per
+                             person per day and for all per month, every generation an AiRun with action Mesh; the files go through the server), settings in AiSettings.Mesh, the key in
+                             AiSecretStore under the installation token (Guid.Empty, kind "meshy"); endpoints /live/studios/{id}/ai/mesh, /live/ai/mesh/{run}[/model|stl|thumbnail]
   MatPlatform/               copy of the shared package (MatDesign): platform contract, MatIdentity sign-in, back-channel logout, MatSmtpSettings. Never edit here.
   Platform/                  MatShapePlatform (tiles, settings, actions for Mattiverse), MatShapeIdentityUsers
   Controls/                  ONE code base per control: <ms-field>, <ms-buttons>, <ms-table>, <ms-tabs>/<ms-tab>
-  Pages/                     Documents/ (Index = gallery + table, Edit/Members/Share/Versions = the tabs of a document, Version = create/edit a version, Studio = the editor),
-                             Public/Document (link /s/{token}), Account/, Admin/ (Users, System), About, Shared/ (_Layout, _LayoutStudio + _Studio = the editor frame, _DocumentTabs)
-  Resources/Texts/           the text catalog (en + de): Documents.json, Studio.json (server texts of the editor), Js.json (texts of the scripts, key Js.*), ...
+  Pages/                     Models/ (Index = gallery + table with the folders of ?folder= above and the path as crumbs, Folder = create/edit a folder, Move = file a model,
+                             Edit/Members/Share/Versions = the tabs of a model, Version = create/edit a version, Studio = the editor), Public/Link (link /s/{token}), Account/, Admin/ (Users, System, Ai/: General, Profiles, Mesh = the 3D generation, Runs),
+                             About, Shared/ (_Layout, _LayoutStudio + _Studio = the editor frame, _ModelTabs, _AiTabs)
+  Resources/Texts/           the text catalog (en + de): Models.json, Studio.json (server texts of the editor), Js.json (texts of the scripts, key Js.*), ...
   wwwroot/js/cad/            the editor (ES modules):
-    app.js                   load (/live/documents/{id}), Part Studio tabs, regeneration, feature list + rollback bar, parts list, dialogs, sketch mode, measuring, undo/redo,
+    app.js                   load (/live/models/{id}), Part Studio tabs, regeneration, feature list + rollback bar, parts list, dialogs, sketch mode, measuring, undo/redo,
                              autosave (PUT with revision; 409 -> ask), polling for changes of others, offline queue (localStorage ms.pending.<studio>), thumbnail, export, keys
     model.js                 regenerate(kernel, content, units): runs the features with Manifold -> parts (meshes with face numbers and the edges between faces), sketches (+ closed loops),
                              planes, variables, status per feature; every kernel object is in an arena freed by dispose(result). FEATURES = the kinds and their default parameters.
@@ -72,7 +85,7 @@ src/MatShape
                              drawingViews (front / top / left / iso, section A–A with hatching and cut line), layoutDrawing (first-angle projection, scale, title block, overall
                              dimensions; primitives in sheet mm), toSvg / toDxf (R12) / toPdf (own small writer, Helvetica)
     drawingdialog.js         its dialog (ms-drawing): sheet, scale, views, section, hidden edges, dimensions, title; preview as SVG; PDF / SVG / DXF downloads; "keep as a tab"
-    drawingeditor.js         a drawing TAB (content.drawing): the sheet of a Part Studio of the document, made again when it changes; settings in the side bar; tools: select
+    drawingeditor.js         a drawing TAB (content.drawing): the sheet of a Part Studio of the model, made again when it changes; settings in the side bar; tools: select
                              (drag a view), dimension (two snap points of a view, kind by the drag direction), diameter (circles found in the views), detail view; notes are
                              stored in view coordinates (drawing.js annotate / viewGeometry)
     assembly.js              an assembly TAB (content.assembly): instances { studio, part, fixed, transform } and mates { type, a/b: { inst, frame }, flip, angle, offset, dx, dy };
@@ -85,7 +98,7 @@ src/MatShape
     step.js                  STEP AP214 writer (faceted B-rep: flat regions merged into faces with holes, colours), readCad: STEP/IGES/BREP via occt-import-js in a worker
                              (/lib/occt has its own CSP with 'unsafe-eval' – SecurityHeaders; the pages stay strict), STL reader; packArray/unpackArray (base64 of the meshes of "import")
     geom.js                  vectors, frames of planes (Z up: Top = XY, Front = XZ normal -Y, Right = YZ), matrices (column-major), sketchLoops = profiles like OnShape: curves cut at their crossings, loose ends trimmed, the smallest enclosed regions (key = sorted border ids, #2 … for regions with the same border)
-    expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the document unit)
+    expr.js                  expressions with units and #variables (a value carries its length dimension; a plain number in a length field means the model unit)
     viewport.js              three.js: orthographic camera turning about the model, pointer/touch navigation, parts + edges (from the face names) + smooth normals, planes, sketches,
                              picking (faces; pickEdge: the edge near the pointer that is not hidden; setPickParts: pick in other parts than shown, e.g. before a fillet), edge marks,
                              face highlight, section view (setSection: clipping plane + hatched caps), snapshot
@@ -98,20 +111,35 @@ src/MatShape
     sketchsolve.js           the constraint solver: Levenberg-Marquardt over the numbers of the entities, Gram-Schmidt rank analysis (degrees of freedom, defined/free per entity and point,
                              conflicts = redundant or unmeetable constraints, which are shown but NOT applied); legacy params.dims are migrated (constraintsOf). Used by model.js too.
                              Entities with use: true (taken from the model) are fixed: their numbers are no unknowns (a big cut does not slow it down)
-    assistant.js             the AI panel: sends the request with the content, applies the answer as one step, sends errors of new features back for a repair;
+    assistant.js             the AI panel: sends the request with the content and the level of detail (rough/normal/fine), applies the answer as one step (it may "remove"
+                             features), sends errors of new features AND new overlaps of parts (model.js overlapsOf: separate parts sharing volume) back for a repair;
                              attachments (paperclip, paste, drop; pictures scaled down in the browser, an SVG as text and as PNG)
     imagetrace.js            picture -> 3D without DOM (tested in Node): k-means colours (near ones merged), anti-aliasing seams dissolved, majority smoothing, specks removed,
                              outlines traced per colour, Douglas-Peucker, circles / rectangles recognised; buildFeatures = base plate (outline, rectangle, none) + plane + sketch/extrude per colour
     imagedialog.js           its editor (dialog ms-image): preview original / colours / shapes, a click toggles a colour, palette with height, colour, name; adds the features as one step
+    meshgen.js               a generated mesh -> a solid, without DOM (tested in Node): readGlb (scene, node matrices, mirrored nodes; Draco/meshopt refused) / STL, place (Y-up -> Z-up,
+                             height, turn, on Top, centred), weld; closed -> the kernel takes it (overlapping shells united); open -> voxels by ray parity on 3 axes (majority) ->
+                             blurred -> Manifold.levelSet -> simplify; faceGroups (creases > 40° / 55° rebuilt, small regions joined: no scratches); meshFeature = an "import" with kept faces
+    meshdialog.js            the dialog "AI 3D" (ms-mesh, toolbar, also from the picture dialog), two ways (data-has-ai / data-has-meshy; free AI blocks first): AI blocks = the request and
+                             the pictures go to the assistant (host.toAssistant), which writes a figure feature – changed afterwards in the chat; Meshy = POST, polls every 4 s (also closed,
+                             also after a reload: the run in localStorage ms.mesh.<model>), fetches the GLB (STL as fallback), height / turn / rebuild on the fetched mesh, adds it next to the parts
+    figure.js                the feature "figure" without DOM (tested in Node): groups of blocks (sphere, ellipsoid, capsule/round cone, cone, box, cylinder, torus; rot, op cut, blend) as signed
+                             distance fields (smooth union / difference in order, early-out by bounding balls), Manifold.levelSet per group (cell = largest side / 70|110|170, finer for
+                             small groups), simplified; meshes cached by the blocks (LRU 48). model.js: one part per group (names/colours from the group as defaults), later groups cut
+                             out of earlier ones (parts only touch), flat: trimmed at Z = 0; ModelAssistant's instruction teaches the format (+ an example bear)
     lib/occt                 occt-import-js (OpenCascade reader as WebAssembly, LGPL), unchanged copy, see its README.txt
+    spacemouse.js            the 3D mouse through WebHID (no driver): readReport (report 1 shifts – or all six axes –, 2 turns, 3 buttons), motionOf (device x right,
+                             y towards the person, z down -> screen; "object" mode moves the model like the cap), SpaceMouse (reconnects allowed devices, moves the view
+                             once per frame by viewport.navigate); the menu ms-spacemouse-menu in _Studio, wired in app.js
     viewcube.js              the view cube in the corner: turns with the camera, a click on a face/edge/corner looks from there, a drag turns the model (own small renderer)
     dialogs.js               the forms of the features (expression, choice, parts picked in the view, plane or flat face, sketch + profiles, revolve axis)
     export.js, util.js       STL/OBJ/3MF (with a small stored ZIP writer, colours as basematerials); texts t(), DOM el(), requests with the antiforgery header, swatches through the CSSOM
   wwwroot/css/app.css        accent + few app styles (prefix ms-);  studio.css = the editor page
   Services/KeyMap.cs          the keyboard shortcuts (OnShape-like) for the "?" dialog and About; the keys themselves are in app.js (keep in step)
   wwwroot/lib/three/lines/   LineSegments2 / LineMaterial of three.js (lines with a width; the view themes in viewport.js use them)
-  wwwroot/sw.js              service worker: static cache (incl. lib), network-first for editor pages and /live/documents/{id} (copies for offline), offline.html; cleared on sign-out (pwa.js)
-tests/MatShape.Tests         unit + database tests (DocumentTests, AccountTests, StudioContentTests, TextCatalogTests)
+  wwwroot/sw.js              service worker: static cache (incl. lib), network-first for editor pages and /live/models/{id} (copies for offline), offline.html; cleared on sign-out (pwa.js)
+  wwwroot/js/folders.js      the list of models: drag a model or folder onto a folder (or a crumb of the path) -> the hidden form, handler Drop
+tests/MatShape.Tests         unit + database tests (ModelTests, FolderTests incl. the migration, AccountTests, StudioContentTests, AiTests, MeshTests (fake Meshy), TextCatalogTests)
 ```
 
 ## The content of a Part Studio
@@ -123,24 +151,26 @@ Sketch constraints: `params.cons = [{ id, type, refs, value? }]`, a ref is a poi
 Sketch entities: `line {a,b}`, `rect {a,b}`, `circle {c,r}`, `arc {c,r,a0,a1}` (radians, counter-clockwise), `polygon {c,r,n,rot}`, `point {p}`; `cons: true` = construction,
 `use: true` = taken from the model (fixed).
 A tab is a Part Studio, or a drawing (`"drawing": { source, sheet, scale, views, section, hidden, dims, centres, title, notes, moved }`, no features) or an
-assembly (`"assembly": { instances, mates }`); the server makes them with POST /live/documents/{id}/studios { name, kind } (StudioContent.ForKind).
+assembly (`"assembly": { instances, mates }`); the server makes them with POST /live/models/{id}/studios { name, kind } (StudioContent.ForKind).
 Sketch entities also `spline { pts }`, `ellipse { c, rx, ry, rot }`; `params.image` = a picture behind the sketch { src, aspect, width, x, y, opacity };
 constraints also `symmetric` (2 points + line), `arclength`, `driven: true` (a dimension that only shows its value).
 Fillet `{ edges, radius }`, chamfer `{ edges, mode: equal|two, distance, distance2, flip }`; an edge ref is `{ part, faces: [name, name], at }` (an edge by its two faces; at = where
 it was picked), `{ part, face }` (every edge of a face) or `{ part }` (every edge of the part). Profiles are referred to by
 the sorted ids of their entities (`profiles: null` = all). Fields of features are strings (expressions), evaluated at regeneration.
+Figure `{ scale, detail: rough|normal|fine, flat, parts: [{ name, color, smooth, blocks: [{ t, c | a/b, r | r2 | size | h | R | ra/rb, round, rot, op: "cut", blend }] }] }` (block numbers in mm,
+Z up, the front looks to -Y); parts `<id>` (one group) or `<id>.<n>`. Import bodies of the 3D generation carry `kept: true` (their faces are final).
 
 ## Conventions
 
 **Database (PostgreSQL)**: tables PascalCase and singular, key always `Id` BIGINT, every record has `CreateDate/CreateUserId/UpdateDate/UpdateUserId` (filled by `AppDbContext.SaveChanges`),
-`UpdateState` (0 deleted, 1 created, 2 updated) for soft delete (`Document`, `PartStudio`, `User`), a `Token` (uuid) for a security key (`UserSession.Token`, `Document.ShareToken`). The content of a Part
+`UpdateState` (0 deleted, 1 created, 2 updated) for soft delete (`Model`, `PartStudio`, `User`), a `Token` (uuid) for a security key (`UserSession.Token`, `Model.ShareToken`). The content of a Part
 Studio and of a version is `jsonb`.
 
-**Security**: every document query goes through `DocumentAccess`; a document you may not see answers 404. Every change of `/live` needs a signed-in person, the antiforgery header
+**Security**: every model query goes through `ModelAccess`; a model you may not see answers 404. Every change of `/live` needs a signed-in person, the antiforgery header
 `RequestVerificationToken` and the editor right (checked in the business layer). A link never edits. Saving compares the revision in the UPDATE itself (no lost update). The CSP forbids inline script and
 style (scripts set styles through the CSSOM). Text is always put into the page with `textContent`, never as HTML. Mail addresses are never logged in full.
 
-**UI (MatDesign rules)**: CRUD = list page (toolbar above, table/gallery, pager under it, actions left below) + separate edit page (Save, Back, space, Delete); a document has **tabs** (General, People,
+**UI (MatDesign rules)**: CRUD = list page (toolbar above, table/gallery, pager under it, actions left below) + separate edit page (Save, Back, space, Delete); a model has **tabs** (General, People,
 Link, Versions) that are pages of their own. The editor is the special UI of the app (like a designer in a designer app): its own page without the menu, built on the tokens of the toolkit.
 Icons via `Ui.Icon` (toolkit sprite + `wwwroot/img/app-icons.svg`; a missing name is a bug). Every `td` has `data-label`. The version at the foot of the menu links to `/About`.
 

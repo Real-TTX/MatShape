@@ -53,6 +53,6 @@ public sealed class RegisterModel(AccountService accounts, SessionService sessio
 
         await sessions.SignInAsync(HttpContext, user, remember: true);
         TempData["Flash"] = Text.T("Account.Register.Welcome");
-        return LocalRedirect("/Documents");
+        return LocalRedirect("/Models");
     }
 }

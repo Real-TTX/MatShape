@@ -12,7 +12,7 @@ namespace MatShape.Pages.Account;
 /// </summary>
 public sealed class LogoutModel(SessionService sessions, MatPlatformSettings platform) : PageModel
 {
-    public IActionResult OnGet() => LocalRedirect("/Documents");
+    public IActionResult OnGet() => LocalRedirect("/Models");
 
     public async Task<IActionResult> OnPostAsync()
     {

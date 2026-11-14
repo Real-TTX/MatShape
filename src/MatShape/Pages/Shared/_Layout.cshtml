@@ -3,7 +3,8 @@
 @inject MenuService Menus
 @{
     // A page fills these in: Title, PageSub (one line under it), Crumbs (the breadcrumb: a list of (Text, Url?)), Width ("narrow" or "wide"),
-    // OwnHead (the page draws its own head), ActiveNav (the item of the menu), ActiveDocument (the id of a document). The menu (documents, settings, admin) follows the address.
+    // OwnHead (the page draws its own head), ActiveNav (the item of the menu), ActiveModel (the id of a model), NewModelUrl (the + of the top bar, e.g. into the open folder).
+    // The menu (models, settings, admin) follows the address.
     var user = Me.Snapshot!;
     var title = ViewData["Title"] as string ?? Ui.AppName;
     var sub = ViewData["PageSub"] as string;
@@ -45,7 +46,7 @@
     <div class="mat-app">
         <aside class="mat-nav" id="mat-nav">
             <div class="mat-nav__brand">
-                <a href="/Documents" aria-label="@L["Shell.HomeLabel"]">
+                <a href="/Models" aria-label="@L["Shell.HomeLabel"]">
                     @* the word mark: one image for light and one for dark surfaces, app.css shows the one of the theme *@
                     <img class="ms-brandmark ms-brandmark--light" src="~/img/logo/matshape-logo.svg" alt="@Ui.AppName" width="166" height="40" />
                     <img class="ms-brandmark ms-brandmark--dark" src="~/img/logo/matshape-logo-dark.svg" alt="@Ui.AppName" width="166" height="40" />
@@ -114,7 +115,7 @@
                     @* the network: shown only while the device is offline (offline.js); a click tries again *@
                     <button type="button" class="ms-offline" id="ms-offline" hidden>@Ui.Icon("cloud")<span data-offline-text></span></button>
                     @await RenderSectionAsync("TopActions", required: false)
-                    <a class="mat-btn mat-btn--primary mat-btn--icon" href="/Documents/Edit" aria-label="@L["Documents.New"]" data-tip="@L["Documents.New"]">@Ui.Icon("plus")</a>
+                    <a class="mat-btn mat-btn--primary mat-btn--icon" href="@(ViewData["NewModelUrl"] as string ?? "/Models/Edit")" aria-label="@L["Models.New"]" data-tip="@L["Models.New"]">@Ui.Icon("plus")</a>
                 </div>
             </header>
 
@@ -137,7 +138,7 @@
         </div>
     </div>
 
-    @* the switcher of the menus (SHELL-15): the documents, the settings and – for an administrator – the administration *@
+    @* the switcher of the menus (SHELL-15): the models, the settings and – for an administrator – the administration *@
     <div class="mat-menu" id="nav-switch-menu" role="menu" aria-label="@L["Shell.Menus"]" data-nav-scope="mat-nav" hidden>
         @foreach (var a in areas)
         {

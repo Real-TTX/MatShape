@@ -1,4 +1,4 @@
-# MatShape - only the start page is public. Everything else needs an account or the link of a document.
+# MatShape - only the start page is public. Everything else needs an account or the link of a model.
 User-agent: *
 Allow: /$
 Allow: /llms.txt

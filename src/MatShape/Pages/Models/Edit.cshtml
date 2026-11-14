@@ -1,0 +1,32 @@
+@page "/Models/Edit"
+@model MatShape.Pages.Models.EditModel
+@{
+    ViewData["Title"] = L[Model.IsNew ? "Models.New" : "Models.Edit"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Models.Title"].Value, "/Models"), (Model.IsNew ? L["Common.New"].Value : Model.Name, null) };
+    ViewData["Width"] = "narrow";
+}
+
+@section TopActions {
+    @if (!Model.IsNew)
+    {
+        <a class="mat-btn mat-btn--secondary mat-btn--icon" href="/Models/Studio/@Model.Id" aria-label="@L["Models.Open"]" data-tip="@L["Models.Open"]">@Ui.Icon("external")</a>
+    }
+}
+
+@if (!Model.IsNew)
+{
+    <partial name="_ModelTabs" model='(Model.Id!.Value, "general", true)' />
+}
+
+<form class="mat-form" method="post" novalidate>
+    <partial name="_FormSummary" model="ViewData.ModelState" />
+    <div class="mat-card">
+        <div class="mat-card__body mat-form">
+            <ms-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" autofocus msg-required="@L["Common.NameRequired"]" />
+            <ms-field name="Description" kind="textarea" label="@L["Models.Description"]" value="@Model.Description" maxlength="1000" rows="3" optional />
+            <ms-field name="Units" kind="radios" label="@L["Models.Units"]" value="@Model.Units" options="Model.UnitChoices" hint="@L["Models.Units.Hint"]" />
+        </div>
+    </div>
+    <ms-buttons save="@L[Model.IsNew ? "Models.Create" : "Common.Save"]" back="@Model.BackUrl" delete-handler="@(Model.IsNew ? null : "Delete")" delete-label="@L["Models.Delete"]"
+                delete-confirm="@L["Models.DeleteConfirm", Model.Name]" />
+</form>

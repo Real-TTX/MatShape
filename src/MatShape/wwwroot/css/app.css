@@ -1,7 +1,7 @@
 /* ==========================================================================
    MatShape: the colour of the app, and the few styles that only this app has (prefix ms-).
    Everything else is the toolkit (matui.css). No literal colours here except the accent: the rest are --mat-* tokens.
-   The editor of a document (3D view, feature list, dialogs) is studio.css.
+   The editor of a model (3D view, feature list, dialogs) is studio.css.
    ========================================================================== */
 
 /* The accent: a fresh green in the family of the CAD tools on the web, but its own (a little more yellow and lighter than the usual CAD green).
@@ -100,11 +100,37 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .mat-page { padding-bottom: calc(var(--mat-space-5, 1.5rem) + env(safe-area-inset-bottom)); }
 }
 
-/* ---- The list of documents: the tiles with the picture of the model ------------------------------------------------- */
-.ms-doc-tile__media { background: linear-gradient(180deg, var(--mat-surface-2), var(--mat-surface-3)); }
-.ms-doc-tile__media img { object-fit: contain; }
-.ms-doc-tile__icon.mat-icon { width: 48px; height: 48px; color: var(--mat-text-faint); }
-.ms-doc-tile__pills { display: flex; flex-wrap: wrap; gap: var(--mat-space-1); margin-top: var(--mat-space-1); }
+/* ---- The list of models: the tiles with the picture of the model ------------------------------------------------- */
+.ms-model-tile__media { background: linear-gradient(180deg, var(--mat-surface-2), var(--mat-surface-3)); }
+.ms-model-tile__media img { object-fit: contain; }
+.ms-model-tile__icon.mat-icon { width: 48px; height: 48px; color: var(--mat-text-faint); }
+.ms-model-tile__pills { display: flex; flex-wrap: wrap; gap: var(--mat-space-1); margin-top: var(--mat-space-1); }
+
+/* the folders above the models: compact cards (icon, name, what is in it); models and folders are dragged onto them (folders.js) */
+.ms-folders {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: var(--mat-gap);
+  list-style: none; margin: 0 0 var(--mat-space-4); padding: 0;
+}
+.ms-folder {
+  display: flex; align-items: center; gap: var(--mat-space-3); min-width: 0; padding: var(--mat-space-3) var(--mat-space-4);
+  background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); color: inherit; text-decoration: none;
+  transition: border-color var(--mat-dur) var(--mat-ease), background var(--mat-dur) var(--mat-ease);
+}
+.ms-folder:hover { border-color: var(--mat-text-faint); background: var(--mat-surface-2); text-decoration: none; }
+.ms-folder__icon.mat-icon { flex: none; width: 28px; height: 28px; color: var(--mat-accent-text); }
+.ms-folder__body { display: flex; flex-direction: column; min-width: 0; }
+.ms-folder__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-folder__meta { color: var(--mat-text-muted); font-size: .8125rem; }
+@media (max-width: 600px) {
+  /* on a phone two folders side by side: they stay compact above the big pictures */
+  .ms-folders { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--mat-space-2); }
+  .ms-folder { padding: var(--mat-space-2) var(--mat-space-3); gap: var(--mat-space-2); }
+}
+
+/* while something is dragged the places to drop it on are marked; the one under the pointer stands out */
+.ms-dragging .ms-folder, .ms-dragging .mat-crumbs a { outline: 1px dashed var(--mat-border-strong); outline-offset: 2px; }
+.ms-folder.ms-drop-over, .mat-crumbs a.ms-drop-over { outline: 2px solid var(--mat-accent); background: var(--mat-accent-soft); }
+[data-drag-model], [data-drag-folder] { -webkit-user-drag: element; }
 
 /* ---- AI administration ------------------------------------------------------------------------------------------------ */
 .ms-models-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-3); margin-top: var(--mat-space-2); }

@@ -1,6 +1,6 @@
 {
   "Shell.SkipToContent": { "en": "Skip to the content", "de": "Zum Inhalt springen" },
-  "Shell.HomeLabel": { "en": "MatShape, your documents", "de": "MatShape, deine Dokumente" },
+  "Shell.HomeLabel": { "en": "MatShape, your models", "de": "MatShape, deine Modelle" },
   "Shell.CloseMenu": { "en": "Close the menu", "de": "Menü schließen" },
   "Shell.OpenMenu": { "en": "Open the menu", "de": "Menü öffnen" },
   "Shell.Breadcrumb": { "en": "Breadcrumb", "de": "Brotkrumen" },
@@ -9,7 +9,7 @@
   "Shell.Theme": { "en": "Theme", "de": "Design" },
   "Shell.SignOut": { "en": "Sign out", "de": "Abmelden" },
   "Shell.Install": { "en": "Install the app", "de": "App installieren" },
-  "Shell.Area.Documents": { "en": "Documents", "de": "Dokumente" },
+  "Shell.Area.Models": { "en": "Models", "de": "Modelle" },
 
   "Menu.Recent": { "en": "Recent", "de": "Zuletzt" },
 
@@ -25,9 +25,9 @@
   "Settings.Scheme.Contrast": { "en": "High contrast", "de": "Hoher Kontrast" },
   "Settings.Scheme.Oled": { "en": "Black (OLED, dark only)", "de": "Schwarz (OLED, nur dunkel)" },
   "Settings.Modeling": { "en": "Modelling", "de": "Modellieren" },
-  "Settings.DefaultUnits": { "en": "Unit of new documents", "de": "Einheit neuer Dokumente" },
-  "Settings.DefaultUnits.Hint": { "en": "Each document keeps its own unit; it can be changed in its settings.", "de": "Jedes Dokument hat seine eigene Einheit; sie lässt sich in seinen Einstellungen ändern." },
-  "Settings.MailOnShare": { "en": "Mail when a document is shared with me", "de": "E-Mail, wenn ein Dokument mit mir geteilt wird" },
+  "Settings.DefaultUnits": { "en": "Unit of new models", "de": "Einheit neuer Modelle" },
+  "Settings.DefaultUnits.Hint": { "en": "Each model keeps its own unit; it can be changed in its settings.", "de": "Jedes Modell hat seine eigene Einheit; sie lässt sich in seinen Einstellungen ändern." },
+  "Settings.MailOnShare": { "en": "Mail when a model is shared with me", "de": "E-Mail, wenn ein Modell mit mir geteilt wird" },
   "Settings.MailOnShare.Hint": { "en": "Sent through MatSMTP.", "de": "Wird über MatSMTP gesendet." },
 
   "Password.Title": { "en": "Password", "de": "Passwort" },

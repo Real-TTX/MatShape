@@ -20,7 +20,7 @@ public static class AiService
     }
 
     /// <summary>What a run is asked: the action, the messages (system first), the field the JSON answer must have, what it works on, who asks and from where.</summary>
-    public sealed record Call(AiAction Action, IReadOnlyList<AiMessage> Messages, string RequiredField, long? DocumentId, long? StudioId, long? UserId, string? Address, string? Prompt, long? ProfileId = null);
+    public sealed record Call(AiAction Action, IReadOnlyList<AiMessage> Messages, string RequiredField, long? ModelId, long? StudioId, long? UserId, string? Address, string? Prompt, long? ProfileId = null);
 
     public sealed record Outcome(AiRun Run, JsonElement? Result, string? Error, string? Code = null)
     {
@@ -38,7 +38,7 @@ public static class AiService
         var run = new AiRun
         {
             Action = call.Action,
-            DocumentId = call.DocumentId,
+            ModelId = call.ModelId,
             StudioId = call.StudioId,
             UserId = call.UserId,
             AddressHash = call.Address is null ? null : limiter.Hash(call.Address),

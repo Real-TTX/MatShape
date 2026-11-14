@@ -1,17 +1,17 @@
 @model StudioViewModel
 @inject CurrentUser Me
 @*
-    The editor of a document: the bar (back, name, state, undo/redo, versions, export, theme), the feature tools (or the sketch tools while a sketch is edited),
+    The editor of a model: the bar (back, name, state, undo/redo, versions, export, theme), the feature tools (or the sketch tools while a sketch is edited),
     the feature list with the parts on the left, the 3D view in the middle with its view buttons and the dialog of the feature being edited, the tabs of the Part Studios
-    at the foot. Everything that depends on the model is drawn by the scripts (js/cad/*.js) from /live/documents/{id}; this markup is the frame and the texts.
+    at the foot. Everything that depends on the model is drawn by the scripts (js/cad/*.js) from /live/models/{id}; this markup is the frame and the texts.
 *@
 @{
     var user = Me.Snapshot;
     var canEdit = Model.CanEdit;
-    var back = Model.LinkToken is null ? "/Documents" : (user is null ? "/" : "/Documents");
+    var back = Model.LinkToken is not null && user is null ? "/" : Model.FolderId is { } folder ? $"/Models?folder={folder}" : "/Models";
 }
 <div class="ms-studio" id="ms-studio"
-     data-document="@Model.DocumentId"
+     data-model="@Model.ModelId"
      data-token="@(Model.LinkToken ?? string.Empty)"
      data-version="@(Model.VersionId?.ToString() ?? string.Empty)"
      data-can-edit="@(canEdit ? "true" : "false")"
@@ -50,11 +50,11 @@
             }
             @if (Model.LinkToken is null)
             {
-                <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Documents/Versions?id=@Model.DocumentId" aria-label="@L["Versions.Title"]" data-tip="@L["Versions.Title"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("history")</a>
+                <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Models/Versions?id=@Model.ModelId" aria-label="@L["Versions.Title"]" data-tip="@L["Versions.Title"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("history")</a>
             }
             @if (Model.IsOwner)
             {
-                <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Documents/Members?id=@Model.DocumentId" aria-label="@L["Studio.Share"]" data-tip="@L["Studio.Share"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("share")</a>
+                <a class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" href="/Models/Members?id=@Model.ModelId" aria-label="@L["Studio.Share"]" data-tip="@L["Studio.Share"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("share")</a>
             }
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon ms-hide-xs" data-action="keys" aria-label="@L["Keys.Title"]" data-tip="@L["Keys.Title"] (?)" data-tip-place="below" data-tip-align="end">@Ui.Icon("help-circle")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" data-menu-toggle="ms-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["Studio.Export"]" data-tip="@L["Studio.Export"]" data-tip-place="below" data-tip-align="end">@Ui.Icon("download")</button>
@@ -95,6 +95,7 @@
             <button type="button" class="ms-tool" data-feature="rib" data-tip="@L["Feature.rib"]">@Ui.Icon("rib")<span>@L["Feature.rib"]</span></button>
             <button type="button" class="ms-tool" data-feature="draft" data-tip="@L["Feature.draft"]">@Ui.Icon("draft")<span>@L["Feature.draft"]</span></button>
             <button type="button" class="ms-tool" data-feature="thread" data-tip="@L["Feature.thread"]">@Ui.Icon("thread")<span>@L["Feature.thread"]</span></button>
+            <button type="button" class="ms-tool" data-feature="figure" data-tip="@L["Feature.figure"]">@Ui.Icon("figure")<span>@L["Feature.figure"]</span></button>
             <span class="ms-tools__sep" aria-hidden="true"></span>
             <button type="button" class="ms-tool" data-feature="boolean" data-tip="@L["Feature.boolean"]">@Ui.Icon("boolean")<span>@L["Feature.boolean"]</span></button>
             <button type="button" class="ms-tool" data-feature="split" data-tip="@L["Feature.split"]">@Ui.Icon("split")<span>@L["Feature.split"]</span></button>
@@ -107,6 +108,10 @@
             <button type="button" class="ms-tool" data-feature="plane" data-tip="@L["Feature.plane"]">@Ui.Icon("plane")<span>@L["Feature.plane"]</span></button>
             <button type="button" class="ms-tool" data-feature="variable" data-tip="@L["Feature.variable"]">@Ui.Icon("variable")<span>@L["Feature.variable"]</span></button>
             <button type="button" class="ms-tool" data-action="image" data-tip="@L["Image.Tool"]">@Ui.Icon("image")<span>@L["Image.Short"]</span></button>
+            @if (Model.ShowAi3d)
+            {
+                <button type="button" class="ms-tool" data-action="mesh" data-tip="@L["Studio.Mesh.Tool"]">@Ui.Icon("ai-3d")<span>@L["Studio.Mesh.Short"]</span></button>
+            }
             <button type="button" class="ms-tool" data-action="import" data-tip="@L["Import.Tool"]">@Ui.Icon("upload")<span>@L["Import.Short"]</span></button>
             <span class="ms-tools__sep" aria-hidden="true"></span>
         }
@@ -227,6 +232,9 @@
                 <button type="button" class="ms-vbtn" data-menu-toggle="ms-theme-menu" aria-haspopup="menu" aria-expanded="false" aria-label="@L["View.Theme"]" data-tip="@L["View.Theme"]" data-tip-align="end">@Ui.Icon("palette")</button>
                 <button type="button" class="ms-vbtn" data-action="planes" aria-pressed="true" aria-label="@L["View.Planes"]" data-tip="@L["View.Planes"] (P)" data-tip-align="end">@Ui.Icon("plane")</button>
                 <button type="button" class="ms-vbtn" data-action="section" aria-pressed="false" aria-label="@L["View.Section"]" data-tip="@L["View.Section"]" data-tip-align="end">@Ui.Icon("section")</button>
+                @* the 3D mouse: only where the browser can talk to it (WebHID: Chrome, Edge); app.js shows it *@
+                <button type="button" class="ms-vbtn" data-action="spacemouse" data-menu-toggle="ms-spacemouse-menu" aria-haspopup="menu" aria-expanded="false" aria-pressed="false" hidden
+                        aria-label="@L["View.SpaceMouse"]" data-tip="@L["View.SpaceMouse"]" data-tip-align="end">@Ui.Icon("spacemouse")</button>
             </div>
 
             @* the section view: the parts cut by a plane that can be moved (the cut faces hatched) *@
@@ -317,9 +325,16 @@
                         <div class="ms-ai__send">
                             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-ai-attach aria-label="@L["Studio.Ai.Attach"]" data-tip="@L["Studio.Ai.Attach"]">@Ui.Icon("paperclip")</button>
                             <input type="file" class="mat-sr-only" data-ai-picker multiple accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg,application/pdf" tabindex="-1" aria-hidden="true">
-                            <small class="ms-muted ms-ai__hint">@L["Studio.Ai.Hint"]</small>
+                            <select class="mat-select mat-select--sm mat-input--sm ms-ai__detail" data-ai-detail aria-label="@L["Studio.Ai.Detail"]" data-tip="@L["Studio.Ai.Detail"]">
+                                @foreach (var level in new[] { "rough", "normal", "fine" })
+                                {
+                                    <option value="@level">@L["Studio.Ai.Detail." + level]</option>
+                                }
+                            </select>
+                            <span class="ms-ai__grow"></span>
                             <button type="button" class="mat-btn mat-btn--primary mat-btn--sm" data-ai-send>@Ui.Icon("sparkles")<span>@L["Studio.Ai.Send"]</span></button>
                         </div>
+                        <small class="ms-muted ms-ai__hint">@L["Studio.Ai.Hint"]</small>
                     </footer>
                 </section>
             }
@@ -439,6 +454,10 @@
         <div class="mat-dialog__foot">
             <div class="mat-btn-row">
                 <button type="button" class="mat-btn mat-btn--primary" data-img-apply disabled>@Ui.Icon("check")<span>@L["Image.Apply"]</span></button>
+                @if (Model.ShowAi3d)
+                {
+                    <button type="button" class="mat-btn mat-btn--secondary" data-img-mesh disabled data-tip="@L["Studio.Mesh.FromImageTip"]">@Ui.Icon("ai-3d")<span>@L["Studio.Mesh.FromImage"]</span></button>
+                }
                 @if (Model.ShowAi)
                 {
                     <button type="button" class="mat-btn mat-btn--secondary" data-img-ai disabled>@Ui.Icon("sparkles")<span>@L["Image.ToAi"]</span></button>
@@ -448,6 +467,99 @@
         </div>
     </div>
 </dialog>
+
+@if (Model.ShowAi3d)
+{
+    @* AI 3D: a picture, up to four views or a text become a figure – through the AI of the installation (a figure of building blocks, in the chat) or through
+       Meshy (a mesh, then a solid part here: meshdialog.js, meshgen.js) *@
+    <dialog class="mat-dialog mat-dialog--lg ms-meshdlg" id="ms-mesh" aria-labelledby="ms-mesh-title" data-has-meshy="@(Model.ShowMesh ? "1" : "0")" data-has-ai="@(Model.ShowAi ? "1" : "0")">
+        <div class="mat-dialog__form">
+            <div class="mat-dialog__head">@Ui.Icon("ai-3d")<h2 class="mat-dialog__title" id="ms-mesh-title">@L["Studio.Mesh.Title"]</h2>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-dialog__close" data-dialog-close aria-label="@L["Common.Dialog.Close"]">@Ui.Icon("x")</button></div>
+            <div class="mat-dialog__body ms-meshdlg__body">
+                <div class="ms-meshdlg__ask" data-mesh-ask>
+                    @if (Model.ShowMesh && Model.ShowAi)
+                    {
+                        <div class="mat-seg ms-meshdlg__method" role="group" aria-label="@L["Studio.Mesh.Method"]">
+                            <button type="button" class="mat-seg__btn" data-mesh-method="blocks" aria-pressed="false">@Ui.Icon("figure")<span>@L["Studio.Mesh.Method.Blocks"]</span></button>
+                            <button type="button" class="mat-seg__btn" data-mesh-method="meshy" aria-pressed="false">@Ui.Icon("ai-3d")<span>@L["Studio.Mesh.Method.Meshy"]</span></button>
+                        </div>
+                    }
+                    <p class="mat-hint ms-meshdlg__hint" data-mesh-hint="blocks" hidden>@L["Studio.Mesh.BlocksHint"]</p>
+                    <p class="mat-hint ms-meshdlg__hint" data-mesh-hint="meshy" hidden>@L["Studio.Mesh.MeshyHint"]</p>
+                    <div class="mat-seg" role="group" aria-label="@L["Studio.Mesh.From"]">
+                        <button type="button" class="mat-seg__btn" data-mesh-mode="image" aria-pressed="true">@Ui.Icon("image")<span>@L["Studio.Mesh.FromPicture"]</span></button>
+                        <button type="button" class="mat-seg__btn" data-mesh-mode="text" aria-pressed="false">@Ui.Icon("type")<span>@L["Studio.Mesh.FromText"]</span></button>
+                    </div>
+                    <div class="ms-meshdlg__pane" data-mesh-pane="image">
+                        <div class="mat-empty mat-empty--framed ms-meshdlg__drop" data-mesh-drop>
+                            <span class="mat-empty__icon">@Ui.Icon("image")</span>
+                            <span class="mat-empty__title">@L["Studio.Mesh.Pictures"]</span>
+                            <span>@L["Studio.Mesh.PicturesHint"]</span>
+                            <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" data-mesh-pick>@Ui.Icon("upload")<span>@L["Studio.Mesh.Pick"]</span></button>
+                        </div>
+                        <input type="file" class="mat-sr-only" multiple accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" data-mesh-file tabindex="-1" aria-hidden="true">
+                        <ul class="ms-meshdlg__pics" data-mesh-pics aria-label="@L["Studio.Mesh.Pictures"]" hidden></ul>
+                    </div>
+                    <div class="ms-meshdlg__pane" data-mesh-pane="text" hidden>
+                        <label class="mat-label" for="ms-mesh-prompt">@L["Studio.Mesh.Prompt"]</label>
+                        <textarea class="mat-textarea" id="ms-mesh-prompt" rows="4" maxlength="800" placeholder="@L["Studio.Mesh.PromptPlaceholder"]" data-mesh-prompt></textarea>
+                        <div class="ms-meshdlg__examples">
+                            <button type="button" class="mat-chip" data-mesh-example>@L["Studio.Mesh.Example1"]</button>
+                            <button type="button" class="mat-chip" data-mesh-example>@L["Studio.Mesh.Example2"]</button>
+                            <button type="button" class="mat-chip" data-mesh-example>@L["Studio.Mesh.Example3"]</button>
+                        </div>
+                        <p class="mat-hint">@L["Studio.Mesh.PromptHint"]</p>
+                    </div>
+                </div>
+                <div class="ms-meshdlg__work" data-mesh-work hidden>
+                    <div class="ms-meshdlg__stage">
+                        <img class="ms-meshdlg__thumb" data-mesh-thumb alt="@L["Studio.Mesh.Preview"]" hidden>
+                        <div class="ms-meshdlg__wait" data-mesh-wait>@Ui.Icon("ai-3d")</div>
+                    </div>
+                    <div class="ms-meshdlg__bar" role="progressbar" aria-label="@L["Studio.Mesh.Progress"]" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-mesh-bar><span data-mesh-fill></span></div>
+                    <p class="ms-meshdlg__state" data-mesh-state aria-live="polite"></p>
+                </div>
+                <div class="ms-meshdlg__settings mat-form">
+                    <div class="ms-meshdlg__row">
+                        <div class="mat-field">
+                            <label class="mat-label" for="ms-mesh-height">@L["Studio.Mesh.Height"] <span class="ms-muted" data-mesh-unit></span></label>
+                            <input class="mat-input mat-input--sm mat-mono" id="ms-mesh-height" type="number" min="0.1" step="any" value="50" data-mesh-height>
+                        </div>
+                        <div class="mat-field" data-meshy-only>
+                            <label class="mat-label" for="ms-mesh-turn">@L["Studio.Mesh.Turn"]</label>
+                            <select class="mat-select mat-select--sm" id="ms-mesh-turn" data-mesh-turn>
+                                <option value="0">0°</option>
+                                <option value="90">90°</option>
+                                <option value="180">180°</option>
+                                <option value="270">270°</option>
+                            </select>
+                        </div>
+                        <div class="mat-field ms-meshdlg__name" data-meshy-only>
+                            <label class="mat-label" for="ms-mesh-name">@L["Studio.Mesh.Name"]</label>
+                            <input class="mat-input mat-input--sm" id="ms-mesh-name" maxlength="80" autocomplete="off" data-mesh-name>
+                        </div>
+                        <div class="mat-field" data-meshy-only>
+                            <label class="mat-label" for="ms-mesh-color">@L["Studio.Mesh.Color"]</label>
+                            <input class="ms-imgdlg__color" id="ms-mesh-color" type="color" value="#3cb764" data-mesh-color>
+                        </div>
+                    </div>
+                    <label class="mat-check" data-meshy-only><input type="checkbox" data-mesh-rebuild><span class="mat-check__text">@L["Studio.Mesh.Rebuild"]</span></label>
+                    <p class="mat-hint" data-meshy-only>@L["Studio.Mesh.Costs"]</p>
+                </div>
+            </div>
+            <div class="mat-dialog__foot">
+                <div class="mat-btn-row">
+                    <button type="button" class="mat-btn mat-btn--primary" data-mesh-start disabled>@Ui.Icon("sparkles")<span>@L["Studio.Mesh.Start"]</span></button>
+                    <button type="button" class="mat-btn mat-btn--primary" data-mesh-apply hidden>@Ui.Icon("check")<span>@L["Studio.Mesh.Apply"]</span></button>
+                    <button type="button" class="mat-btn mat-btn--secondary" data-mesh-again hidden>@Ui.Icon("refresh")<span>@L["Studio.Mesh.Again"]</span></button>
+                    <button type="button" class="mat-btn mat-btn--secondary" data-mesh-cancel hidden>@Ui.Icon("stop")<span>@L["Studio.Mesh.Stop"]</span></button>
+                    <button type="button" class="mat-btn mat-btn--ghost" data-dialog-close>@L["Common.Dialog.Close"]</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+}
 
 @* the technical drawing of the visible parts: views in first-angle projection, a section, dimensions, a title block; PDF, SVG, DXF *@
 <dialog class="mat-dialog mat-dialog--xl ms-drawdlg" id="ms-drawing" aria-labelledby="ms-drawing-title">
@@ -526,6 +638,22 @@
         <div class="mat-dialog__body"><ul class="ms-asminsert" data-asm-insert-list></ul></div>
     </div>
 </dialog>
+
+@* the 3D mouse: connect it (the browser asks once), its speed, and whether the cap moves the model or the camera; kept on this device *@
+<div class="mat-menu" id="ms-spacemouse-menu" role="menu" aria-label="@L["View.SpaceMouse"]" hidden>
+    <button type="button" class="mat-menu__item" role="menuitem" data-spacemouse="connect">@Ui.Icon("plug")<span>@L["View.SpaceMouse.Connect"]</span></button>
+    <button type="button" class="mat-menu__item" role="menuitem" data-spacemouse="disconnect" hidden>@Ui.Icon("x")<span>@L["View.SpaceMouse.Disconnect"]</span></button>
+    <div class="mat-menu__sep" role="separator"></div>
+    @foreach (var speed in new[] { "slow", "normal", "fast" })
+    {
+        <button type="button" class="mat-menu__item" role="menuitemradio" aria-checked="false" data-spacemouse-speed="@speed">@Ui.Icon(speed == "slow" ? "minus" : speed == "fast" ? "plus" : "circle")<span>@L["View.SpaceMouse.Speed." + speed]</span>@Ui.Icon("check", "mat-menu__check")</button>
+    }
+    <div class="mat-menu__sep" role="separator"></div>
+    @foreach (var mode in new[] { "object", "camera" })
+    {
+        <button type="button" class="mat-menu__item" role="menuitemradio" aria-checked="false" data-spacemouse-mode="@mode">@Ui.Icon(mode == "object" ? "cube" : "eye")<span>@L["View.SpaceMouse.Mode." + mode]</span>@Ui.Icon("check", "mat-menu__check")</button>
+    }
+</div>
 
 @* the colour schemes of the 3D view (stronger lines, other backgrounds), kept on this device *@
 <div class="mat-menu" id="ms-theme-menu" role="menu" aria-label="@L["View.Theme"]" hidden>

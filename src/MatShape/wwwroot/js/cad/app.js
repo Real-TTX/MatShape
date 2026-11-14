@@ -1,16 +1,18 @@
-/* MatShape – the editor of a document. It loads the document (/live/documents/{id}), runs the features of the open Part Studio (model.js), shows the result
+/* MatShape – the editor of a model. It loads the model (/live/models/{id}), runs the features of the open Part Studio (model.js), shows the result
    (viewport.js), and lets the person change the history: new features through their dialogs (dialogs.js), sketches (sketcher.js), rename, suppress, roll back, delete.
    Every change is saved by itself a moment later, with the revision it started from: when somebody else saved in between, nothing is overwritten unasked.
    Without a network the changes wait on this device (localStorage) and are sent when the network is back. */
 
 import { Viewport, edgeGroup, edgePoints } from './viewport.js';
 import { ViewCube } from './viewcube.js';
+import { SpaceMouse, SPEEDS, isSupported as spaceMouseSupported } from './spacemouse.js';
 import { Assistant } from './assistant.js';
 import { ImageDialog } from './imagedialog.js';
+import { MeshDialog } from './meshdialog.js';
 import { DrawingDialog } from './drawingdialog.js';
 import { DrawingEditor } from './drawingeditor.js';
 import { AssemblyEditor } from './assembly.js';
-import { loadKernel, regenerate, dispose, FEATURES, TANGENT, faceKey, outlineOf, properties, sectionOf } from './model.js';
+import { loadKernel, regenerate, dispose, FEATURES, TANGENT, faceKey, outlineOf, overlapsOf, properties, sectionOf } from './model.js';
 import { buildDialog } from './dialogs.js';
 import { distToSegment3 } from './topo.js';
 import { Sketcher } from './sketcher.js';
@@ -25,7 +27,7 @@ if (root) start();
 
 function start() {
   const $ = sel => root.querySelector(sel);
-  const docId = root.dataset.document;
+  const modelId = root.dataset.model;
   const linkToken = root.dataset.token || '';
   const versionId = root.dataset.version || '';
   const signedIn = root.dataset.signedIn === 'true';
@@ -58,7 +60,7 @@ function start() {
   };
 
   const state = {
-    doc: null,
+    model: null,
     studio: null,
     content: null,
     result: null,
@@ -76,8 +78,8 @@ function start() {
     dirty: false,
     offline: !navigator.onLine,
   };
-  const canEdit = () => !!state.doc?.canEdit;
-  const unit = () => UNITS[state.doc?.units] || 1;
+  const canEdit = () => !!state.model?.canEdit;
+  const unit = () => UNITS[state.model?.units] || 1;
 
   const viewport = new Viewport($('[data-canvas]'), $('[data-triad]'));
   const viewCube = new ViewCube($('[data-viewcube]'), viewport);
@@ -114,6 +116,12 @@ function start() {
       commit(now);
       return true;
     },
+    // separate parts that interpenetrate (one part is one solid; separate parts may only touch): sent back to the AI for a repair
+    overlaps: () => {
+      const parts = state.result?.parts || [];
+      const named = id => { const p = parts.find(x => x.id === id); return p ? partName(p) : id; };
+      try { return overlapsOf(parts).map(o => ({ ...o, aName: named(o.a), bName: named(o.b) })); } catch { return []; }
+    },
     fit: () => viewport.fit(true),
     busy: on => root.classList.toggle('is-ai-busy', on),
   }) : null;
@@ -135,15 +143,58 @@ function start() {
       toast(t('Studio.Image.Added', features.length));
     },
     toAi: assistant ? file => { assistant.open(true); assistant.attach([file]); if (!assistant.input.value.trim()) assistant.input.value = t('Studio.Image.AiPrompt'); } : null,
+    toMesh: file => openMesh(file),
+  }) : null;
+  // the 3D generation (like Meshy): a picture, up to four views or a text become a mesh at Meshy, then a solid part of the open Part Studio (one step)
+  const meshDialogEl = document.getElementById('ms-mesh');
+  const meshDialog = meshDialogEl ? new MeshDialog(meshDialogEl, {
+    modelId,
+    studioId: () => state.studio.id,
+    kernel: () => state.kernel,
+    units: () => state.model?.units || 'mm',
+    unit: () => unit(),
+    occupied: () => {
+      const parts = state.kind === 'studio' ? state.result?.parts || [] : [];
+      if (!parts.length) return null;
+      const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+      for (const p of parts) {
+        const b = p.manifold.boundingBox();
+        for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], b.min[k]); max[k] = Math.max(max[k], b.max[k]); }
+      }
+      return { min, max };
+    },
+    apply: ({ feature, name, color }) => {
+      if (!canEdit() || state.kind !== 'studio') { toast(t('Studio.Mesh.NeedStudio'), 'warning'); return false; }
+      closeModes();
+      const before = JSON.stringify(state.content);
+      const content = clone(state.content);
+      const at = Number.isInteger(content.rollback) ? content.rollback : content.features.length;
+      content.features.splice(at, 0, feature);
+      if (Number.isInteger(content.rollback)) content.rollback++;
+      content.parts = { ...content.parts, [feature.id]: { name, color } };
+      state.content = normalize(content);
+      commit(before);
+      setTimeout(() => viewport.fit(), 50);
+      return true;
+    },
+    // the way of the AI blocks: the request goes to the assistant (which builds a figure feature, changeable in the chat)
+    toAssistant: assistant ? async ({ prompt, files }) => {
+      assistant.open(true);
+      if (files.length) await assistant.attach(files);
+      assistant.input.value = prompt;
+      await assistant.submit();
+    } : null,
+    // a result that came while the dialog was closed: the tool shows it
+    ready: on => $('[data-action="mesh"]')?.classList.toggle('is-ready', on),
   }) : null;
   // the technical drawing of the visible parts (also for people who may only look)
   const drawingEl = document.getElementById('ms-drawing');
   const drawingDialog = drawingEl ? new DrawingDialog(drawingEl, {
     kernel: () => state.kernel,
     parts: () => (state.result?.parts || []).filter(p => !state.hidden.has(p.id)),
-    name: () => (state.doc.studios.length > 1 ? state.studio.name : state.doc.name),
-    doc: () => state.doc.name,
-    units: () => state.doc.units,
+    name: () => (state.model.studios.length > 1 ? state.studio.name : state.model.name),
+    modelName: () => state.model.name,
+    units: () => state.model.units,
     unit: () => unit(),
     person: () => root.dataset.person || '',
     asTab: drawing => addStudio('drawing', { ...drawing, source: state.studio.id }),
@@ -152,11 +203,11 @@ function start() {
   // ---- a drawing tab (drawingeditor.js): the sheet of a Part Studio, dimensions, details ---------------------------------------
   const drawingEditor = new DrawingEditor({ sheet: $('[data-sheet]'), panel: $('[data-drawing-panel]'), toolbar: $('[data-toolbar="drawing"]') }, {
     kernel: () => state.kernel,
-    studios: () => state.doc.studios,
-    units: () => state.doc.units,
+    studios: () => state.model.studios,
+    units: () => state.model.units,
     unit: () => unit(),
     person: () => root.dataset.person || '',
-    docName: () => state.doc.name,
+    modelName: () => state.model.name,
     name: () => state.studio?.name || '',
     canEdit: () => canEdit(),
     status: text => setStatus(text),
@@ -193,8 +244,8 @@ function start() {
   // ---- an assembly tab (assembly.js): instances of parts, mates -------------------------------------------------------------
   const assemblyEditor = new AssemblyEditor({ panel: $('[data-assembly-panel]'), toolbar: $('[data-toolbar="assembly"]'), insert: document.getElementById('ms-insert') }, {
     kernel: () => state.kernel,
-    studios: () => state.doc.studios,
-    units: () => state.doc.units,
+    studios: () => state.model.studios,
+    units: () => state.model.units,
     unit: () => unit(),
     viewport,
     canEdit: () => canEdit(),
@@ -221,6 +272,7 @@ function start() {
   }
   const openDrawing = () => { if (!drawingDialog || !state.result) return; if (state.mode === 'dialog' || state.mode === 'sketch') closeModes(); drawingDialog.open(); };
   const openImage = file => { if (canEdit() && imageDialog && state.mode !== 'sketch') imageDialog.open(file); };
+  const openMesh = file => { if (canEdit() && meshDialog && state.mode !== 'sketch') meshDialog.open(file); };
   // a picture dropped on the view or pasted (outside of fields) opens the editor with it
   root.addEventListener('dragover', e => { if (canEdit() && imageDialog && e.dataTransfer?.types?.includes('Files') && !e.target.closest('[data-ai-panel]')) e.preventDefault(); });
   root.addEventListener('drop', e => {
@@ -261,21 +313,23 @@ function start() {
     ui.loading.hidden = false;
     ui.failure.hidden = true;
     try {
-      const [kernel, doc] = await Promise.all([
+      const [kernel, model] = await Promise.all([
         loadKernel(),
-        request('GET', `/live/documents/${docId}${query()}${versionId ? (linkToken ? '&' : '?') + 'v=' + encodeURIComponent(versionId) : ''}`),
+        request('GET', `/live/models/${modelId}${query()}${versionId ? (linkToken ? '&' : '?') + 'v=' + encodeURIComponent(versionId) : ''}`),
       ]);
       state.kernel = kernel;
-      state.doc = doc;
-      document.title = `${doc.name} · MatShape`;
-      if (doc.versionName && ui.versionName) ui.versionName.textContent = t('Studio.VersionNamed', doc.versionName);
+      state.model = model;
+      document.title = `${model.name} · MatShape`;
+      if (model.versionName && ui.versionName) ui.versionName.textContent = t('Studio.VersionNamed', model.versionName);
       if (!canEdit()) root.classList.add('is-readonly');
       renderTabs();
       const wanted = Number(location.hash.replace('#studio-', '')) || null;
-      const studio = doc.studios.find(s => s.id === wanted) || doc.studios[0];
+      const studio = model.studios.find(s => s.id === wanted) || model.studios[0];
       await openStudio(studio.id);
       ui.loading.hidden = true;
       viewport.fit(false);
+      // a generation of the 3D AI that was running when the page was left goes on
+      if (canEdit()) meshDialog?.resume();
       // the picture of the list shows the model as it is now (it may have been made by an older build, or never)
       if (!versionId) scheduleThumbnail();
     } catch (error) {
@@ -293,7 +347,7 @@ function start() {
       closeModes();
       await flushSave();
     }
-    const studio = state.doc.studios.find(s => s.id === id);
+    const studio = state.model.studios.find(s => s.id === id);
     if (!studio) return;
     state.studio = studio;
     state.content = normalize(clone(studio.content));
@@ -335,7 +389,7 @@ function start() {
     if (!state.kernel) return;
     const started = performance.now();
     const hadParts = state.result?.parts.length > 0;
-    const next = regenerate(state.kernel, content, state.doc.units);
+    const next = regenerate(state.kernel, content, state.model.units);
     dispose(state.result);
     state.result = next;
     for (const id of [...state.selection]) if (!next.parts.some(p => p.id === id)) state.selection.delete(id);
@@ -503,7 +557,7 @@ function start() {
     if (!canEdit() || state.mode !== 'idle' || !state.result?.parts.length) return;
     try {
       const png = await viewport.snapshot(320, 240);
-      if (png) await request('PUT', `/live/documents/${docId}/thumbnail`, png);
+      if (png) await request('PUT', `/live/models/${modelId}/thumbnail`, png);
     } catch { /* the picture is a nicety */ }
   }, 4000);
 
@@ -514,8 +568,8 @@ function start() {
       const info = await request('GET', `/live/studios/${state.studio.id}/revision${query()}`);
       setOffline(false);
       if (info.revision > state.studio.revision) {
-        const doc = await request('GET', `/live/documents/${docId}${query()}`);
-        const fresh = doc.studios.find(s => s.id === state.studio.id);
+        const model = await request('GET', `/live/models/${modelId}${query()}`);
+        const fresh = model.studios.find(s => s.id === state.studio.id);
         if (!fresh || state.dirty || state.mode !== 'idle') return;
         state.studio.revision = fresh.revision;
         state.studio.content = fresh.content;
@@ -594,7 +648,7 @@ function start() {
       row.append(el('span', { class: 'ms-tree__name' }, f.name || t('Feature.' + f.type)));
       if (f.type === 'variable') {
         const v = state.result?.variables?.[f.params.name];
-        if (v) row.append(el('span', { class: 'ms-tree__value mat-mono' }, '#' + f.params.name + ' = ' + (v.d === 1 ? length(v.v, state.doc.units) : fmt(v.v))));
+        if (v) row.append(el('span', { class: 'ms-tree__value mat-mono' }, '#' + f.params.name + ' = ' + (v.d === 1 ? length(v.v, state.model.units) : fmt(v.v))));
       }
       if (s.state === 'error' || s.state === 'warn') row.append(icon('alert', 'ms-tree__warn'));
       if (f.type === 'sketch') {
@@ -779,7 +833,7 @@ function start() {
 
   function showPartInfo(part, sticky) {
     const p = properties(part);
-    const u = state.doc.units, f = unit();
+    const u = state.model.units, f = unit();
     const size = [0, 1, 2].map(i => fmt((p.box.max[i] - p.box.min[i]) / f, 3)).join(' × ');
     ui.measure.replaceChildren(
       el('strong', null, partName(part)),
@@ -840,7 +894,7 @@ function start() {
     const index = isNew ? insertIndex() : content.features.findIndex(f => f.id === feature.id);
     // what the feature can use: the result of everything before it
     const inputContent = { ...content, features: content.features.slice(0, index), rollback: null };
-    const input = regenerate(state.kernel, inputContent, state.doc.units);
+    const input = regenerate(state.kernel, inputContent, state.model.units);
     state.mode = 'dialog';
     state.dialog = { feature, isNew, index, input, activeParts: null, activePlane: null, activeEdges: null };
     // a fillet or chamfer picks the edges of the parts before it, while the view shows its preview
@@ -854,7 +908,7 @@ function start() {
     const ctx = {
       feature,
       input,
-      units: state.doc.units,
+      units: state.model.units,
       unit: unit(),
       changed: (preview = true) => { if (preview) schedulePreview(); },
       rebuild: () => { build(); schedulePreview(); },
@@ -967,7 +1021,7 @@ function start() {
   function openSketch(feature, isNew) {
     const content = state.content;
     const index = isNew ? insertIndex() : content.features.findIndex(f => f.id === feature.id);
-    const input = regenerate(state.kernel, { ...content, features: content.features.slice(0, index), rollback: null }, state.doc.units);
+    const input = regenerate(state.kernel, { ...content, features: content.features.slice(0, index), rollback: null }, state.model.units);
     const frame = frameOf(feature.params.plane, input);
     if (!frame) { dispose(input); toast(t('Feature.MissingPlane'), 'danger'); return; }
     state.mode = 'sketch';
@@ -981,7 +1035,7 @@ function start() {
     regen(withDialogFeature());
     // "Use" takes edges of the parts before the sketch (the view shows the whole model, which follows the sketch live)
     viewport.setPickParts(input.parts.filter(p => !state.hidden.has(p.id)));
-    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, cons: feature.params.cons, dims: feature.params.dims, units: state.doc.units, variables: input.variables, image: feature.params.image });
+    sketcher.start({ name: feature.name, frame, entities: feature.params.entities, cons: feature.params.cons, dims: feature.params.dims, units: state.model.units, variables: input.variables, image: feature.params.image });
     updateUndo();
   }
 
@@ -1201,7 +1255,7 @@ function start() {
     if (state.measure.length >= 2) state.measure = [];
     state.measure.push(pick.point);
     viewport.setMarkers(state.measure);
-    const u = state.doc.units;
+    const u = state.model.units;
     if (state.measure.length === 1) {
       const p = state.measure[0];
       ui.measure.replaceChildren(el('strong', null, t('Measure.Point')), el('span', { class: 'mat-mono' }, `X ${length(p[0], u)} · Y ${length(p[1], u)} · Z ${length(p[2], u)}`));
@@ -1301,7 +1355,7 @@ function start() {
 
   function renderTabs() {
     ui.tabs.replaceChildren();
-    for (const s of state.doc.studios) {
+    for (const s of state.model.studios) {
       const active = state.studio?.id === s.id;
       const kind = kindOf(s.id === state.studio?.id ? state.content : s.content);
       const tab = el('div', { class: 'ms-tab' + (active ? ' is-active' : '') },
@@ -1334,21 +1388,21 @@ function start() {
       await flushSave();
       if (action === 'duplicate') {
         const copy = await request('POST', `/live/studios/${s.id}/duplicate`);
-        state.doc.studios.push(copy);
+        state.model.studios.push(copy);
         await openStudio(copy.id);
       } else if (action === 'left' || action === 'right') {
         await request('POST', `/live/studios/${s.id}/move`, { step: action === 'left' ? -1 : 1 });
-        const list = state.doc.studios, i = list.indexOf(s), j = i + (action === 'left' ? -1 : 1);
+        const list = state.model.studios, i = list.indexOf(s), j = i + (action === 'left' ? -1 : 1);
         if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
         renderTabs();
       } else if (action === 'delete') {
-        if (state.doc.studios.length <= 1) { toast(t('Tabs.LastOne'), 'warning'); return; }
+        if (state.model.studios.length <= 1) { toast(t('Tabs.LastOne'), 'warning'); return; }
         if (!await window.MatUi.confirm(t('Tabs.DeleteConfirm', s.name), { danger: true, ok: t('Tabs.Delete') })) return;
         await request('DELETE', `/live/studios/${s.id}`);
         writeLocal('pending.' + s.id, null);
-        state.doc.studios = state.doc.studios.filter(x => x !== s);
+        state.model.studios = state.model.studios.filter(x => x !== s);
         state.studio = null;
-        await openStudio(state.doc.studios[0].id);
+        await openStudio(state.model.studios[0].id);
       }
     } catch { toast(t('Tabs.Failed'), 'danger'); }
   }
@@ -1357,17 +1411,17 @@ function start() {
   async function addStudio(kind = 'studio', drawing = null) {
     try {
       await flushSave();
-      const count = state.doc.studios.filter(s => kindOf(s.content) === kind).length + 1;
+      const count = state.model.studios.filter(s => kindOf(s.content) === kind).length + 1;
       const name = kind === 'drawing' ? t('Tabs.DrawingName', count) : kind === 'assembly' ? t('Tabs.AssemblyName', count) : undefined;
-      const source = state.kind === 'studio' ? state.studio?.id : state.doc.studios.find(s => kindOf(s.content) === 'studio')?.id;
-      const studio = await request('POST', `/live/documents/${docId}/studios`, { name, kind: kind === 'studio' ? null : kind });
+      const source = state.kind === 'studio' ? state.studio?.id : state.model.studios.find(s => kindOf(s.content) === 'studio')?.id;
+      const studio = await request('POST', `/live/models/${modelId}/studios`, { name, kind: kind === 'studio' ? null : kind });
       if (kind === 'drawing') {
         const content = { ...studio.content, drawing: drawing || { source } };
         const answer = await request('PUT', `/live/studios/${studio.id}`, { revision: studio.revision, content });
         studio.revision = answer.revision;
         studio.content = content;
       }
-      state.doc.studios.push(studio);
+      state.model.studios.push(studio);
       await openStudio(studio.id);
       if (kind === 'studio') viewport.fit(true);
     } catch { toast(t('Tabs.Failed'), 'danger'); }
@@ -1381,15 +1435,15 @@ function start() {
     if (!name || !name.trim()) return;
     try {
       await flushSave();
-      await request('POST', `/live/documents/${docId}/versions`, { name: name.trim() });
+      await request('POST', `/live/models/${modelId}/versions`, { name: name.trim() });
       toast(t('Version.Created', name.trim()), 'success');
     } catch { toast(t('Version.Failed'), 'danger'); }
   }
 
   async function exportAs(kind) {
     const parts = (state.result?.parts || []).filter(p => !state.hidden.has(p.id));
-    const name = state.doc.name + (state.doc.studios.length > 1 ? ' - ' + state.studio.name : '');
-    if (kind === 'json') { download(fileName(name, 'matshape.json'), JSON.stringify({ format: 'MatShape Part Studio 1', units: state.doc.units, content: state.content }, null, 2), 'application/json'); return; }
+    const name = state.model.name + (state.model.studios.length > 1 ? ' - ' + state.studio.name : '');
+    if (kind === 'json') { download(fileName(name, 'matshape.json'), JSON.stringify({ format: 'MatShape Part Studio 1', units: state.model.units, content: state.content }, null, 2), 'application/json'); return; }
     if (kind === 'png') { const png = await viewport.image(); if (png) download(fileName(name, 'png'), png); return; }
     if (kind === 'drawing') { openDrawing(); return; }
     if (kind === 'step') {
@@ -1454,6 +1508,7 @@ function start() {
     else if (action === 'side') toggleSide();
     else if (action === 'ai') assistant?.open();
     else if (action === 'image') openImage();
+    else if (action === 'mesh') openMesh();
     else if (action === 'import') importInput.click();
     else if (action === 'drawing') openDrawing();
     else if (action === 'keys') openKeys();
@@ -1557,6 +1612,55 @@ function start() {
     else regen();
   }
   applyViewTheme(readLocal('viewTheme') || 'auto');
+
+  // ---- the 3D mouse (SpaceMouse through WebHID): connected once by the person, opened by itself after that ------------------
+  const spaceButton = root.querySelector('[data-action="spacemouse"]');
+  const spaceMenu = document.getElementById('ms-spacemouse-menu');
+  const spaceMouse = new SpaceMouse({
+    navigate: (motion, seconds) => viewport.navigate(motion, seconds),
+    // the buttons: the two of every model (left: isometric, right: fit), the view keys of the larger ones (T, R, F)
+    button: index => {
+      const views = { 0: 'iso', 2: 'top', 4: 'right', 5: 'front' };
+      if (index === 1) viewport.fit();
+      else if (views[index]) viewport.setView(views[index]);
+    },
+    changed: device => {
+      spaceButton?.setAttribute('aria-pressed', String(!!device));
+      showSpaceMenu();
+      if (device) toast(t('SpaceMouse.Connected', spaceMouse.name), 'success');
+    },
+  });
+  spaceMouse.speed = SPEEDS[readLocal('spaceMouse.speed')] || 1;
+  spaceMouse.mode = readLocal('spaceMouse.mode') === 'camera' ? 'camera' : 'object';
+  function showSpaceMenu() {
+    if (!spaceMenu) return;
+    spaceMenu.querySelector('[data-spacemouse="connect"]').hidden = spaceMouse.connected;
+    spaceMenu.querySelector('[data-spacemouse="disconnect"]').hidden = !spaceMouse.connected;
+    spaceMenu.querySelectorAll('[data-spacemouse-speed]').forEach(b => b.setAttribute('aria-checked', String((readLocal('spaceMouse.speed') || 'normal') === b.dataset.spacemouseSpeed)));
+    spaceMenu.querySelectorAll('[data-spacemouse-mode]').forEach(b => b.setAttribute('aria-checked', String(spaceMouse.mode === b.dataset.spacemouseMode)));
+  }
+  if (spaceMouseSupported() && spaceButton) {
+    spaceButton.hidden = false;
+    showSpaceMenu();
+    spaceMouse.reconnect().catch(() => {});
+    spaceMenu?.addEventListener('click', async e => {
+      const item = e.target.closest('[data-spacemouse], [data-spacemouse-speed], [data-spacemouse-mode]');
+      if (!item) return;
+      if (item.dataset.spacemouse === 'connect') {
+        // the browser asks which device (this click is the gesture it needs)
+        try { if (!await spaceMouse.connect()) return; } catch (err) { console.warn('MatShape: 3D mouse', err); toast(t('SpaceMouse.Failed'), 'danger'); }
+      } else if (item.dataset.spacemouse === 'disconnect') {
+        await spaceMouse.disconnect();
+      } else if (item.dataset.spacemouseSpeed) {
+        writeLocal('spaceMouse.speed', item.dataset.spacemouseSpeed);
+        spaceMouse.speed = SPEEDS[item.dataset.spacemouseSpeed] || 1;
+      } else if (item.dataset.spacemouseMode) {
+        writeLocal('spaceMouse.mode', item.dataset.spacemouseMode);
+        spaceMouse.mode = item.dataset.spacemouseMode;
+      }
+      showSpaceMenu();
+    });
+  }
   document.getElementById('ms-theme-menu')?.addEventListener('click', e => {
     const item = e.target.closest('[data-view-theme]');
     if (!item) return;

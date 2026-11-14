@@ -58,18 +58,21 @@ public sealed class IndexModel(AppDbContext db) : AppPageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        var settings = new AiSettings
+        // the settings of the 3D generation (their own tab) stay as they are
+        if (await AiAdmin.SettingsAsync(Context) is not { } settings)
         {
-            Enabled = Enabled,
-            Instruction = Instruction,
-            RepairRounds = RepairRounds,
-            UserDailyTokens = UserDailyTokens,
-            UserMonthlyTokens = UserMonthlyTokens,
-            MonthlyTokens = MonthlyTokens,
-            PerMinutePerAddress = PerMinutePerAddress,
-            MaxTokens = MaxTokens,
-            TimeoutSeconds = TimeoutSeconds,
-        };
+            return Forbid();
+        }
+
+        settings.Enabled = Enabled;
+        settings.Instruction = Instruction;
+        settings.RepairRounds = RepairRounds;
+        settings.UserDailyTokens = UserDailyTokens;
+        settings.UserMonthlyTokens = UserMonthlyTokens;
+        settings.MonthlyTokens = MonthlyTokens;
+        settings.PerMinutePerAddress = PerMinutePerAddress;
+        settings.MaxTokens = MaxTokens;
+        settings.TimeoutSeconds = TimeoutSeconds;
         if (!await AiAdmin.SaveSettingsAsync(Context, settings))
         {
             return Forbid();

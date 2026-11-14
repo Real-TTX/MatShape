@@ -85,7 +85,31 @@ public sealed class SecurityHeaders(RequestDelegate next)
     }
 }
 
-/// <summary>The housekeeping that runs by itself: old sessions go, and a document that was deleted more than 30 days ago is removed for good.</summary>
+/// <summary>
+/// The addresses from the time models were called documents: a page (<c>/Documents/...</c>, bookmarks, the installed app) is sent to <c>/Models/...</c> for good; a request of
+/// an editor that was still open (<c>/live/documents/...</c>) is answered by the new address directly, so its changes are not lost.
+/// </summary>
+public sealed class OldAddresses(RequestDelegate next)
+{
+    public Task InvokeAsync(HttpContext context)
+    {
+        var request = context.Request;
+        if (request.Path.StartsWithSegments("/Documents", StringComparison.OrdinalIgnoreCase, out var rest))
+        {
+            context.Response.Redirect("/Models" + rest + request.QueryString, permanent: true, preserveMethod: !HttpMethods.IsGet(request.Method));
+            return Task.CompletedTask;
+        }
+
+        if (request.Path.StartsWithSegments("/live/documents", StringComparison.OrdinalIgnoreCase, out var live))
+        {
+            request.Path = "/live/models" + live;
+        }
+
+        return next(context);
+    }
+}
+
+/// <summary>The housekeeping that runs by itself: old sessions go, and a model that was deleted more than 30 days ago is removed for good.</summary>
 public sealed class MaintenanceService(IServiceScopeFactory scopes, ILogger<MaintenanceService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -117,7 +141,7 @@ public sealed class MaintenanceService(IServiceScopeFactory scopes, ILogger<Main
     {
         using var scope = scopes.CreateScope();
         var result = await scope.ServiceProvider.GetRequiredService<InstanceService>().CleanUpAsync(ct);
-        logger.LogInformation("Housekeeping: {Sessions} old sessions and {Documents} documents removed.", result.Sessions, result.Documents);
+        logger.LogInformation("Housekeeping: {Sessions} old sessions and {Models} models removed.", result.Sessions, result.Models);
     }
 }
 

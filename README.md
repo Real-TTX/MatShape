@@ -19,7 +19,7 @@ One app container and PostgreSQL, no cloud, no CDN.
 ## What this is about
 
 The parametric CAD tools on the web are great – as long as your parts may live on someone else's servers. MatShape
-brings the same way of working to your own server: a **document** holds **Part Studios**, a Part Studio is an ordered
+brings the same way of working to your own server: a **model** holds **Part Studios**, a Part Studio is an ordered
 list of **features** (sketch, extrude, revolve, boolean, pattern …) that is run from the top to make the parts. Change a
 dimension or a variable and the model follows. The geometry is computed in the browser; the server stores the history,
 checks it and decides who may see and change what.
@@ -83,11 +83,30 @@ checks it and decides who may see and change what.
 - The result are ordinary features – a sketch and an extrude per colour, each colour **a part of its own in its colour**,
   ready for the **3MF export** to a multi-colour printer; or hand the picture to the AI instead
 
+**AI 3D: mascots and figures from a prompt or a picture**
+- **KI-3D / AI 3D** in the toolbar: a **description** ("a friendly lion mascot of a football club with a ball under its arm") or a
+  **picture** (a mascot, a figure, a photo) become a 3D figure – in two ways:
+- **AI blocks** (with the AI profile of the installation, any provider, also free models): the AI builds a **figure** of soft building
+  blocks – spheres, ellipsoids, capsules, cones, boxes, cylinders, tori that melt into each other, cut-outs for mouths and sockets –
+  **one part per colour**, the colours cut into each other (ready for the multi-colour 3MF print), flat underneath; then change it
+  in the chat ("a red scarf", "a bigger mane"). The new feature **Figur / Figure** can also be edited by hand (blocks as JSON, scale, fineness)
+- **[Meshy](https://www.meshy.ai)** (optional, paid credits): a detailed mesh of one picture, up to **four views** or a text, in one to three minutes;
+  the mesh becomes a **solid part**: stood upright on the Top plane, scaled to the height you ask for, turned as you like, placed next
+  to the parts that are there; a mesh with holes is **rebuilt as a closed solid** – so booleans, splits, a base plate with the club's
+  logo and the 3MF / STL export work on it like on any part
+- The generation goes on while the dialog is closed or the page is reloaded; the tool shows when it is ready
+- Administration → AI → **3D generation**: the Meshy API key (stored encrypted, never shown again), the model (newest or the cheaper
+  "lite"), the triangles of a result, limits per person and day and for all per month (counted in generations), a test of the key;
+  every generation is in the log of the runs
+
 **Viewing, measuring, export**
 - **View cube** in the corner: turns with the view, a click on a face, edge or corner looks from there
 - **Section view**: the parts cut at Top / Front / Right or a plane feature, the place of the cut on a slider, either side;
   the cut faces are filled and hatched
 - **View themes**: automatic, high contrast (thick black lines), dark, blueprint
+- **3D mouse** (SpaceMouse Compact / Wireless / Pro, SpaceNavigator …) straight through **WebHID** in Chrome and Edge – no driver or
+  plug-in: turn, move and zoom with the cap, both buttons (isometric view, fit) and the view keys of the larger models; speed and
+  "the cap moves the model / the camera" in its menu; allowed once, it is opened by itself after that
 - Parts: name, **colour**, hide, isolate; mass properties; measure distances
 - **Export: 3MF with part colours** (for slicers), STL, OBJ, PNG of the view, the Part Studio as JSON
 
@@ -98,7 +117,7 @@ checks it and decides who may see and change what.
   projection**, ISO / DIN), an **isometric view** and a **section A–A** (cut line with arrows in the top or front view,
   hatched cut faces)
 - **Hidden edges** dashed, tangent edges thin, outlines of round faces; computed in the browser with a depth buffer
-- **Overall dimensions**, a **title block** (title, document, scale, date, units, drawn by, projection symbol)
+- **Overall dimensions**, a **title block** (title, model, scale, date, units, drawn by, projection symbol)
 - Sheet **A4 – A1**, the largest standard scale that fits or a chosen one; download as **PDF** (to print), **SVG** and **DXF**
 
 **Assemblies**
@@ -114,17 +133,27 @@ checks it and decides who may see and change what.
 **AI assistant**
 - Describe what to build or change ("a plate 80 × 40 × 6 with four holes of 6 mm") – the AI adds **features** you edit
   like your own; the whole answer is **one** undo step, features that do not build are sent back for a **repair**
+- **Level of detail**: rough, normal or detailed (real screw sizes, fillets, chamfers, draft …); the AI can also **delete**
+  features – its own wrong ones too
+- **No parts stuck into each other**: after an answer the editor intersects the parts; separate parts that overlap go back to the
+  AI for a repair (join them into one part or move them apart), what remains is shown as a warning
 - **Attachments**: a **picture** of an object to rebuild, a **logo** (PNG or SVG) as a template for a sign or relief, or a
   PDF drawing – through the paperclip, by pasting (Ctrl+V) or by dropping files on the panel. Pictures are scaled down in
   the browser; an SVG travels as its paths (exact coordinates) and as a picture
 - **Profiles** for any **OpenAI-compatible** provider (OpenAI, OpenRouter with a **free models** filter, Mistral, your own
   server) or a **ChatGPT account** by device code; limits against costs, a log of every run
 
+**Organising**
+- **Folders** (nested) for the models: drag a model or a folder onto a folder or onto a folder of the path above, or use "Move to a folder";
+  a new model is made in the open folder, a copy lands next to the original
+- Folders are **private**: everybody files the models they see – their own and the ones shared with them – in folders of their own;
+  deleting a folder deletes nothing in it (its content moves up one level); a search looks through every folder
+
 **Working together**
 - **Share** with people who have an account – *editor* or *viewer*, optionally by e-mail – or by **link** to view only
 - **Autosave** with revision protection (nothing is overwritten silently), changes of others appear by themselves
-- **Versions**: named states of the whole document, open read-only, restore
-- **Offline**: recently opened documents stay available, changes wait on the device
+- **Versions**: named states of the whole model, open read-only, restore
+- **Offline**: recently opened models stay available, changes wait on the device
 
 **Interface**
 - English and German, light and dark, **PWA** (installable, iOS safe areas), the feature list becomes a drawer on a phone
@@ -215,13 +244,13 @@ Every feature has a small dialog; the model updates while you type.
 |---|---|
 | ![A measured distance](docs/images/measure.png) | ![The editor in the dark theme](docs/images/studio-dark.png) |
 
-| Documents | Versions |
-|---|---|
-| ![The documents with thumbnails](docs/images/documents.png) | ![The versions of a document](docs/images/versions.png) |
+| Models in folders | Inside a folder | Versions |
+|---|---|---|
+| ![The models with thumbnails, two folders above them](docs/images/models.png) | ![The folder Vorrichtungen: a folder and a model in it, the path above](docs/images/folders.png) | ![The versions of a model](docs/images/versions.png) |
 
 | Revolve | Viewed through a link |
 |---|---|
-| ![A revolved part](docs/images/revolve.png) | ![A document through its link, view only](docs/images/link-view.png) |
+| ![A revolved part](docs/images/revolve.png) | ![A model through its link, view only](docs/images/link-view.png) |
 
 | AI assistant | AI profile (free models only) |
 |---|---|
@@ -229,7 +258,7 @@ Every feature has a small dialog; the model updates while you type.
 
 | Phone | | |
 |---|---|---|
-| ![The editor on a phone](docs/images/phone-studio.png) | ![The feature list as a drawer](docs/images/phone-features.png) | ![Documents on a phone](docs/images/phone-documents.png) |
+| ![The editor on a phone](docs/images/phone-studio.png) | ![The feature list as a drawer](docs/images/phone-features.png) | ![Models on a phone](docs/images/phone-models.png) |
 
 ## Quick start
 
@@ -314,7 +343,7 @@ when it installs MatShape.
 | `ConnectionStrings__Default` | PostgreSQL (default in the image: `Host=db;Database=matshape;Username=matshape;Password=matshape`) |
 | `MAT_API_KEY` | Key for the platform API `/api/*` (header `X-Api-Key`) |
 | `MATIDENTITY_AUTHORITY`, `MATIDENTITY_CLIENT_ID`, `MATIDENTITY_CLIENT_SECRET`, `MATIDENTITY_INTERNAL_URL` | Sign-in through **MatIdentity** |
-| `MATSMTP_HOST`, `MATSMTP_PORT`, `MATSMTP_USERNAME`, `MATSMTP_PASSWORD`, `MATSMTP_FROM`, `MATSMTP_TLS` | E-mail through **MatSMTP** ("a document was shared with you") |
+| `MATSMTP_HOST`, `MATSMTP_PORT`, `MATSMTP_USERNAME`, `MATSMTP_PASSWORD`, `MATSMTP_FROM`, `MATSMTP_TLS` | E-mail through **MatSMTP** ("a model was shared with you") |
 
 ### After the first sign-in
 
@@ -326,7 +355,7 @@ sign-ins are stored **encrypted in the `/data` volume**, never in the database o
 
 ```
 web-data  (/data)   session keys, encrypted AI secrets ({data}/secrets/ai)
-db-data             PostgreSQL 17: accounts, documents, Part Studios (jsonb), versions, AI runs
+db-data             PostgreSQL 17: accounts, models, Part Studios (jsonb), versions, AI runs
 ```
 
 ## Mat platform: API and sign-in through MatIdentity
@@ -338,20 +367,20 @@ package MatPlatform 1.4.0 in `src/MatShape/MatPlatform`, a copy that is never ed
 |---|---|---|
 | `GET /api` | anonymous | the description: pages *Overview* and *Settings*, tiles, fields, actions, roles `admin` / `user` |
 | `GET /api/health` | anonymous | `ok` / `degraded` (no active administrator) / `down` (database gone) |
-| `GET /api/state[/{key}]` | key or token | tiles: active users, documents, shared documents, documents with a link, Part Studios, versions, changed in 7 days, registration, last change |
+| `GET /api/state[/{key}]` | key or token | tiles: active users, models, shared models, models with a link, Part Studios, versions, changed in 7 days, registration, last change |
 | `GET` / `PUT /api/configure` | key or token | registration open, public address |
-| `POST /api/actions/cleanUp` | key or token | removes ended sessions and documents deleted more than 30 days ago |
+| `POST /api/actions/cleanUp` | key or token | removes ended sessions and models deleted more than 30 days ago |
 
 **Sign-in through MatIdentity** is on when `MATIDENTITY_AUTHORITY` is set: OpenID Connect with PKCE, back-channel logout
 at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E-mail through MatSMTP** is on with
-`MATSMTP_HOST`: a note when a document is shared with someone (can be switched off in the profile).
+`MATSMTP_HOST`: a note when a model is shared with someone (can be switched off in the profile).
 
 ## Status
 
 | Milestone | Content | Status |
 |---|---|---|
 | M0 | Skeleton, Docker, CI, versioning, logo | ✅ |
-| M1 | Accounts, documents, sharing, link, versions, PWA, offline | ✅ |
+| M1 | Accounts, models, sharing, link, versions, PWA, offline | ✅ |
 | M2 | Editor: features, expressions, history, rollback, export | ✅ |
 | M3 | View cube, view themes, shortcuts, colours, 3MF | ✅ |
 | M4 | AI assistant with profiles, limits, repair rounds | ✅ |
@@ -362,6 +391,7 @@ at `/signout-backchannel`; the local form stays at `/Account/Login?local=1`. **E
 | M8 | **Sketch tools** (trim, offset, fillet, mirror, slot, tangent arc, spline, ellipse, text, picture), **dimensions like OnShape** (driven, arc length) | ✅ |
 | M9 | **Hole, shell, rib, sweep, loft, draft, thread**; **drawings as tabs** (dimensions by hand, details, centre marks); **assemblies** with mates, BOM, interference | ✅ |
 | M10 | **STEP export**, **STEP / IGES / BREP / STL import** (OpenCascade in a worker with a Content-Security-Policy of its own) | ✅ |
+| M11 | **Models** (were "documents"; old addresses lead to the new ones) in **folders** of their own per person; **3D mouse** (WebHID); AI: **level of detail**, **deleting**, **overlap repair** | ✅ |
 | next | Surfaces, sheet metal, configurations, real-time collaboration, more mates (gear, rack, limits) | open |
 
 ## Development
@@ -385,7 +415,7 @@ Texts: `src/MatShape/Resources/Texts/*.json` (`{"en": …, "de": …}`). More on
 ## How it is built
 
 - **ASP.NET Core 10** (Razor Pages + minimal API), **EF Core** with **PostgreSQL** (the history of a Part Studio is `jsonb`)
-- Business logic in static classes with a permission check in every function; a document you may not see answers 404
+- Business logic in static classes with a permission check in every function; a model you may not see answers 404
 - The editor is **plain JavaScript** (ES modules, no build step): `model.js` runs the features with Manifold,
   `sketchsolve.js` solves the sketches, `sketcher.js` is the sketch editor, `viewport.js` the three.js view,
   `blend.js` builds fillets and chamfers, `solids.js` hole / shell / sweep / loft / draft / thread, `sketchtools.js` trim / offset /

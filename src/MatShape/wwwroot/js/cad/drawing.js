@@ -215,7 +215,7 @@ export function hatch(polygons, spacing, angle = 45) {
 
 /**
  * Puts the views on a sheet. spec: { sheet: 'A4' …, scale: 'auto' | [a, b], views: [{ key, label, lines, box, cut?: [loops] (section), dims?: ['x' | 'y'], cutLine?: { a, b, dir } }],
- * title: { name, doc, date, units, by, labels: {…} }, format(value) -> text of a dimension }.
+ * title: { name, model, date, units, by, labels: {…} }, format(value) -> text of a dimension }.
  * Returns { width, height, scale: [a, b], prims } or null when nothing fits even at the smallest scale.
  */
 export function layoutDrawing(spec) {
@@ -489,7 +489,7 @@ function dimension(a, b, side, value, line, text, tri) {
   }
 }
 
-/** The title block (after ISO 7200, simplified): name, document, scale, date, units, sheet, the symbol of first-angle projection. */
+/** The title block (after ISO 7200, simplified): name, model, scale, date, units, sheet, the symbol of first-angle projection. */
 function titleBlock(r, t, scale, sheet, line, text, rect) {
   rect(r, 'frame');
   const L = t.labels || {};
@@ -503,8 +503,8 @@ function titleBlock(r, t, scale, sheet, line, text, rect) {
   const value = (x, y, s, size = 3.5) => text([x + 1.5, y + 7.6], s, size, 'start');
   small(r.x0, r.y0, L.title || 'Title');
   text([r.x0 + 1.5, r.y0 + 11], t.name || '', 6, 'start', { bold: true });
-  small(x1, r.y0, L.document || 'Document');
-  value(x1, r.y0, t.doc || '', 3);
+  small(x1, r.y0, L.model || 'Model');
+  value(x1, r.y0, t.model || '', 3);
   small(r.x0, y1, L.scale || 'Scale'); value(r.x0, y1, `${scale[0]} : ${scale[1]}`);
   small(r.x0 + 55, y1, L.date || 'Date'); value(r.x0 + 55, y1, t.date || '');
   small(x1, y1, L.units || 'Units'); value(x1, y1, t.units || 'mm');

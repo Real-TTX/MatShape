@@ -1,0 +1,14 @@
+@model (long Id, string Active, bool IsOwner)
+@*
+    The areas of one model (UI rule: an entity with several areas has tabs): General, People and Link belong to the owner, Versions to everybody who sees the model.
+    Each tab is a page of its own.
+*@
+<ms-tabs label="@L["Models.One"]">
+    @if (Model.IsOwner)
+    {
+        <ms-tab href="/Models/Edit?id=@Model.Id" active="@(Model.Active == "general")">@L["Models.Tab.General"]</ms-tab>
+        <ms-tab href="/Models/Members?id=@Model.Id" active="@(Model.Active == "members")">@L["Models.Tab.Members"]</ms-tab>
+        <ms-tab href="/Models/Share?id=@Model.Id" active="@(Model.Active == "share")">@L["Models.Tab.Sharing"]</ms-tab>
+    }
+    <ms-tab href="/Models/Versions?id=@Model.Id" active="@(Model.Active == "versions")">@L["Models.Tab.Versions"]</ms-tab>
+</ms-tabs>

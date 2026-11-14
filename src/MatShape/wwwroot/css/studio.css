@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MatShape: the editor of a document (a special page, MatDesign allows its own look for what is essential to the app – here the 3D view).
+   MatShape: the editor of a model (a special page, MatDesign allows its own look for what is essential to the app – here the 3D view).
    Built on the tokens of the toolkit: no literal colours. The page does not scroll; the 3D view fills what the bar, the tools, the list and the tabs leave.
    ========================================================================== */
 
@@ -389,11 +389,13 @@ html.ms-studiopage, .ms-studiobody { height: 100%; overflow: hidden; overscroll-
 .ms-ai__sent { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--mat-fs-xs); }
 .ms-ai__sent li { display: flex; align-items: center; gap: 4px; }
 .ms-ai__sent .ms-ai__thumb { width: 56px; height: 56px; }
-.ms-ai__hint { flex: 1; }
+.ms-ai__hint { line-height: 1.3; }
+.ms-ai__grow { flex: 1; }
+.ms-ai__detail { flex: none; width: auto; min-width: 0; }
 .ms-ai.is-dropping { outline: 2px dashed var(--mat-accent); outline-offset: -4px; }
 
 /* picture -> 3D model: preview left, settings right (stacked on narrow screens) */
-dialog.ms-imgdlg { width: min(1100px, calc(100vw - 2 * var(--mat-space-4))); }
+@media (min-width: 641px) { dialog.ms-imgdlg { width: min(1100px, calc(100vw - 2 * var(--mat-space-4))); } }
 .ms-imgdlg__body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--mat-space-4); align-items: start; }
 .ms-imgdlg__view { display: flex; flex-direction: column; gap: var(--mat-space-2); min-width: 0; }
 .ms-imgdlg__drop { min-height: 320px; justify-content: center; }
@@ -449,7 +451,7 @@ dialog.ms-imgdlg { width: min(1100px, calc(100vw - 2 * var(--mat-space-4))); }
 .is-drawing .ms-viewtools, .is-drawing .ms-cube, .is-drawing .ms-triad, .is-drawing .ms-section { display: none; }
 
 /* the drawing: the sheet on the left (white like paper, also in dark mode), the settings on the right */
-dialog.ms-drawdlg { width: min(1180px, calc(100vw - 2 * var(--mat-space-4))); }
+@media (min-width: 641px) { dialog.ms-drawdlg { width: min(1180px, calc(100vw - 2 * var(--mat-space-4))); } }
 .ms-drawdlg__body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: var(--mat-space-4); align-items: start; }
 .ms-drawdlg__view { display: flex; flex-direction: column; gap: var(--mat-space-2); min-width: 0; }
 .ms-drawdlg__stage { display: grid; place-items: center; min-height: 300px; padding: var(--mat-space-3); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); }
@@ -466,6 +468,44 @@ dialog.ms-imgdlg.is-dropping .ms-imgdlg__view { outline: 2px dashed var(--mat-ac
   .ms-imgdlg__body { grid-template-columns: 1fr; }
   .ms-imgdlg__side { max-height: none; }
 }
+
+/* the 3D generation (Meshy): the request (pictures or a text), the waiting with its progress, the result; the settings below stay while it works */
+/* the width of the toolkit's large dialog (a full-screen sheet on a phone) */
+.ms-meshdlg__body { display: flex; flex-direction: column; gap: var(--mat-space-3); }
+.ms-meshdlg__ask { display: flex; flex-direction: column; gap: var(--mat-space-3); }
+.ms-meshdlg__ask[hidden], .ms-meshdlg__work[hidden], .ms-meshdlg__pane[hidden], .ms-meshdlg__pics[hidden] { display: none; }
+dialog.ms-meshdlg [hidden] { display: none; }
+.ms-meshdlg__method .mat-seg__btn { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
+.ms-meshdlg__hint { margin: 0; }
+.ms-meshdlg__ask .mat-seg__btn { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
+.ms-meshdlg__pane { display: flex; flex-direction: column; gap: var(--mat-space-2); }
+.ms-meshdlg__drop { min-height: 200px; justify-content: center; }
+.ms-meshdlg__drop.is-small { min-height: 0; padding: var(--mat-space-3); }
+.ms-meshdlg__drop.is-small .mat-empty__icon { display: none; }
+dialog.ms-meshdlg.is-dropping .ms-meshdlg__drop { outline: 2px dashed var(--mat-accent); outline-offset: 4px; }
+.ms-meshdlg__pics { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--mat-space-2); }
+.ms-meshdlg__pic { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--mat-border); border-radius: var(--mat-radius-sm); background: var(--mat-surface-2); }
+.ms-meshdlg__pic img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; background: #ffffff; border-radius: var(--mat-radius-xs); }
+.ms-meshdlg__picname { font-size: var(--mat-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-meshdlg__remove { position: absolute; top: 2px; right: 2px; background: var(--mat-surface); }
+.ms-meshdlg__examples { display: flex; flex-wrap: wrap; gap: var(--mat-space-1); }
+.ms-meshdlg__work { display: flex; flex-direction: column; gap: var(--mat-space-2); }
+.ms-meshdlg__stage { display: grid; place-items: center; min-height: 240px; border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); overflow: hidden; }
+.ms-meshdlg__thumb { display: block; max-width: 100%; max-height: 40vh; width: auto; height: auto; }
+.ms-meshdlg__thumb[hidden], .ms-meshdlg__wait[hidden], .ms-meshdlg__bar[hidden] { display: none; }
+.ms-meshdlg__wait .mat-icon { width: 72px; height: 72px; color: var(--mat-accent-text); animation: ms-mesh-pulse 1.6s ease-in-out infinite; }
+@keyframes ms-mesh-pulse { 0%, 100% { opacity: .35; transform: scale(.94); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .ms-meshdlg__wait .mat-icon { animation: none; } }
+.ms-meshdlg__bar { height: 8px; border-radius: var(--mat-radius-pill); background: var(--mat-surface-3); overflow: hidden; }
+.ms-meshdlg__bar > span { display: block; width: 0; height: 100%; background: var(--mat-accent); border-radius: inherit; transition: width var(--mat-dur-fast) var(--mat-ease); }
+.ms-meshdlg__state { margin: 0; font-size: var(--mat-fs-sm); min-height: 1.4em; }
+.ms-meshdlg__settings { display: flex; flex-direction: column; gap: var(--mat-space-2); padding-top: var(--mat-space-2); border-top: 1px solid var(--mat-border); }
+.ms-meshdlg__settings .mat-field { margin: 0; }
+.ms-meshdlg__row { display: grid; grid-template-columns: 7rem 6rem minmax(0, 1fr) auto; gap: var(--mat-space-2); align-items: end; }
+@media (max-width: 560px) { .ms-meshdlg__row { grid-template-columns: 1fr 1fr; } }
+/* a result came while the dialog was closed: a dot on the tool */
+.ms-tool.is-ready { position: relative; }
+.ms-tool.is-ready::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--mat-accent); box-shadow: 0 0 0 2px var(--mat-surface); }
 
 /* sketching like OnShape: the symbol of the snap and the length at the pointer, the selection box, a dimension being placed */
 .ms-snapglyph { position: absolute; left: 0; top: 0; pointer-events: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 4px; background: #f59e0b; color: #111827;

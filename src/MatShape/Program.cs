@@ -6,7 +6,7 @@ using MatShape.Data;
 using MatShape.Localization;
 using MatShape.Platform;
 using MatShape.Services;
-using MatShape.Services.Documents;
+using MatShape.Services.Models;
 using MatShape.Services.Mail;
 using MatPlatform;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -121,7 +121,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Error");
     options.Conventions.AllowAnonymousToPage("/Account/Login");
     options.Conventions.AllowAnonymousToPage("/Account/Register");
-    options.Conventions.AllowAnonymousToPage("/Public/Document");
+    options.Conventions.AllowAnonymousToPage("/Public/Link");
     options.Conventions.AuthorizeFolder("/Admin", "AdminOnly");
 }).AddMvcOptions(o =>
 {
@@ -178,6 +178,7 @@ app.UseStaticFiles(new StaticFileOptions
         }
     },
 });
+app.UseMiddleware<OldAddresses>();
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -202,7 +203,7 @@ app.MapPost("/language", async (HttpContext http, CurrentUser me, AppDbContext d
 }).AllowAnonymous();
 
 app.MapGet("/health", async (AppDbContext db) => await db.Database.CanConnectAsync() ? Results.Ok("ok") : Results.StatusCode(503)).AllowAnonymous();
-app.MapDocumentEndpoints();
+app.MapModelEndpoints();
 MatShape.Services.Ai.AiEndpoints.MapAiEndpoints(app);
 app.MapMatPlatform();
 app.MapRazorPages();

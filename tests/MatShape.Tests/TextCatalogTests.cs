@@ -90,9 +90,10 @@ public sealed partial class TextCatalogTests
     [InlineData("split")]
     [InlineData("deletepart")]
     [InlineData("variable")]
+    [InlineData("figure")]
     public void Every_kind_of_feature_has_its_texts(string type)
     {
-        Assert.Contains(type, MatShape.Services.Documents.StudioContent.FeatureTypes);
+        Assert.Contains(type, MatShape.Services.Models.StudioContent.FeatureTypes);
         Assert.True(TextCatalog.Entries.ContainsKey("Feature." + type), "Feature." + type);
         Assert.True(TextCatalog.Entries.ContainsKey("Js.Feature." + type), "Js.Feature." + type);
         Assert.True(TextCatalog.Entries.ContainsKey("Js.Help." + type), "Js.Help." + type);
@@ -100,7 +101,7 @@ public sealed partial class TextCatalogTests
 
     [Theory]
     [InlineData("Errors.NotFound.Title")]
-    [InlineData("Documents.Role.Editor")]
+    [InlineData("Models.Role.Editor")]
     [InlineData("Units.in")]
     [InlineData("Js.Feature.extrude")]
     [InlineData("Js.Save.saved")]
@@ -110,8 +111,8 @@ public sealed partial class TextCatalogTests
     [Fact]
     public void The_language_changes_the_text()
     {
-        Assert.Equal("Shared with me", Languages.In("en", () => Text.T("Documents.Shared")));
-        Assert.Equal("Mit mir geteilt", Languages.In("de", () => Text.T("Documents.Shared")));
+        Assert.Equal("Shared with me", Languages.In("en", () => Text.T("Models.Shared")));
+        Assert.Equal("Mit mir geteilt", Languages.In("de", () => Text.T("Models.Shared")));
         Assert.Equal("Mindestens 10 Zeichen.", Languages.In("de", () => Text.T("Account.Password.Hint", 10)));
     }
 
@@ -119,11 +120,11 @@ public sealed partial class TextCatalogTests
         => string.Join(',', PlaceholderRegex().Matches(text).Select(m => m.Value).Distinct().Order(StringComparer.Ordinal));
 
     // L["Key"], L["Key", ...], Text.T("Key"), t('Js.Key'), and the keys written as plain strings in a ternary (L[x ? "A.B" : "C.D"]): every quoted Area.Thing of the catalog's areas
-    [GeneratedRegex("""["'](?<key>(Common|Shell|Menu|Settings|Password|Admin|Account|Documents|Studios|Versions|Units|Studio|Members|Share|About|Mail|Users|System|Lists|Landing|Errors|Ai|Js)\.[A-Za-z0-9.]+)["']""")]
+    [GeneratedRegex("""["'](?<key>(Common|Shell|Menu|Settings|Password|Admin|Account|Models|Folders|Studios|Versions|Units|Studio|Members|Share|About|Mail|Users|System|Lists|Landing|Errors|Ai|Js)\.[A-Za-z0-9.]+)["']""")]
     private static partial Regex KeyRegex();
 
     // the quoted keys of the editor's areas: t('Tree.Edit'), new FeatureError('Feature.NoParts'), t(gone ? 'Studio.Gone.Title' : 'Studio.Fail.Title')
-    [GeneratedRegex("""'(?<key>(Studio|Save|Feature|Expr|Help|Dialog|Plane|Tree|Part|Sketch|Measure|View|Tabs|Version|Export|Offline|Ai)\.[A-Za-z0-9.-]+)'""")]
+    [GeneratedRegex("""'(?<key>(Studio|Save|Feature|Expr|Help|Dialog|Plane|Tree|Part|Sketch|Measure|View|Tabs|Version|Export|Offline|Ai|SpaceMouse)\.[A-Za-z0-9.-]+)'""")]
     private static partial Regex EditorKeyRegex();
 
     [GeneratedRegex(@"\{\d+\}")]

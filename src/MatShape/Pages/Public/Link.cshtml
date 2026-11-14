@@ -1,0 +1,8 @@
+@page "/s/{token:guid}"
+@model MatShape.Pages.Public.LinkModel
+@{
+    Layout = "_LayoutStudio";
+    ViewData["Title"] = Model.Studio.Name;
+}
+
+<partial name="_Studio" model="Model.Studio" />

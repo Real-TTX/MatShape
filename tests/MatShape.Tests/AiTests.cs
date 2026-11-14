@@ -1,7 +1,7 @@
 using System.Text.Json;
 using MatShape.Data;
 using MatShape.Services.Ai;
-using MatShape.Services.Documents;
+using MatShape.Services.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,7 +17,7 @@ public sealed class AiTests
     [Fact]
     public void Append_adds_at_the_end_and_names_what_changed()
     {
-        var (content, changed, problem) = ModelAssistant.Merge(Current, Answer("""
+        var (content, changed, _, problem) = ModelAssistant.Merge(Current, Answer("""
             {"message":"ok","mode":"append","features":[
               {"id":"ai_s","type":"sketch","name":"Plate","params":{"plane":{"kind":"std","name":"top"},"entities":[{"id":"r","t":"rect","a":[0,0],"b":[80,40]}]}},
               {"id":"ai_e","type":"extrude","name":"Plate","params":{"sketch":"ai_s","depth":"#w","op":"new"}}],
@@ -33,7 +33,7 @@ public sealed class AiTests
     [Fact]
     public void Patch_replaces_in_place()
     {
-        var (content, _, problem) = ModelAssistant.Merge(Current, Answer("""{"mode":"patch","features":[{"id":"v","type":"variable","name":"w","params":{"name":"w","value":"25"}}]}"""));
+        var (content, _, _, problem) = ModelAssistant.Merge(Current, Answer("""{"mode":"patch","features":[{"id":"v","type":"variable","name":"w","params":{"name":"w","value":"25"}}]}"""));
         Assert.Null(problem);
         using var doc = JsonDocument.Parse(content!);
         var features = doc.RootElement.GetProperty("features");
@@ -45,7 +45,7 @@ public sealed class AiTests
     public void Append_goes_before_a_moved_rollback_bar()
     {
         const string rolled = """{"features":[{"id":"a","type":"variable"},{"id":"b","type":"variable"}],"parts":{},"rollback":1}""";
-        var (content, _, _) = ModelAssistant.Merge(rolled, Answer("""{"mode":"append","features":[{"id":"n","type":"variable"}]}"""));
+        var (content, _, _, _) = ModelAssistant.Merge(rolled, Answer("""{"mode":"append","features":[{"id":"n","type":"variable"}]}"""));
         using var doc = JsonDocument.Parse(content!);
         Assert.Equal("n", doc.RootElement.GetProperty("features")[1].GetProperty("id").GetString());
         Assert.Equal(2, doc.RootElement.GetProperty("rollback").GetInt32());
@@ -58,7 +58,7 @@ public sealed class AiTests
     [InlineData("""{"features":[{"id":"x","type":"script"}]}""")]
     public void Answers_that_do_not_fit_are_refused(string json)
     {
-        var (content, _, problem) = ModelAssistant.Merge(Current, Answer(json));
+        var (content, _, _, problem) = ModelAssistant.Merge(Current, Answer(json));
         Assert.Null(content);
         Assert.NotNull(problem);
     }
@@ -66,9 +66,56 @@ public sealed class AiTests
     [Fact]
     public void Replace_takes_the_list_as_it_is()
     {
-        var (content, _, problem) = ModelAssistant.Merge(Current, Answer("""{"mode":"replace","features":[]}"""));
+        var (content, _, _, problem) = ModelAssistant.Merge(Current, Answer("""{"mode":"replace","features":[]}"""));
         Assert.Null(problem);
         Assert.Equal(0, StudioContent.CountFeatures(content));
+    }
+
+    [Fact]
+    public void Remove_deletes_features_with_any_mode_and_keeps_the_rollback_bar_after_the_same_ones()
+    {
+        const string three = """
+            {"features":[{"id":"a","type":"variable","name":"a","params":{"name":"a","value":"1"}},{"id":"b","type":"variable","name":"b","params":{"name":"b","value":"2"}},
+            {"id":"c","type":"variable","name":"c","params":{"name":"c","value":"3"}}],"parts":{},"rollback":2}
+            """;
+
+        // only a removal: "features" may be missing
+        var (content, changed, removed, problem) = ModelAssistant.Merge(three, Answer("""{"remove":["a","nothing"]}"""));
+        Assert.Null(problem);
+        Assert.Equal(["a"], removed);
+        Assert.Empty(changed);
+        Assert.Equal(2, StudioContent.CountFeatures(content));
+        Assert.Contains("\"rollback\":1", content, StringComparison.Ordinal);
+
+        // a patch and a removal together; what is removed is not "changed"
+        (content, changed, removed, problem) = ModelAssistant.Merge(three, Answer("""
+            {"mode":"patch","features":[{"id":"b","type":"variable","name":"b","params":{"name":"b","value":"20"}},{"id":"c","type":"variable","name":"c","params":{}}],"remove":["c"]}
+            """));
+        Assert.Null(problem);
+        Assert.Equal(["b"], changed);
+        Assert.Equal(["c"], removed);
+        Assert.DoesNotContain("\"id\":\"c\"", content, StringComparison.Ordinal);
+        Assert.Contains("\"value\":\"20\"", content, StringComparison.Ordinal);
+
+        // without features and without a removal it is no answer
+        Assert.NotNull(ModelAssistant.Merge(three, Answer("""{"message":"hi"}""")).Problem);
+    }
+
+    [Fact]
+    public void A_repair_names_the_overlapping_parts_and_the_level_of_detail_is_asked_for()
+    {
+        var model = new Model { Name = "Box", Units = "mm" };
+        var text = ModelAssistant.Situation(model, "Part Studio 1", Current, "a box with a lid", null,
+            [new ModelAssistant.Overlap("ai_box", "Box", "ai_lid", "Lid", 125.5)], "fine");
+        Assert.Contains("REPAIR", text, StringComparison.Ordinal);
+        Assert.Contains("part ai_box (Box) and part ai_lid (Lid): 125.5 mm³", text, StringComparison.Ordinal);
+        Assert.Contains("op \"add\"", text, StringComparison.Ordinal);
+        Assert.Contains(ModelAssistant.Details["fine"], text, StringComparison.Ordinal);
+
+        // no repair: the request, at the normal level when nothing (or something unknown) is chosen
+        var plain = ModelAssistant.Situation(model, "Part Studio 1", Current, "a box", null, null, "whatever");
+        Assert.DoesNotContain("REPAIR", plain, StringComparison.Ordinal);
+        Assert.Contains(ModelAssistant.Details["normal"], plain, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,6 +129,11 @@ public sealed class AiTests
 
         Assert.Contains("Wall thickness at least 2 mm", text, StringComparison.Ordinal);
         Assert.Contains("German", text, StringComparison.Ordinal);
+
+        // deleting, one solid per part, and the sizes of a designer are part of it
+        Assert.Contains("\"remove\"", text, StringComparison.Ordinal);
+        Assert.Contains("must NEVER overlap", text, StringComparison.Ordinal);
+        Assert.Contains("clearance holes M3 3.4", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -111,9 +163,9 @@ public sealed class AiTests
         Assert.True(saved!.IsActive);
         Assert.False(await AiService.IsAvailableAsync(t.Db, services)); // no key yet
 
-        // the document of Ada: Bob may not use the assistant on it
-        var doc = (await DocumentService.CreateAsync(t.Db, admin.Id, "Plate", null, null)).Value!;
-        var studio = (await StudioService.OpenAsync(t.Db, Actor.Of(admin.Id), doc.Id))!.Studios[0];
+        // the model of Ada: Bob may not use the assistant on it
+        var model = (await ModelService.CreateAsync(t.Db, admin.Id, "Plate", null, null)).Value!;
+        var studio = (await StudioService.OpenAsync(t.Db, Actor.Of(admin.Id), model.Id))!.Studios[0];
         var (result, failure) = await ModelAssistant.AssistAsync(t.Db, services, bob.Id, studio.Id, new ModelAssistant.Request("a plate", Answer(StudioContent.Empty), null, "en"), "127.0.0.1", false);
         Assert.Null(result);
         Assert.Equal("denied", failure!.Code);

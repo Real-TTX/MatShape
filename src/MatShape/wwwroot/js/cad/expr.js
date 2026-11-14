@@ -1,6 +1,6 @@
 /* MatShape – the expressions of the fields: "25", "2.5 cm", "#width / 2 + 3 mm", "sqrt(#a^2 + #b^2)", "30 deg".
    A value carries a dimension (the power of length): 10 mm is length, 2 is a plain number, #w * 2 is a length again. A plain number in a length field means the unit
-   of the document; a plain number in an angle field means degrees. Lengths are millimetres inside. Variables are written #name and come from Variable features. */
+   of the model; a plain number in an angle field means degrees. Lengths are millimetres inside. Variables are written #name and come from Variable features. */
 
 const LENGTH_UNITS = { mm: 1, cm: 10, m: 1000, in: 25.4, inch: 25.4, ft: 304.8, um: 0.001 };
 const ANGLE_UNITS = { deg: 1, rad: 180 / Math.PI };
@@ -135,7 +135,7 @@ function evaluate(text, variables) {
   return result;
 }
 
-/** A length in mm from an expression; a plain number is in <unitFactor> (the unit of the document). */
+/** A length in mm from an expression; a plain number is in <unitFactor> (the unit of the model). */
 export function evalLength(text, variables, unitFactor = 1) {
   const r = evaluate(String(text ?? ''), variables);
   if (r.d === 0) return r.v * unitFactor;

@@ -10,6 +10,7 @@ import { distToSegment3, topology } from './topo.js';
 import { blendTools } from './blend.js';
 import { unpackArray } from './step.js';
 import { axisOfFace, holeProfile, loftMesh, loftRings, offsetVertices, pathFrames, sweepMesh, threadTool } from './solids.js';
+import { figureMeshes } from './figure.js';
 
 /** The face numbers the model gives (every triangle carries one); smaller numbers are ones the kernel made itself. */
 export const FACE_BASE = 1 << 20;
@@ -59,8 +60,11 @@ export const FEATURES = {
   loft: { icon: 'loft', params: () => ({ sketches: [], op: 'new', scope: null }) },
   draft: { icon: 'draft', params: () => ({ faces: [], neutral: { kind: 'std', name: 'top' }, angle: '3', flip: false }) },
   thread: { icon: 'thread', params: () => ({ faces: [], pitch: '1.5', depth: '', length: '', flip: false, left: false }) },
-  // import: bodies of a STEP, IGES, BREP or STL file, kept as meshes (base64 of the arrays: p positions, i indices, f the face of the source per triangle)
+  // import: bodies of a STEP, IGES, BREP or STL file or of the 3D generation, kept as meshes (base64 of the arrays: p positions, i indices, f the face of the source
+  // per triangle; kept: the faces are final, also a single one)
   import: { icon: 'upload', params: () => ({ file: '', bodies: [] }) },
+  // figure: a free form of building blocks that melt into each other (figure.js); each group is a part in its colour
+  figure: { icon: 'figure', params: () => ({ scale: '1', detail: 'normal', flat: true, parts: [{ name: 'Figure', color: '#3cb764', smooth: 3, blocks: [{ t: 'ellipsoid', c: [0, 0, 14], r: [10, 8, 14] }, { t: 'sphere', c: [0, -1, 33], r: 8 }] }] }) },
 };
 
 class FeatureError extends Error {
@@ -156,9 +160,10 @@ export function regenerate(kernel, content, units = 'mm') {
     return found;
   };
 
-  const newPart = (id, manifold) => {
+  // info: the name and colour a feature gives its part (a group of a figure), used unless the person gave their own
+  const newPart = (id, manifold, info = null) => {
     ctx.created++;
-    ctx.parts.push({ id, manifold, created: ctx.created });
+    ctx.parts.push({ id, manifold, created: ctx.created, info });
   };
 
   const removePart = part => { ctx.parts = ctx.parts.filter(p => p !== part); };
@@ -434,8 +439,9 @@ export function regenerate(kernel, content, units = 'mm') {
         mesh.merge();
         let m = keep(new Manifold(mesh));
         if (m.status() !== 'NoError' || m.isEmpty()) { failed++; return; }
-        // a file without faces (STL): the faces are the regions between sharp edges (more than 20°), so that edges can be picked and rounded
-        if (!faces || new Set(faces).size < 2) {
+        // a file without faces (STL): the faces are the regions between sharp edges (more than 20°), so that edges can be picked and rounded;
+        // a generated figure (meshgen.js) brings its faces along and keeps them, even a single one
+        if (!faces || (!b.kept && new Set(faces).size < 2)) {
           const topo = topology(m.getMesh()), group = new Int32Array(topo.numTri).fill(-1), limit = Math.cos(20 * Math.PI / 180);
           let groups = 0;
           for (let s = 0; s < topo.numTri; s++) {
@@ -461,6 +467,32 @@ export function regenerate(kernel, content, units = 'mm') {
       });
       if (!made) throw new FeatureError('Feature.ImportNotSolid');
       if (failed) return { state: 'warn', key: 'Feature.ImportSomeOpen', args: [failed] };
+    },
+
+    figure(f) {
+      const p = f.params;
+      const scale = num(p.scale || '1');
+      if (!(scale > 0)) throw new FeatureError('Feature.FigureScale');
+      let groups;
+      try { groups = figureMeshes(kernel, p, scale); } catch (e) { if (e?.key) throw new FeatureError(e.key, ...(e.args || [])); throw e; }
+      const made = groups.filter(g => g.mesh).map(g => {
+        const faceID = new Uint32Array(g.mesh.triVerts.length / 3).fill(faceNum(`${f.id}:${g.index}`));
+        const m = keep(new Manifold(new Mesh({ numProp: g.mesh.numProp, vertProperties: g.mesh.vertProperties, triVerts: g.mesh.triVerts, faceID })));
+        return { g, m, box: m.boundingBox() };
+      });
+      if (!made.length) throw new FeatureError('Feature.FigureEmpty');
+      // a later group is cut out of the earlier ones it reaches into (an eye out of the head): separate parts only touch
+      const meets = (a, b) => [0, 1, 2].every(k => a.min[k] < b.max[k] && b.min[k] < a.max[k]);
+      made.forEach((x, i) => {
+        const later = made.slice(i + 1).filter(y => meets(x.box, y.box)).map(y => y.m);
+        if (later.length) x.m = keep(x.m.subtract(later.length > 1 ? keep(Manifold.union(later)) : later[0]));
+      });
+      // flat underneath (it stands, and prints without supports): what melted below the Top plane is cut off
+      if (p.flat !== false) made.forEach(x => { x.m = keep(x.m.trimByPlane([0, 0, 1], 0)); });
+      const several = made.length > 1;
+      let shown = 0;
+      made.forEach(({ g, m }) => { if (!m.isEmpty()) { newPart(several ? `${f.id}.${g.index}` : f.id, m, { name: g.name, color: g.color }); shown++; } });
+      if (shown < made.length) return { state: 'warn', key: 'Feature.FigureHidden', args: [made.length - shown] };
     },
 
     hole(f) {
@@ -803,7 +835,7 @@ export function regenerate(kernel, content, units = 'mm') {
     // several bodies of one feature (<id>.<n>) or the other half of a split (<id>~<feature>) take the colour of the feature unless they have their own
     const own = meta[p.id] || {}, base = meta[String(p.id).split(/[.~]/)[0]] || {};
     const body = /\.(\d+)$/.exec(String(p.id));
-    const info = { name: own.name || (base.name && body ? `${base.name} ${Number(body[1]) + 1}` : null), color: own.color || base.color };
+    const info = { name: own.name || p.info?.name || (base.name && body ? `${base.name} ${Number(body[1]) + 1}` : null), color: own.color || p.info?.color || base.color };
     return {
       id: p.id,
       name: info.name || null,
@@ -915,6 +947,28 @@ export function dispose(result) {
 }
 
 /** Volume, surface and bounding box of a part (mm³, mm², mm). */
+/**
+ * Separate parts that interpenetrate: [{ a, b, volume }] (part ids, mm³). Touching parts share no volume; a common volume that is tiny next to the parts (numerical noise
+ * of faces that lie on each other) does not count. Only pairs whose boxes overlap are intersected, and at most `limit` parts are looked at (the kernel does the work).
+ */
+export function overlapsOf(parts, limit = 60) {
+  const list = parts.slice(0, limit).map(p => ({ id: p.id, m: p.manifold, box: p.manifold.boundingBox(), v: p.manifold.volume() }));
+  const found = [];
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const A = list[i].box, B = list[j].box;
+      let apart = false;
+      for (let k = 0; k < 3; k++) if (A.max[k] <= B.min[k] + 1e-6 || B.max[k] <= A.min[k] + 1e-6) apart = true;
+      if (apart) continue;
+      const both = list[i].m.intersect(list[j].m);
+      const volume = both.volume();
+      both.delete();
+      if (volume > Math.max(0.01, 1e-6 * Math.min(list[i].v, list[j].v))) found.push({ a: list[i].id, b: list[j].id, volume });
+    }
+  }
+  return found;
+}
+
 export function properties(part) {
   const box = part.manifold.boundingBox();
   return { volume: part.manifold.volume(), area: part.manifold.surfaceArea(), box };

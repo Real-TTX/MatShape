@@ -35,6 +35,9 @@ public sealed class AiSettings
     /// <summary>How often the editor sends a result that does not build back to the AI to fix it, by itself.</summary>
     public int RepairRounds { get; set; } = 2;
 
+    /// <summary>The 3D generation (Meshy): its own switch, address, model and limits. Its key lies in <see cref="AiSecretStore"/> like the keys of the profiles.</summary>
+    public MeshSettings Mesh { get; set; } = new();
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public static AiSettings Parse(string? json)
@@ -53,5 +56,33 @@ public sealed class AiSettings
 
     /// <summary>The settings as they are saved (no right needed to read them: they hold no secret).</summary>
     public static async Task<AiSettings> LoadAsync(AppDbContext db, CancellationToken ct = default)
-        => Parse(await db.SystemSettings.AsNoTracking().Where(s => s.Id == 1).Select(s => s.AiSettings).FirstOrDefaultAsync(ct));
+    {
+        var settings = Parse(await db.SystemSettings.AsNoTracking().Where(s => s.Id == 1).Select(s => s.AiSettings).FirstOrDefaultAsync(ct));
+        settings.Mesh ??= new MeshSettings();
+        return settings;
+    }
+}
+
+/// <summary>
+/// The 3D generation: a picture (or up to four views of one thing) or a text becomes a mesh at Meshy, which the editor makes a solid part of. A generation costs credits there
+/// (about 20 with the current model, 5 with "meshy-6-lite"), so the limits count generations, not tokens. A limit of 0 means: no limit.
+/// </summary>
+public sealed class MeshSettings
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>The address of the API; another one only for a proxy or a test server.</summary>
+    public string BaseUrl { get; set; } = MeshyClient.DefaultBaseUrl;
+
+    /// <summary>"latest", "meshy-6" or "meshy-6-lite" (cheaper, coarser).</summary>
+    public string Model { get; set; } = "latest";
+
+    /// <summary>The triangles of a result (Meshy remeshes to about this many): enough for a figure, light enough for the kernel.</summary>
+    public int Polycount { get; set; } = 30_000;
+
+    /// <summary>Generations one person may start per day.</summary>
+    public int UserDaily { get; set; } = 10;
+
+    /// <summary>Generations all people together may start per month.</summary>
+    public int Monthly { get; set; } = 300;
 }

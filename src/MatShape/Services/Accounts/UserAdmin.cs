@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MatShape.Services.Accounts;
 
-public sealed record UserRow(long Id, string DisplayName, string Email, UserRole Role, bool IsActive, bool Locked, DateTime? LastLogin, DateTime Created, int Documents);
+public sealed record UserRow(long Id, string DisplayName, string Email, UserRole Role, bool IsActive, bool Locked, DateTime? LastLogin, DateTime Created, int Models);
 
 /// <summary>What the list of accounts shows and in which order (as it comes from the toolbar).</summary>
 public sealed record UserCriteria(string? Search, string? Role, string? State, string Sort, bool Descending, int Page, int PageSize);
@@ -31,7 +31,7 @@ public enum UserDeleted
 /// <summary>
 /// The accounts of the installation, for administrators. Every function checks in the first line that the actor is an active administrator,
 /// whatever the page did before. The last active administrator cannot lose the role, be locked or be deleted. An administrator sees how many
-/// documents a person owns, never what is in them (<see cref="MatShape.Services.Documents.DocumentAccess"/> gives administrators no access to the documents of others).
+/// models a person owns, never what is in them (<see cref="MatShape.Services.Models.ModelAccess"/> gives administrators no access to the models of others).
 /// </summary>
 public static class UserAdmin
 {
@@ -90,10 +90,10 @@ public static class UserAdmin
             .Select(u => new
             {
                 u.Id, u.DisplayName, u.Email, u.Role, u.IsActive, u.LockoutUntil, u.LastLoginDate, u.CreateDate,
-                Documents = db.Documents.Count(d => d.OwnerId == u.Id),
+                Models = db.Models.Count(d => d.OwnerId == u.Id),
             })
             .ToListAsync(ct);
-        var items = rows.Select(u => new UserRow(u.Id, u.DisplayName, u.Email, u.Role, u.IsActive, u.LockoutUntil > now, u.LastLoginDate, u.CreateDate, u.Documents)).ToList();
+        var items = rows.Select(u => new UserRow(u.Id, u.DisplayName, u.Email, u.Role, u.IsActive, u.LockoutUntil > now, u.LastLoginDate, u.CreateDate, u.Models)).ToList();
         return new UserList(items, total, matching);
     }
 

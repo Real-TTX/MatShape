@@ -1,0 +1,69 @@
+@page "/Admin/Ai/Mesh"
+@model MatShape.Pages.Admin.Ai.MeshModel
+@{
+    ViewData["Title"] = L["Ai.Title"].Value;
+    ViewData["PageSub"] = L["Ai.Sub"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Ai.Title"].Value, "/Admin/Ai"), (L["Ai.Tab.Mesh"].Value, null) };
+}
+
+<partial name="_AiTabs" model='"mesh"' />
+
+@if (!Model.HasKey)
+{
+    <div class="mat-alert mat-alert--warning" role="note">@Ui.Icon("alert")<div class="mat-alert__body">@L["Ai.Mesh.NoKey"]</div></div>
+}
+
+<div class="mat-cols">
+    <div class="mat-col-12 mat-col-lg-7">
+        <form class="mat-form" method="post" novalidate>
+            <partial name="_FormSummary" model="ViewData.ModelState" />
+            @if (Model.TestResult is { } test)
+            {
+                <div class="mat-alert @(Model.TestOk ? "mat-alert--success" : "mat-alert--danger")" role="status">@Ui.Icon(Model.TestOk ? "check-circle" : "x-circle")<div class="mat-alert__body">@test</div></div>
+            }
+            <div class="mat-card">
+                <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("box")@L["Ai.Mesh.Title"]</h2></div>
+                <div class="mat-card__body mat-form">
+                    <ms-field name="Enabled" kind="switch" label="@L["Ai.Mesh.Enabled"]" value="@Model.Enabled.ToString()" hint="@L["Ai.Mesh.Enabled.Hint"]" />
+                    <ms-field name="ApiKey" kind="password" label="@L["Ai.Mesh.Key"]" autocomplete="off" hint="@L[Model.HasKey ? "Ai.Mesh.Key.Stored" : "Ai.Mesh.Key.Hint"]" />
+                    @if (Model.HasKey)
+                    {
+                        <ms-field name="RemoveKey" kind="switch" label="@L["Ai.Mesh.Key.Remove"]" value="false" />
+                    }
+                    <ms-field name="Model" kind="select" label="@L["Ai.Mesh.Model"]" value="@Model.Model" options="Model.Models" hint="@L["Ai.Mesh.Model.Hint"]" />
+                    <ms-field name="Polycount" kind="number" label="@L["Ai.Mesh.Polycount"]" value="@Model.Polycount" min="1000" max="300000" step="1000" hint="@L["Ai.Mesh.Polycount.Hint"]" />
+                    <ms-field name="BaseUrl" kind="url" label="@L["Ai.Mesh.BaseUrl"]" value="@Model.BaseUrl" placeholder="https://api.meshy.ai" hint="@L["Ai.Mesh.BaseUrl.Hint"]" />
+                </div>
+            </div>
+            <div class="mat-card">
+                <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("shield")@L["Ai.Limits"]</h2></div>
+                <div class="mat-card__body mat-form">
+                    <p class="mat-hint">@L["Ai.Mesh.Limits.Hint"]</p>
+                    <ms-field name="UserDaily" kind="number" label="@L["Ai.Mesh.UserDaily"]" value="@Model.UserDaily" min="0" />
+                    <ms-field name="Monthly" kind="number" label="@L["Ai.Mesh.Monthly"]" value="@Model.Monthly" min="0" />
+                </div>
+            </div>
+            <div class="mat-btn-row">
+                <button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("save")<span>@L["Common.Save"]</span></button>
+                <a class="mat-btn mat-btn--secondary" href="/Admin/Ai">@Ui.Icon("back")<span>@L["Common.Back"]</span></a>
+                @if (Model.HasKey)
+                {
+                    <button type="submit" class="mat-btn mat-btn--secondary" formaction="@Url.Page("Mesh", "Test")" formnovalidate>@Ui.Icon("play")<span>@L["Ai.Mesh.Test"]</span></button>
+                }
+            </div>
+        </form>
+    </div>
+    <div class="mat-col-12 mat-col-lg-5">
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("info")@L["Ai.About"]</h2></div>
+            <div class="mat-card__body">
+                <p>@L["Ai.Mesh.About"]</p>
+                <p class="mat-hint">@L["Ai.Mesh.Costs"]</p>
+                <dl class="ms-dl">
+                    <dt>@L["Ai.Mesh.KeyState"]</dt><dd>@(Model.HasKey ? L["Ai.Mesh.KeyState.Stored"].Value : L["Ai.Mesh.KeyState.None"].Value)</dd>
+                    <dt>@L["Ai.Mesh.ThisMonth"]</dt><dd class="mat-mono">@Model.ThisMonth.ToString("N0", System.Globalization.CultureInfo.CurrentUICulture)</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>

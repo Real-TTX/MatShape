@@ -109,9 +109,6 @@ namespace MatShape.Data.Migrations
                     b.Property<long?>("CreateUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<long?>("DocumentId")
-                        .HasColumnType("bigint");
-
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -123,6 +120,9 @@ namespace MatShape.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<long?>("ModelId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ProfileName")
                         .IsRequired()
@@ -215,7 +215,47 @@ namespace MatShape.Data.Migrations
                     b.ToTable("AiRunStep", (string)null);
                 });
 
-            modelBuilder.Entity("MatShape.Data.Document", b =>
+            modelBuilder.Entity("MatShape.Data.Folder", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("CreateUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<long>("OwnerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ParentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("UpdateUserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
+
+                    b.HasIndex("OwnerId", "ParentId");
+
+                    b.ToTable("Folder", (string)null);
+                });
+
+            modelBuilder.Entity("MatShape.Data.Model", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -232,6 +272,9 @@ namespace MatShape.Data.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<long?>("FolderId")
+                        .HasColumnType("bigint");
 
                     b.Property<int>("LinkMode")
                         .HasColumnType("integer");
@@ -266,15 +309,17 @@ namespace MatShape.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FolderId");
+
                     b.HasIndex("OwnerId");
 
                     b.HasIndex("ShareToken")
                         .IsUnique();
 
-                    b.ToTable("Document", (string)null);
+                    b.ToTable("Model", (string)null);
                 });
 
-            modelBuilder.Entity("MatShape.Data.DocumentMember", b =>
+            modelBuilder.Entity("MatShape.Data.ModelMember", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -288,7 +333,10 @@ namespace MatShape.Data.Migrations
                     b.Property<long?>("CreateUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("DocumentId")
+                    b.Property<long?>("FolderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ModelId")
                         .HasColumnType("bigint");
 
                     b.Property<int>("Role")
@@ -305,15 +353,17 @@ namespace MatShape.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FolderId");
+
                     b.HasIndex("UserId");
 
-                    b.HasIndex("DocumentId", "UserId")
+                    b.HasIndex("ModelId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("DocumentMember", (string)null);
+                    b.ToTable("ModelMember", (string)null);
                 });
 
-            modelBuilder.Entity("MatShape.Data.DocumentVersion", b =>
+            modelBuilder.Entity("MatShape.Data.ModelVersion", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -335,7 +385,7 @@ namespace MatShape.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<long>("DocumentId")
+                    b.Property<long>("ModelId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Name")
@@ -351,9 +401,9 @@ namespace MatShape.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentId");
+                    b.HasIndex("ModelId");
 
-                    b.ToTable("DocumentVersion", (string)null);
+                    b.ToTable("ModelVersion", (string)null);
                 });
 
             modelBuilder.Entity("MatShape.Data.PartStudio", b =>
@@ -374,7 +424,7 @@ namespace MatShape.Data.Migrations
                     b.Property<long?>("CreateUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("DocumentId")
+                    b.Property<long>("ModelId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Name")
@@ -399,7 +449,7 @@ namespace MatShape.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentId", "Position");
+                    b.HasIndex("ModelId", "Position");
 
                     b.ToTable("PartStudio", (string)null);
                 });
@@ -609,7 +659,7 @@ namespace MatShape.Data.Migrations
                     b.Navigation("AiRun");
                 });
 
-            modelBuilder.Entity("MatShape.Data.Document", b =>
+            modelBuilder.Entity("MatShape.Data.Folder", b =>
                 {
                     b.HasOne("MatShape.Data.User", "Owner")
                         .WithMany()
@@ -617,14 +667,44 @@ namespace MatShape.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MatShape.Data.Folder", "Parent")
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Owner");
+
+                    b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("MatShape.Data.Model", b =>
+                {
+                    b.HasOne("MatShape.Data.Folder", "Folder")
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MatShape.Data.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Folder");
+
                     b.Navigation("Owner");
                 });
 
-            modelBuilder.Entity("MatShape.Data.DocumentMember", b =>
+            modelBuilder.Entity("MatShape.Data.ModelMember", b =>
                 {
-                    b.HasOne("MatShape.Data.Document", "Document")
+                    b.HasOne("MatShape.Data.Folder", "Folder")
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MatShape.Data.Model", "Model")
                         .WithMany("Members")
-                        .HasForeignKey("DocumentId")
+                        .HasForeignKey("ModelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -634,31 +714,33 @@ namespace MatShape.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Document");
+                    b.Navigation("Folder");
+
+                    b.Navigation("Model");
 
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("MatShape.Data.DocumentVersion", b =>
+            modelBuilder.Entity("MatShape.Data.ModelVersion", b =>
                 {
-                    b.HasOne("MatShape.Data.Document", "Document")
+                    b.HasOne("MatShape.Data.Model", "Model")
                         .WithMany()
-                        .HasForeignKey("DocumentId")
+                        .HasForeignKey("ModelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Document");
+                    b.Navigation("Model");
                 });
 
             modelBuilder.Entity("MatShape.Data.PartStudio", b =>
                 {
-                    b.HasOne("MatShape.Data.Document", "Document")
+                    b.HasOne("MatShape.Data.Model", "Model")
                         .WithMany("Studios")
-                        .HasForeignKey("DocumentId")
+                        .HasForeignKey("ModelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Document");
+                    b.Navigation("Model");
                 });
 
             modelBuilder.Entity("MatShape.Data.UserSession", b =>
@@ -677,7 +759,7 @@ namespace MatShape.Data.Migrations
                     b.Navigation("Steps");
                 });
 
-            modelBuilder.Entity("MatShape.Data.Document", b =>
+            modelBuilder.Entity("MatShape.Data.Model", b =>
                 {
                     b.Navigation("Members");
 

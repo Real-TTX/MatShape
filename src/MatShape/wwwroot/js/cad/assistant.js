@@ -1,12 +1,14 @@
 /* MatShape – the AI assistant of the editor: a panel at the right of the view. The person writes what they need ("a plate 80 × 40 × 6 with four holes of 6 mm"), the server asks the AI
    of the installation (POST /live/studios/{id}/ai with the Part Studio as it is), checks the answer and sends back the new content. The editor applies it as ONE step that can be undone,
-   builds it, and when features of the answer do not build it sends their errors back for a repair (as often as the administrator allows). Everything shown is text (textContent). */
+   builds it, and when features of the answer do not build – or separate parts now interpenetrate – it sends that back for a repair (as often as the administrator allows).
+   The person chooses the level of detail (rough, normal, fine; kept on this device). Everything shown is text (textContent). */
 
 import { el, icon, request, t, toast } from './util.js';
 
 export class Assistant {
   /**
-   * host: { studioId(), content(), apply(content) -> before, statusOf(ids) -> [{id, name, message}], undo(before) -> bool, fit(), busy(on) }
+   * host: { studioId(), content(), apply(content) -> before, statusOf(ids) -> [{id, name, message}], overlaps() -> [{a, b, aName, bName, volume}], undo(before) -> bool,
+   *         fit(), busy(on) }
    */
   constructor(panel, host) {
     this.panel = panel;
@@ -38,6 +40,21 @@ export class Assistant {
       if (files.length) { e.preventDefault(); this.attach(files); }
     });
     panel.querySelectorAll('[data-ai-example]').forEach(b => b.addEventListener('click', () => { this.input.value = b.textContent; this.input.focus(); }));
+    // the level of detail, kept on this device
+    this.detail = panel.querySelector('[data-ai-detail]');
+    if (this.detail) {
+      try { this.detail.value = localStorage.getItem('ms.ai.detail') || 'normal'; } catch { /* private mode */ }
+      if (!this.detail.value) this.detail.value = 'normal';
+      this.detail.addEventListener('change', () => { try { localStorage.setItem('ms.ai.detail', this.detail.value); } catch { /* private mode */ } });
+    }
+  }
+
+  /** The overlaps that are new or grew since the start of a request (the person's own stay theirs). */
+  newOverlaps(baseline) {
+    return (this.host.overlaps?.() || []).filter(o => {
+      const before = baseline.get(o.a + '|' + o.b);
+      return before === undefined || o.volume > before * 1.5 + 0.01;
+    });
   }
 
   open(on = this.panel.hidden) {
@@ -113,14 +130,18 @@ export class Assistant {
   async run(prompt, attachments = []) {
     let before = null;
     let errors = null;
+    let overlaps = null;
     let tokens = 0;
     let changed = [];
+    let removed = [];
+    const baseline = new Map((this.host.overlaps?.() || []).map(o => [o.a + '|' + o.b, o.volume]));
+    const detail = this.detail?.value || 'normal';
     for (let round = 0; ; round++) {
       const busy = this.thinking(t(round ? 'Ai.Repairing' : 'Ai.Thinking'));
       let answer;
       try {
         answer = await request('POST', `/live/studios/${this.host.studioId()}/ai`, {
-          prompt, content: this.host.content(), errors, language: document.documentElement.lang, attachments,
+          prompt, content: this.host.content(), errors, overlaps, detail, language: document.documentElement.lang, attachments,
         });
       } catch (error) {
         busy.remove();
@@ -134,24 +155,29 @@ export class Assistant {
       tokens += answer.tokens || 0;
       const applied = this.host.apply(answer.content);
       if (before === null) before = applied;
-      changed = [...new Set([...changed, ...(answer.changed || [])])];
+      removed = [...new Set([...removed, ...(answer.removed || [])])];
+      changed = [...new Set([...changed, ...(answer.changed || [])])].filter(id => !removed.includes(id));
       const broken = this.host.statusOf(answer.changed || []);
-      if (broken.length && round < (answer.repairRounds ?? 0)) {
+      const overlapping = this.newOverlaps(baseline);
+      if ((broken.length || overlapping.length) && round < (answer.repairRounds ?? 0)) {
         if (answer.message) this.line('ai', answer.message);
         errors = broken;
+        overlaps = overlapping.map(o => ({ a: o.a, aName: o.aName, b: o.b, bName: o.bName, volume: Math.round(o.volume * 1000) / 1000 }));
         continue;
       }
 
       this.host.fit();
-      const undo = changed.length
+      const undo = changed.length || removed.length
         ? el('button', { type: 'button', class: 'mat-btn mat-btn--ghost mat-btn--sm' }, icon('undo'), el('span', null, t('Ai.Undo')))
         : null;
       const meta = el('div', { class: 'ms-ai__meta' },
         el('span', { class: 'mat-pill mat-pill--plain' }, t('Ai.Changed', changed.length)),
+        removed.length ? el('span', { class: 'mat-pill mat-pill--plain' }, t('Ai.Removed', removed.length)) : null,
         el('span', { class: 'ms-ai__tokens mat-mono' }, t('Ai.Tokens', tokens.toLocaleString(document.documentElement.lang))),
         undo);
       const item = this.line('ai', answer.message || t('Ai.Done'), meta);
       if (broken.length) item.append(el('p', { class: 'ms-ai__warn' }, icon('alert'), ' ', t('Ai.StillBroken', broken.map(b => b.name || b.id).join(', '))));
+      if (overlapping.length) item.append(el('p', { class: 'ms-ai__warn' }, icon('alert'), ' ', t('Ai.StillOverlapping', overlapping.map(o => o.aName + ' × ' + o.bName).join(', '))));
       undo?.addEventListener('click', () => {
         if (this.host.undo(before)) { undo.disabled = true; undo.querySelector('span').textContent = t('Ai.Undone'); }
         else toast(t('Ai.CannotUndo'), 'warning');

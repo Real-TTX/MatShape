@@ -2,14 +2,14 @@ using MatShape.Controls;
 using MatShape.Data;
 using MatShape.Localization;
 using MatShape.Services;
-using MatShape.Services.Documents;
+using MatShape.Services.Models;
 using MatShape.Services.Mail;
 using Microsoft.AspNetCore.Mvc;
 using MatShape.Services.Accounts;
 
 namespace MatShape.Pages.Account;
 
-/// <summary>The profile: name, language, time zone, the look, the unit of new documents and whether a mail comes when a document is shared. The theme button of the menu saves here too (handler Theme).</summary>
+/// <summary>The profile: name, language, time zone, the look, the unit of new models and whether a mail comes when a model is shared. The theme button of the menu saves here too (handler Theme).</summary>
 public sealed class IndexModel(AppDbContext db, MailService mail) : AppPageModel
 {
     [BindProperty] public string DisplayName { get; set; } = string.Empty;
@@ -18,7 +18,7 @@ public sealed class IndexModel(AppDbContext db, MailService mail) : AppPageModel
 
     [BindProperty] public string TimeZone { get; set; } = string.Empty;
 
-    [BindProperty] public string DefaultUnits { get; set; } = DocumentUnits.Default;
+    [BindProperty] public string DefaultUnits { get; set; } = ModelUnits.Default;
 
     [BindProperty] public bool MailOnShare { get; set; } = true;
 
@@ -32,7 +32,7 @@ public sealed class IndexModel(AppDbContext db, MailService mail) : AppPageModel
 
     public List<Choice> LanguageChoices { get; } = [new(string.Empty, Text.T("Common.Language.Auto")), .. Languages.Supported.Select(l => new Choice(l.Code, l.Name))];
 
-    public List<Choice> UnitChoices { get; } = DocumentUnits.All.Select(u => new Choice(u, Text.T("Units." + u))).ToList();
+    public List<Choice> UnitChoices { get; } = ModelUnits.All.Select(u => new Choice(u, Text.T("Units." + u))).ToList();
 
     public List<Choice> Schemes { get; } =
     [

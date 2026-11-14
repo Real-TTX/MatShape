@@ -6,7 +6,7 @@ import { SCALES, drawingViews, layoutDrawing, toDxf, toPdf, toSvg } from './draw
 import { debounce, download, fileName, fmt, t, toast } from './util.js';
 
 export class DrawingDialog {
-  /** host: { kernel(), parts() (the visible parts, with manifolds), name(), doc(), units(), unit(), person() } */
+  /** host: { kernel(), parts() (the visible parts, with manifolds), name(), modelName(), units(), unit(), person() } */
   constructor(dialog, host) {
     this.dialog = dialog;
     this.host = host;
@@ -80,11 +80,11 @@ export class DrawingDialog {
       views: this.views,
       title: {
         name: this.$('[data-draw-name]').value.trim(),
-        doc: this.host.doc(),
+        model: this.host.modelName(),
         date: new Date().toLocaleDateString(document.documentElement.lang || 'en'),
         units: this.host.units(),
         by: this.host.person(),
-        labels: { title: t('Drawing.Block.Title'), document: t('Drawing.Block.Document'), scale: t('Drawing.Block.Scale'), date: t('Drawing.Block.Date'), units: t('Drawing.Block.Units'), sheet: t('Drawing.Block.Sheet'), by: t('Drawing.Block.By'), software: t('Drawing.Block.Software'), projection: t('Drawing.Block.Projection') },
+        labels: { title: t('Drawing.Block.Title'), model: t('Drawing.Block.Model'), scale: t('Drawing.Block.Scale'), date: t('Drawing.Block.Date'), units: t('Drawing.Block.Units'), sheet: t('Drawing.Block.Sheet'), by: t('Drawing.Block.By'), software: t('Drawing.Block.Software'), projection: t('Drawing.Block.Projection') },
       },
       format: v => fmt(v / unit, 2),
     });

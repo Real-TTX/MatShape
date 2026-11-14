@@ -119,6 +119,34 @@ export function buildDialog(form, ctx) {
       break;
     }
 
+    case 'figure': {
+      // the blocks are written by the AI (or by hand as JSON); here: the size, the fineness and the blocks themselves
+      add(pair(expr(t('Dialog.Figure.Scale'), p.scale, 'number', ctx, v => { p.scale = v; }),
+        choice(t('Dialog.Figure.Detail'), p.detail || 'normal', [['rough', t('Dialog.Figure.Detail.rough')], ['normal', t('Dialog.Figure.Detail.normal')], ['fine', t('Dialog.Figure.Detail.fine')]], v => { p.detail = v; ctx.changed(); })));
+      add(check(t('Dialog.Figure.Flat'), p.flat !== false, v => { p.flat = v; ctx.changed(); }));
+      const id = uid('d');
+      const area = el('textarea', { class: 'mat-textarea mat-mono ms-figure-json', id, rows: '14', spellcheck: 'false', wrap: 'off' });
+      area.value = figureText(p.parts);
+      const state = el('p', { class: 'ms-expr-out' });
+      const node = wrap(id, t('Dialog.Figure.Blocks'), area, t('Dialog.Figure.Hint'));
+      node.append(state);
+      area.addEventListener('input', () => {
+        try {
+          const parts = JSON.parse(area.value);
+          if (!Array.isArray(parts)) throw new Error('not a list');
+          p.parts = parts;
+          state.textContent = t('Dialog.Figure.Count', parts.length, parts.reduce((n, g) => n + (Array.isArray(g?.blocks) ? g.blocks.length : 0), 0));
+          state.classList.remove('is-error'); node.classList.remove('is-invalid');
+          ctx.changed();
+        } catch {
+          state.textContent = t('Dialog.Figure.Invalid');
+          state.classList.add('is-error'); node.classList.add('is-invalid');
+        }
+      });
+      add(node);
+      break;
+    }
+
     case 'variable':
       add(text(t('Dialog.VariableName'), p.name, v => { p.name = v.trim().replace(/^#/, ''); ctx.changed(); }, '#'));
       add(expr(t('Dialog.Value'), p.value, 'variable', ctx, v => { p.value = v; }));
@@ -284,6 +312,18 @@ const AXES = [['x', 'X'], ['y', 'Y'], ['z', 'Z']];
 
 // ---- fields ----------------------------------------------------------------------------------------------------------------
 
+/** The groups of a figure as JSON for people: one group per paragraph, one block per line. */
+function figureText(parts) {
+  if (!Array.isArray(parts)) return '[]';
+  const groups = parts.map(g => {
+    const { blocks, ...rest } = g || {};
+    const head = JSON.stringify(rest).slice(0, -1);
+    const lines = (Array.isArray(blocks) ? blocks : []).map(b => '    ' + JSON.stringify(b));
+    return '  ' + head + (head.length > 1 ? ', ' : '') + '"blocks": [\n' + lines.join(',\n') + '\n  ]}';
+  });
+  return '[\n' + groups.join(',\n') + '\n]';
+}
+
 function label(id, text) { return el('label', { class: 'mat-label', for: id }, text); }
 
 function wrap(id, caption, control, hint) {
@@ -314,6 +354,7 @@ function expr(caption, value, kind, ctx, apply) {
       if (kind === 'length' || kind === 'length?') shown = fmtLen(evalLength(v, ctx.input.variables, ctx.unit), ctx);
       else if (kind === 'angle') shown = round(evalAngle(v, ctx.input.variables)) + '°';
       else if (kind === 'count') shown = String(Math.round(evalNumber(v, ctx.input.variables)));
+      else if (kind === 'number') shown = round(evalNumber(v, ctx.input.variables));
       else shown = '';
       out.textContent = /^[-+]?\d*\.?\d+$/.test(v.trim()) ? '' : shown ? '= ' + shown : '';
       out.classList.remove('is-error');
